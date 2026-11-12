@@ -1,6 +1,6 @@
 # System Architecture — Production Candidate and Demonstrator View
 
-Companion to `srd.md` (v2). Status: **proposal for review**. Nothing here is a committed deployment design; it exists so the demonstrator can show a credible one and so its gaps are visible early.
+Companion to `srd.md` (v2). Status: **reviewed; requirements folded into `srd.md` (ARC-7, §5.6 SYS-1–6, acceptance 13–15)**. Nothing here is a committed deployment design; it exists so the demonstrator can show a credible one and so its gaps are visible early.
 
 Three parts:
 
@@ -17,8 +17,8 @@ Three parts:
 | # | Assumption | If wrong |
 |---|---|---|
 | A1 | Runs on the ship, on a small number of rack servers; must work with the shore link down. | A shore-hosted variant moves compute ashore; the zone model still holds. |
-| A2 | Instruments sit on an operational-technology (OT) network that must not accept inbound traffic from mission systems. | Ingestion can be merged into the processing enclave. |
-| A3 | Consumers are other onboard systems on a separate mission network. | Broker and pygeoapi move into the consumer zone. |
+| A2 | Instruments sit on an operational-technology (OT) network that must not accept inbound traffic from mission systems. **Confirmed.** | Ingestion can be merged into the processing enclave. |
+| A3 | Consumers are other onboard systems on a separate mission network. **Confirmed.** | Broker and pygeoapi move into the consumer zone. |
 | A4 | Containerised deployment (Docker Compose or k3s) on hardened hosts. | Bare-metal services; nothing else changes. |
 
 ### 1.2 Zones and nodes
@@ -92,10 +92,10 @@ flowchart LR
 These are the points a reviewer should challenge before the demonstrator presents this as "how it would work".
 
 1. **The module boundary is not a process boundary.** In Dagster, shims and our modules run in the same code-location process. "Replaceable orchestrator" (SRD §1.2) holds at the *import* level only. Using Dagster Pipes for the model runner gives a real process boundary for the one module where it matters most; the others stay in-process. The demonstrator should not imply more isolation than this.
-2. **A 4 s drift sensor is atypical for Dagster.** Sensors default to a 30 s minimum interval, and each evaluation has daemon overhead. Options: (a) accept a longer interval in production and treat 4 s as demo time-compression; (b) move drift scoring into an always-on service beside ingestion that *requests* runs via the Dagster API. Option (b) moves the drift monitor out of the orchestrator, which changes the SRD's "embedded in the sensor" picture. **Decision needed.**
+2. **A 4 s drift sensor is atypical for Dagster.** Sensors default to a 30 s minimum interval, and each evaluation has daemon overhead. Options: (a) accept a longer interval in production and treat 4 s as demo time-compression; (b) move drift scoring into an always-on service beside ingestion that *requests* runs via the Dagster API. Option (b) moves the drift monitor out of the orchestrator, which changes the SRD's "embedded in the sensor" picture. **Decided: (a).** Production keeps the Dagster sensor at ≥30 s; 4 s is demo time-compression.
 3. **"Queue, then merge" is not native.** Dagster's run queue with a concurrency limit of 1 gives one-at-a-time, but merging queued requests (ORC-2) needs custom logic (a sensor that coalesces requests, or `run_key` dedupe plus cause tags). The shim is then more than a one-line pass-through (ARC-2); the extra logic belongs in orchestrator glue, not in our modules.
 4. **"Retry until success" is unsafe in production.** Dagster `RetryPolicy` supports exponential backoff but needs a `max_retries`. Production should cap retries and raise an alert; the forecast staleness schedule then becomes the recovery path. The demonstrator can keep unbounded retry but should state that it is a demo simplification.
-5. **pygeoapi as the only read path for our own modules** keeps the read path uniform but puts an HTTP hop (and EDR serialisation) in the model runner's hot path. Acceptable for small grids; for large coverages, allow direct read-only access to the NetCDF/Zarr store and keep pygeoapi for consumers. **Decision needed.**
+5. **pygeoapi as the only read path for our own modules** keeps the read path uniform but puts an HTTP hop (and EDR serialisation) in the model runner's hot path. Acceptable for small grids; for large coverages, allow direct read-only access to the NetCDF/Zarr store and keep pygeoapi for consumers. **Decided: pygeoapi only for now**; revisit if grids grow.
 6. **Two schedulers of truth.** Ingestion runs continuously; Dagster sees observations only as a source asset. Asset freshness must therefore come from observation timestamps (an observable source asset), not from Dagster materialisation events.
 7. **Shore link is absent from the SRD** but is the most likely production failure mode (stale climatology, no shore backup). Worth one line in the demonstrator; not worth simulating in v2.
 
@@ -208,9 +208,9 @@ Within each node, processes are boxes; within each process, the elements placed 
 
 ---
 
-## 4. Proposed SRD additions
+## 4. SRD additions
 
-To be folded into `srd.md` once reviewed:
+Now folded into `srd.md` (ARC-7 in §4, SYS-1–6 in §5.6). Kept here as the original proposal; `srd.md` is authoritative:
 
 | ID | Requirement |
 |---|---|
@@ -228,8 +228,8 @@ Acceptance criteria:
 14. With the model runner offline, the compute node shows the offline state and the run token's route ends at the orchestration→compute link with the amber retry on the shim.
 15. Removing any element's placement, or a link required by a cross-node edge, fails the test suite.
 
-New open questions:
+Questions raised by this proposal, now decided (Nov 12, 2026):
 
-7. Drift monitoring cadence in production — Dagster sensor at ≥30 s, or an always-on service that requests runs (§1.4 point 2)?
-8. Should our modules read via pygeoapi only, or have direct read access to the coverage store (§1.4 point 5)?
-9. Is the OT/mission network separation (A2, A3) correct for the target ship class?
+- Drift cadence: Dagster sensor; ≥30 s in production, 4 s in the demo.
+- Read path: pygeoapi only, for now.
+- OT/mission network separation: confirmed.
