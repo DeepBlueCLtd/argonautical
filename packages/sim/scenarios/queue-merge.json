@@ -1,0 +1,13 @@
+{
+  "name": "queue-merge",
+  "description": "Acceptance 5: a drift request arrives during a run and queues; a manual request then merges into it, and the log shows both causes.",
+  "seed": "demo",
+  "until": 40,
+  "steps": [
+    { "at": 0, "action": { "type": "threshold", "value": 2 }, "caption": "The operator tightens drift detection: 2σ, persistence 1." },
+    { "at": 0, "action": { "type": "persistence", "value": 1 } },
+    { "at": 0, "action": { "type": "shift", "input": "temp", "on": true }, "caption": "A front starts moving temperature and salinity while F1 is being produced." },
+    { "at": 0, "action": { "type": "shift", "input": "sal", "on": true } },
+    { "at": 12, "action": { "type": "requestRun" }, "caption": "Drift was declared during R1, so it queued. The operator's request merges into it: one run, two causes." }
+  ]
+}
