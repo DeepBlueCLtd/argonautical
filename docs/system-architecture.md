@@ -238,7 +238,9 @@ Questions raised by this proposal, now decided (Nov 12, 2026):
 
 ## 5. Build vs adopt
 
-Policy: **build** only the components where the capability itself sets us apart (the exquisite part). **Adopt** off-the-shelf open source for commodity capabilities. The SRD's "ours / off-the-shelf (mocked)" split is the demonstrator's expression of this policy.
+**Scope: the eventual production system, not the demonstrator.** The demonstrator is all custom code and mocks every component; it only *shows* the production decision through styling (§5.4).
+
+Policy: **build** only the components where the capability itself sets us apart (the exquisite part). **Adopt** off-the-shelf open source for commodity capabilities.
 
 ### 5.1 Decision criteria
 
@@ -274,12 +276,11 @@ Adopted components must have: an OSI-approved licence compatible with redistribu
 - **"Ours" in the SRD conflates two things:** *our code* and *our data*. The stores are drawn as "ours" (double border) but are adopted products holding our data and schemas. The demonstrator should keep the double border as "our data" and make sure no one reads it as "we build a database".
 - **The real special sauce is thinner than the module list suggests.** Of the four "our modules", only the model runner (and possibly the feature detector) is plausibly exquisite. Ingestion QC and drift scoring are mostly standard techniques with our thresholds. That is fine, but it means the build budget should concentrate on the model runner.
 - **Adopting has a hidden cost: integration glue.** §1.4 points 3 and 4 show the shims will not stay one-line in production. That glue is unavoidable custom code that is neither special sauce nor off-the-shelf; it needs an owner and tests.
-- **Copyleft licences sit next to the special sauce.** GPL (PostGIS, py-eddy-tracker) and AGPL (MinIO) are acceptable as separate services, but risky if linked into our modules. A licence check belongs in CI next to the ARC-1 boundary check.
-- **Replaceability is only as good as the shims.** ARC-1 prevents our modules importing the orchestrator; nothing yet prevents them importing pygeoapi or broker client libraries directly. If those are commodity too, the same boundary rule should cover them.
+- **Copyleft licences sit next to the special sauce.** GPL (PostGIS, py-eddy-tracker) and AGPL (MinIO) are acceptable as separate services, but risky if linked into our modules. The production build needs a licence check in CI.
+- **Replaceability is only as good as the shims.** In production, the import-boundary rule that ARC-1 demonstrates should cover every adopted component's client libraries (pygeoapi, broker), not just the orchestrator.
 
 ### 5.4 Demonstrator implications
 
-The SRD already encodes the split visually (steel/pale = ours; dashed = off-the-shelf). Two small additions would make the policy visible without new simulation:
+Styling only. The SRD's colour semantics (§5.3) already show the production decision: steel accent, pale fill = *build*; dashed border = *adopt*; double border = our data held in an adopted store. In the demonstrator every element, of either style, is custom simulation code.
 
-- Each off-the-shelf element names its candidate product and licence in a tooltip or the system view (e.g. "Broker — Mosquitto, EPL-2.0"), labelled "candidate".
-- The banner's boundary-check result could also show a licence-check result, once CI has one.
+One optional addition: each dashed element can name its candidate production product and licence in a tooltip or in the system view (e.g. "Broker — candidate: Mosquitto, EPL-2.0").
