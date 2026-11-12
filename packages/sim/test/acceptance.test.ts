@@ -46,6 +46,15 @@ describe('acceptance criteria', () => {
     expect(sim.netcdf.byId('F2')?.cause).toBe('drift + manual');
   });
 
+  it('DRF-5: while a drift run is queued or running, persistent drift raises no new request', () => {
+    const sim = runScript(loadScenario('queue-merge'));
+    const r2 = sim.orchestrator.history.find((r) => r.id === 'R2')!;
+    expect(r2.causes).toBe('drift + manual');
+    const driftRequests = events(sim, 'request').filter((e) => e.text.startsWith('drift request'));
+    expect(driftRequests.filter((e) => e.tick > r2.startedAt && e.tick <= r2.endedAt)).toEqual([]);
+    expect(events(sim, 'drift').some((e) => e.text === 'drift monitor: drift persists, drift run in progress')).toBe(true);
+  });
+
   it('5b. one run at a time', () => {
     const sim = new Simulation({ seed: 'busy' });
     let maxActive = 0;

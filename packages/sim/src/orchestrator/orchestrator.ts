@@ -3,14 +3,14 @@
  * run queue with merge, and retry with backoff. ORC-1..6, DRF-5.
  */
 import { TIMING } from '../config.ts';
-import type { Announcement, Feature, Forecast, Job } from '../contracts.ts';
+import type { Feature, Forecast, Job } from '../contracts.ts';
 import type { EventLog } from '../events.ts';
 import { clockLabel } from '../events.ts';
 import { ModuleFailure } from '../faults.ts';
+import type { Announcer } from '../modules/announcer.ts';
 import type { DriftCheckResult, DriftMonitor, DriftParams } from '../modules/driftMonitor.ts';
 import type { FeatureDetector } from '../modules/featureDetector.ts';
 import type { ModelRunner } from '../modules/modelRunner.ts';
-import type { Broker } from '../platform/broker.ts';
 import type { TokenRecorder } from '../tokens.ts';
 import { edgeId, type ElementId } from '../topology/elements.ts';
 import * as shims from './shims.ts';
@@ -66,7 +66,7 @@ export interface OrchestratorDeps {
   readonly monitor: Pick<DriftMonitor, 'check'>;
   readonly runner: Pick<ModelRunner, 'start'>;
   readonly detector: Pick<FeatureDetector, 'start'>;
-  readonly broker: Pick<Broker, 'publish'>;
+  readonly announcer: Pick<Announcer, 'announce'>;
   readonly params: DriftParams;
 }
 
@@ -88,6 +88,13 @@ export class Orchestrator {
 
   constructor(private readonly d: OrchestratorDeps) {
     this.params = d.params;
+  }
+
+  /** DRF-5: is a run that includes drift among its causes already queued or running? */
+  get driftRunState(): 'queued' | 'running' | undefined {
+    if (this.pending?.causes.includes('drift')) return 'queued';
+    if (this.active?.causes.includes('drift')) return 'running';
+    return undefined;
   }
 
   get runPending(): boolean {
@@ -136,7 +143,7 @@ export class Orchestrator {
 
   private driftCheck(t: number): void {
     this.d.tokens.emit(edgeId('shimCheck', 'call', 'driftMonitor'));
-    const res = shims.check(this.d.monitor, { params: this.params, streak: this.cursor.streak, runQueued: this.pending !== null });
+    const res = shims.check(this.d.monitor, { params: this.params, streak: this.cursor.streak, driftRun: this.driftRunState });
     const changed = res.status !== this.cursor.status;
     Object.assign(this.cursor, { streak: res.streak, status: res.status, lastCheck: t, residuals: res.residuals, exceeding: res.exceeding });
     if (res.requestRun) {
@@ -256,9 +263,9 @@ export class Orchestrator {
     const f = a.forecast!;
     this.d.tokens.emit(edgeId('features', 'lineage', 'announcement'));
     this.d.tokens.emit(edgeId('forecast', 'lineage', 'announcement'));
-    const msg: Announcement = { forecastId: f.id, validUntil: f.validUntil, cause: f.cause, digest: f.digest, featureCount: a.featureCount ?? 0 };
+    this.d.tokens.emit(edgeId('shimAnnounce', 'call', 'announcer'));
+    const msg = shims.announce(this.d.announcer, { forecast: f, featureCount: a.featureCount ?? 0 });
     this.d.log.append(t, 'announce', `announce ${msg.forecastId} (${msg.cause}), ${msg.featureCount} features, digest ${msg.digest}`);
-    shims.announce(this.d.broker, msg);
     this.materialise('announcement', t);
     this.history.push({ id: a.id, forecastId: f.id, causes: a.causes.join(' + '), startedAt: a.startedAt, endedAt: t, failures: a.totalFailures, featureCount: msg.featureCount });
     this.d.log.append(t, 'run', `${a.id} complete in ${t - a.startedAt}s`);

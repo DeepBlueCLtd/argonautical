@@ -52,6 +52,7 @@ export const PLACEMENT: Record<ElementId, Placement> = {
   featureDetector: { node: 'orch', process: 'code-location' },
   announcement: { node: 'orch', process: 'code-location' },
   shimAnnounce: { node: 'orch', process: 'code-location' },
+  announcer: { node: 'orch', process: 'code-location' },
   netcdfStore: { node: 'data', process: 'coverage-store' },
   featuresDb: { node: 'data', process: 'postgis' },
   pygeoapi: { node: 'dist', process: 'pygeoapi' },

@@ -79,6 +79,9 @@ export interface ForecastWriter {
 export interface FeatureWriter {
   writeAll(forecastId: string, features: readonly Feature[]): void;
 }
+export interface AnnouncementPublisher {
+  publish(msg: Announcement): void;
+}
 
 /** A long-running step (model run, detection). Pipes-style: start, report progress, complete. */
 export interface Job<R> {
