@@ -77,7 +77,7 @@ flowchart LR
 | Ingestion | Long-running service | OT (edge of) | Only writer to Observations DB. Not orchestrated (UI-4) — correct in production too: per-sample work does not belong in a batch orchestrator. |
 | Orchestrator | Dagster webserver + daemon + metadata Postgres | Orchestration node | The "private store" (§2) is Dagster's own Postgres. |
 | Shims | `@asset` / `@sensor` definitions | Code location process | See §1.4 — the boundary is an import boundary, not a process boundary. |
-| Drift monitor, feature detector | Python packages imported by the code location | Orchestration node | Run in-process with the shims. |
+| Drift monitor, feature detector, announcer | Python packages imported by the code location | Orchestration node | Run in-process with the shims. The announcer owns the announcement message contract. |
 | Model runner | Container launched by Dagster Pipes | Compute node | Heavier, may be a different language/runtime; isolate it. |
 | Observations DB | Postgres + TimescaleDB | Data node | |
 | NetCDF store | Shared volume (NFS) or MinIO with Zarr | Data node | Atomic commit = write to staging path, then rename/manifest swap. |
@@ -266,6 +266,7 @@ Adopted components must have: an OSI-approved licence compatible with redistribu
 | Observability | **Adopt** | Prometheus, Grafana, Loki | Commodity. |
 | **Model runner** | **Build** (wrapper) + **assess** (core) | Our assimilation logic, possibly around an OSS ocean model (ROMS, NEMO, MOM6) and DA framework (DART, PDAF, OpenDA) | The special sauce is most likely the *assimilation configuration, onboard tuning and error models*, not a new numerical model. Building the core numerics from scratch is the highest-cost, highest-risk choice; it needs explicit justification. |
 | **Drift monitor** | **Build** | — | Small, domain-specific, and its thresholds are operationally tuned. Low cost to own. |
+| **Announcer** | **Build** | — | Tiny, but it owns the announcement message contract that consumers depend on; keeping it ours means the broker stays replaceable. |
 | **Feature detector** | **Build** or **adapt** | py-eddy-tracker (GPL-3.0), front-detection literature algorithms | Differentiating if tuned to our sensors and regions; otherwise adapt OSS. **Licence check:** GPL-3.0 code inside our module makes that module GPL. |
 | **Ingestion** | **Build** (thin) on **adopted** QC | ioos_qc (QARTOD tests, Apache-2.0) | The sensor adapters and onboard rules are ours; the standard QC tests (range, spike, rate of change, i.e. ING-1–3) are commodity. |
 | Shims | **Build** | — | By definition ours, and deliberately trivial (ARC-2). |

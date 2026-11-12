@@ -9,7 +9,7 @@ Supersedes the SRD of Oct 3, 2026 (@Ian Mayo). Written for a fresh implementatio
 The demonstrator is a browser simulation of an onboard ocean-forecast pipeline. It exists to explain, to people who will not read the code, three things:
 
 1. **The pipeline is asset-driven.** An orchestrator (Dagster-style) keeps a graph of data assets — observations, climatology, background, forecast, features, announcement — and materialises them when something triggers it: detected drift, a stale forecast, or an operator request.
-2. **Our software is separate from the off-the-shelf parts.** Our modules (ingestion, drift monitor, model runner, feature detector) are run by the orchestrator but import nothing from it. They are reached only through thin shims, so the orchestrator could be replaced.
+2. **Our software is separate from the off-the-shelf parts.** Our modules (ingestion, drift monitor, model runner, feature detector, announcer) are run by the orchestrator but import nothing from it. They are reached only through thin shims, so the orchestrator could be replaced.
 3. **The system is robust.** Failures are retried with backoff, one run happens at a time, consumers verify what they receive, and late joiners catch up.
 
 ### Audience
@@ -54,6 +54,7 @@ The screen and the simulation share one model, in three regions separated by two
   - **Drift monitor** (inside the drift sensor): scores the latest observations against the current forecast.
   - **Model runner** (inside forecast): moves the background 60% of the way towards recent observations, falling back to climatology. It stages the result, then commits it atomically with a digest.
   - **Feature detector** (inside features): finds fronts and eddies in the new forecast.
+  - **Announcer** (inside announcement): builds the announcement (ORC-5) and publishes it to the broker. The message contract is ours.
 - **Stores** (ours): the Observations DB (time series), the NetCDF store (coverage files: climatology and forecasts) and the Features DB (PostGIS).
 - **pygeoapi** (off-the-shelf, mocked, read-only): SensorThings, EDR and Features. It is the only read path, both for our modules and for consumers.
 - **Broker** (off-the-shelf, mocked): sits on the System–Consumers boundary and delivers only to subscribers.
@@ -93,8 +94,8 @@ The screen and the simulation share one model, in three regions separated by two
 | DRF-1 | On each sensor tick, compute each input's residual (latest observation − forecast) in σ. |
 | DRF-2 | Declare drift when at least *quorum* inputs exceed ±*threshold*σ for *persistence* consecutive checks. |
 | DRF-3 | Operator-tunable, within declared bounds: threshold 1–6σ (step 0.5), quorum 1–N inputs, persistence 1–5 checks. The value actually in force is always displayed. |
-| DRF-4 | Report a status line: no forecast yet / nothing out of range / below quorum / quorum met, persistence k of n / drift declared / drift persists, run already queued. |
-| DRF-5 | While a run is queued, persistent drift does not raise a new request. |
+| DRF-4 | Report a status line: no forecast yet / nothing out of range / below quorum / quorum met, persistence k of n / drift declared / drift persists, drift run already queued / drift persists, drift run in progress. |
+| DRF-5 | While a run that includes drift among its causes is queued or running, persistent drift does not raise a new request. Drift can still queue behind a manual or scheduled run, so `drift + manual` merges remain possible. |
 
 ### 3.4 Model runner and feature detector
 
@@ -131,7 +132,7 @@ The screen and the simulation share one model, in three regions separated by two
 
 | ID | Requirement |
 |---|---|
-| ARC-1 | **Module boundary.** Our modules (ingestion, drift monitor, model runner, feature detector) must not import the orchestrator or the shims. CI enforces this (e.g. an ESLint `no-restricted-imports` rule or a dependency-cruiser rule) and the result is shown on screen. |
+| ARC-1 | **Module boundary.** Our modules (ingestion, drift monitor, model runner, feature detector, announcer) must not import the orchestrator or the shims. CI enforces this (e.g. an ESLint `no-restricted-imports` rule or a dependency-cruiser rule) and the result is shown on screen. |
 | ARC-2 | Shims are one-line pass-throughs, one per crossing. |
 | ARC-3 | **Wiring is declared, not drawn.** Each element declares its relations (sends, calls, writes, reads, publishes, subscribes, queries, materialises). Edges are derived from these declarations. Layout supplies geometry only. |
 | ARC-4 | Simulation and rendering are separate. The UI reads simulation state each frame and never mutates it, except through the control API. |
@@ -270,3 +271,5 @@ None open. The six questions from v2 and three raised by the system-architecture
 - **Drift monitor cadence.** It stays a Dagster sensor. The 4 s interval is demo-only; production uses ≥30 s (ORC-1).
 - **Read path.** Our modules read only through pygeoapi, as §2 states. Revisit if forecast grids grow large enough for the HTTP hop to matter.
 - **Network zones.** The instrument (OT) network and the mission network are separate, with a distribution zone between them (SYS-3).
+- **Announce shim.** It calls a new module of ours, the announcer, which publishes to the broker, so every shim calls one of our modules (§2).
+- **Drift during a run.** Drift is held back while a drift run is queued *or running* (DRF-5), so slow runs no longer trigger redundant drift runs.

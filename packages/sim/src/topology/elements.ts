@@ -73,6 +73,7 @@ export const ELEMENT_IDS = [
   'featureDetector',
   'announcement',
   'shimAnnounce',
+  'announcer',
   'netcdfStore',
   'featuresDb',
   'pygeoapi',
@@ -127,7 +128,8 @@ export const ELEMENTS: readonly ElementDecl[] = [
   { id: 'shimDetect', label: 'detect', kind: 'shim', provenance: 'ours', region: 'system', parent: 'features', relations: [r('calls', 'featureDetector')] },
   { id: 'featureDetector', label: 'Feature detector', kind: 'module', provenance: 'ours', region: 'system', parent: 'features', relations: [r('queries', 'pygeoapi'), r('writes', 'featuresDb')] },
   { id: 'announcement', label: 'announcement', kind: 'asset', provenance: 'off-the-shelf', region: 'system', parent: 'orchestrator', relations: [] },
-  { id: 'shimAnnounce', label: 'announce', kind: 'shim', provenance: 'ours', region: 'system', parent: 'announcement', relations: [r('publishes', 'broker')] },
+  { id: 'shimAnnounce', label: 'announce', kind: 'shim', provenance: 'ours', region: 'system', parent: 'announcement', relations: [r('calls', 'announcer')] },
+  { id: 'announcer', label: 'Announcer', kind: 'module', provenance: 'ours', region: 'system', parent: 'announcement', relations: [r('publishes', 'broker')] },
 
   // Stores (ours) and read path
   { id: 'netcdfStore', label: 'NetCDF store', kind: 'store', provenance: 'ours', region: 'system', relations: [] },

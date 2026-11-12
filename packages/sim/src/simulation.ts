@@ -9,6 +9,7 @@ import type { Values } from './contracts.ts';
 import { Consumer } from './consumers/consumer.ts';
 import { EventLog, clockLabel } from './events.ts';
 import { Faults, type FaultTarget } from './faults.ts';
+import { Announcer } from './modules/announcer.ts';
 import { DriftMonitor } from './modules/driftMonitor.ts';
 import { FeatureDetector } from './modules/featureDetector.ts';
 import { Ingestion } from './modules/ingestion.ts';
@@ -119,7 +120,7 @@ export class Simulation {
       monitor,
       runner: this.faults.runner(runner),
       detector: this.faults.detector(detector),
-      broker: this.broker,
+      announcer: new Announcer({ publish: (msg) => this.broker.publish('announcer', msg) }),
       params: { threshold: DRIFT_BOUNDS.threshold.default, quorum: Math.min(DRIFT_BOUNDS.quorum.default, this.inputs.length), persistence: DRIFT_BOUNDS.persistence.default },
     });
 

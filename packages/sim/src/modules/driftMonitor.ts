@@ -12,8 +12,8 @@ export interface DriftCheckInput {
   readonly params: DriftParams;
   /** Consecutive checks so far with quorum met (the sensor's cursor). */
   readonly streak: number;
-  /** A run is already queued (DRF-5). Plain data, not orchestrator state. */
-  readonly runQueued: boolean;
+  /** DRF-5: a run caused (at least partly) by drift is already queued or running. Plain data, not orchestrator state. */
+  readonly driftRun?: 'queued' | 'running';
 }
 
 export interface DriftCheckResult {
@@ -34,7 +34,7 @@ export class DriftMonitor {
     private readonly reader: DriftReader,
   ) {}
 
-  check({ params, streak, runQueued }: DriftCheckInput): DriftCheckResult {
+  check({ params, streak, driftRun }: DriftCheckInput): DriftCheckResult {
     const forecast = this.reader.currentForecast();
     if (!forecast) {
       return { residuals: {}, exceeding: [], quorumMet: false, streak: 0, requestRun: false, status: 'no forecast yet' };
@@ -61,8 +61,8 @@ export class DriftMonitor {
     if (next < params.persistence) {
       return { residuals, exceeding, quorumMet: true, streak: next, requestRun: false, status: `quorum met, persistence ${next} of ${params.persistence}` };
     }
-    if (runQueued) {
-      return { residuals, exceeding, quorumMet: true, streak: next, requestRun: false, status: 'drift persists, run already queued' };
+    if (driftRun) {
+      return { residuals, exceeding, quorumMet: true, streak: next, requestRun: false, status: driftRun === 'queued' ? 'drift persists, drift run already queued' : 'drift persists, drift run in progress' };
     }
     return { residuals, exceeding, quorumMet: true, streak: 0, requestRun: true, status: 'drift declared' };
   }
