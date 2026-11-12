@@ -197,7 +197,7 @@ Within each node, processes are boxes; within each process, the elements placed 
 - **Zone boundaries are a new visual element** and must not reuse an existing colour: use neutral heavy rules with labels.
 - Retry (amber), offline (red halo), materialising (green) keep their meanings; materialising applies to the store that received the write, since assets are not drawn in this view.
 - Hovering an element highlights the same element in a small inset of the other view, so the two views are visibly the same system.
-- Must fit 1280×720 without scrolling (UI-6) and be tested in its longest states (MR offline + DET retry + 6 inputs).
+- Must fit 1920×1080 without scrolling (UI-6) and be tested in its longest states (MR offline + DET retry + 6 inputs).
 
 ### 3.4 Critical analysis of the optional view
 
@@ -220,7 +220,7 @@ Now folded into `srd.md` (ARC-7 in §4, SYS-1–6 in §5.6). Kept here as the or
 | SYS-3 | Zones (OT, processing enclave, distribution, mission) are drawn left-to-right, mirroring World \| System \| Consumers. |
 | SYS-4 | Orchestrator internals (webserver, daemon, code location, metadata DB) are shown; drift monitor, shims and detector sit in the code-location process; the model runner sits in its own process on the compute node. |
 | SYS-5 | The banner states that the deployment is a candidate design and timings are compressed. |
-| SYS-6 | The system view meets UI-6 (fits 1280×720) and the colour semantics of §5.3. |
+| SYS-6 | The system view meets UI-6 (fits 1920×1080) and the colour semantics of §5.3. |
 
 Acceptance criteria:
 

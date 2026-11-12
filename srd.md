@@ -44,7 +44,7 @@ The screen and the simulation share one model, in three regions separated by two
 **System**
 - **Ingestion** (ours, not orchestrated): validates every observation and is the only writer to the Observations DB. It runs on every sample, not when the orchestrator calls it.
 - **Orchestrator** (off-the-shelf, mocked): the asset graph and its triggers.
-  - Assets: `observations` (a source asset that tracks the Observations DB and holds no data), `climatology`, `background` (the previous forecast), `forecast`, `features`, `announcement`.
+  - Assets: `observations`, `climatology`, `background` (the previous forecast), `forecast`, `features`, `announcement`. `observations` is a source asset: a declaration pointing at the Observations DB, not a separate thing, so it is drawn as the Observations DB itself (UI-8). `background` is drawn as a loop on `forecast` (UI-10).
   - Lineage: observations + climatology + background → forecast → features → announcement; forecast → announcement.
   - Triggers: the drift sensor (every 4 s), the staleness schedule (a forecast older than 180 s) and manual requests.
   - Run policy: one run at a time. A request arriving during a run queues; later requests merge into the queued one. Failed steps are retried until they succeed, with backoff.
@@ -153,18 +153,19 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 | UI-2 | **The orchestrator is the dominant element** and is drawn as its asset graph. Assets are the primary visual objects; lineage is drawn as heavy, highlighted flows. |
 | UI-3 | Each of our modules sits **inside** the asset or sensor it computes, with a shim strip above it. Our software is visually distinct from the off-the-shelf parts. Containment replaces arrows from the orchestrator to its shims. |
 | UI-4 | Ingestion sits outside the orchestrator and is marked "not orchestrated". |
-| UI-5 | The stores and pygeoapi sit below the orchestrator. Read lines are labelled "read only", and their arrows show the direction the data moves. |
-| UI-6 | **The whole diagram fits the viewport with no scrolling** and scales with the window. It must stay legible at 1280×720. |
+| UI-5 | The stores and pygeoapi sit below the orchestrator, except the Observations DB (UI-8). Read lines are labelled "read only", and their arrows show the direction the data moves. |
+| UI-6 | **The whole diagram fits the viewport with no scrolling** and scales with the window. It must stay legible at 1920×1080. |
 | UI-7 | The event log is a popup panel opened from the toolbar, showing the event count, newest first. It is not a permanent column. |
-| UI-8 | Different things carry different names: the `observations` asset is distinct from the Observations DB. |
+| UI-8 | **The Observations DB is the `observations` source asset; it is drawn once.** It is a store (double border, our data) straddling the orchestrator frame's left edge, as the broker straddles the consumer boundary. Ingestion writes into its outer half; the lineage flow to `forecast` leaves its inner half. It has one name: "Observations DB", with the subtitle "source asset". |
 | UI-9 | The orchestrator's private store is drawn as a small off-the-shelf store (dashed border) inside the orchestrator frame, labelled "run history · schedule · sensor state", with its run count read from stored rows. It is internal to the orchestrator, so it has no external edges and no tokens. It must not compete with the asset graph (UI-2) or break UI-6. |
+| UI-10 | `background` is drawn as a loop arrow on `forecast`, labelled "background = previous forecast", not as a separate node. When a forecast commits (MOD-2), one lineage token runs round the loop. |
 
 ### 5.2 Motion and state cues
 
 | ID | Requirement |
 |---|---|
 | MOT-1 | Tokens travel along edges only when the simulation records an interaction. Lineage tokens are larger and stay visible for at least about 1.2 s of wall-clock time at any speed. |
-| MOT-2 | A reduced-motion mode replaces tokens with an "n · last time" label per edge. It can be toggled from the toolbar, and the default should respect the OS setting. *(Open question: see §8.)* |
+| MOT-2 | A reduced-motion mode replaces tokens with an "n · last time" label per edge. The default follows the OS setting. When the OS asks for reduced motion, the toolbar shows a visible hint with a one-click switch to tokens, and `?motion=tokens` (or `?motion=reduced`) forces the mode for rehearsal. |
 | MOT-3 | Countdowns show what triggers things: a ring on the drift sensor (time to the next check), a "stale in m:ss" bar on forecast, an execution bar on the model runner ("replacing stale F2"), an execution bar on the feature detector, and a retry countdown on the shim. |
 | MOT-4 | **Retry state belongs to the orchestrator, not our code.** The retry countdown appears on the shim strip, which turns amber. A retry sends one amber token from the shim into the module. Lineage tokens are not re-sent on a retry. |
 | MOT-5 | While a module is offline it shows an offline state (a red halo) and no progress, and stops "running". |
@@ -191,7 +192,7 @@ Controls fall into three kinds, and each kind looks different so the audience ca
 |---|---|---|
 | **Scenario** | Nobody (the sea, the sensors) | Per-input shift (+5σ over 20 s, toggle); per-input sensor noise (0–3σ) |
 | **Operator** | The ship's operator | Drift threshold, quorum, persistence; Request a run |
-| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate 1×/10×/60×, number of inputs, fail next run, offline toggles, add consumer, motion mode, view (information flow / system), event log |
+| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate 1×/10×/60×, number of inputs, fail next run, offline toggles, add consumer, motion mode, view (information flow / system), tour, event log |
 
 ### 5.5 Banner
 
@@ -208,7 +209,16 @@ The standard view is information flow (§5.1). A second, optional view shows the
 | SYS-3 | Zones are drawn left to right, mirroring World \| System \| Consumers: instrument network (OT), processing enclave, distribution zone (pygeoapi, broker), mission network. Zone boundaries use neutral labelled rules, not a semantic colour. |
 | SYS-4 | Orchestrator internals are shown on the orchestration node: webserver, daemon, code location and metadata DB (its private store). The shims, drift monitor and feature detector sit in the code-location process. The model runner sits in its own process (Dagster Pipes) on the compute node. |
 | SYS-5 | Node state is derived from existing state only: an offline module shows the offline state on its process and node. No node- or link-level faults are simulated. A static note states that the shore link is not simulated. |
-| SYS-6 | The system view meets UI-6 (fits 1280×720, no overflow, tested in its longest states) and the colour semantics of §5.3. Materialising (green) applies to the store that received the write. |
+| SYS-6 | The system view meets UI-6 (fits 1920×1080, no overflow, tested in its longest states) and the colour semantics of §5.3. Materialising (green) applies to the store that received the write. |
+
+### 5.7 Tour mode
+
+| ID | Requirement |
+|---|---|
+| TOUR-1 | A tour mode walks through the acceptance scenarios (§6, 3–9) with no presenter. It is started from the presenter toolbar or `?tour=<name>`. |
+| TOUR-2 | A tour is a replay script in the ARC-5 format (seed + timed control actions) with a caption per step. Tours and replay tests share the same script files; no tour-only control path exists. |
+| TOUR-3 | Captions appear in one fixed caption strip that does not cover the diagram (UI-6 still holds). They say what is about to happen and what to watch. |
+| TOUR-4 | The viewer can pause, step, and leave the tour at any time. Leaving hands control to the presenter with the simulation state unchanged. |
 
 ---
 
@@ -224,11 +234,13 @@ The standard view is information flow (§5.1). A second, optional view shows the
 8. Raising sensor noise to 3σ produces spike rejections with reasons in the log. Rejected values never reach the Observations DB.
 9. A consumer added after the first announcement shows the current forecast immediately (a catch-up query).
 10. Pausing freezes every token and countdown. Step advances exactly one tick.
-11. At 1280×720 and above, the whole diagram is visible without scrolling and no text overflows its box.
+11. At 1920×1080 and above, the whole diagram is visible without scrolling and no text overflows its box.
 12. Store counts are read from the stored rows and never kept as separate counters.
 13. Running the same seed and script while toggling the view at arbitrary ticks gives the same event-log digest as running without toggling.
 14. With the model runner offline, the system view shows the compute node offline, and the run token's route ends at the orchestration→compute link, with the amber retry on the shim.
 15. Removing any element's placement, or a link that a cross-node edge needs, fails the test suite.
+16. Each tour, run headless to completion, produces the same golden event-log digest as its replay test.
+17. With the OS set to reduced motion, the demo starts in reduced-motion mode and shows the switch-to-tokens hint; `?motion=tokens` overrides it.
 
 ---
 
@@ -245,17 +257,16 @@ The standard view is information flow (§5.1). A second, optional view shows the
 
 ## 8. Open questions
 
-1. Should reduced motion follow the OS setting by default (accessible), or default to tokens (what a live demo needs)?
-2. Should the source `observations` asset show an explicit link to the Observations DB, or is the label "tracks the Observations DB" enough?
-3. Is the background asset worth showing separately, or should it be a "previous forecast" loop arrow on forecast?
-4. Should the orchestrator's private store be drawn at all?
-5. Is a scripted "tour" mode wanted, with a presenter-free walkthrough of the acceptance scenarios?
-6. Target display: projector (1280×720) or large monitor?
-
-Question 4 is answered: the orchestrator's private store is drawn in both views (UI-9, SYS-4).
+None open. The six questions from v2 and three raised by the system-architecture work were decided on Nov 12, 2026.
 
 ### Decided (Nov 12, 2026)
 
+- **Reduced motion.** Follows the OS by default, with a visible presenter override (MOT-2).
+- **Observations.** The `observations` source asset and the Observations DB are one element, straddling the orchestrator edge (UI-8).
+- **Background.** Drawn as a loop arrow on `forecast` (UI-10).
+- **Orchestrator private store.** Drawn in both views (UI-9, SYS-4).
+- **Tour mode.** Wanted, built from the replay scripts (§5.7).
+- **Target display.** 1920×1080 minimum (UI-6), raised from 1280×720 to give the straddling Observations DB (UI-8) room. Scales up to large monitors; below 1080p (e.g. an older 720p projector) legibility is not guaranteed.
 - **Drift monitor cadence.** It stays a Dagster sensor. The 4 s interval is demo-only; production uses ≥30 s (ORC-1).
 - **Read path.** Our modules read only through pygeoapi, as §2 states. Revisit if forecast grids grow large enough for the HTTP hop to matter.
 - **Network zones.** The instrument (OT) network and the mission network are separate, with a distribution zone between them (SYS-3).
