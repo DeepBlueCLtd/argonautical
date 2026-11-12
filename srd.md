@@ -1,0 +1,233 @@
+# Forecast Pipeline Demonstrator — Software Requirements Document (v2)
+
+Supersedes the SRD of Oct 3, 2026 (@Ian Mayo). Written for a fresh implementation in a GitHub repository, drawing on what was learned building the browser prototype (`Forecast Pipeline Demonstrator.dc.html` + `sim/`).
+
+---
+
+## 1. Purpose
+
+The demonstrator is a browser simulation of an onboard ocean-forecast pipeline. It exists to explain, to people who will not read the code, three things:
+
+1. **The pipeline is asset-driven.** An orchestrator (Dagster-style) keeps a graph of data assets — observations, climatology, background, forecast, features, announcement — and materialises them when something triggers it: detected drift, a stale forecast, or an operator request.
+2. **Our software is separate from the off-the-shelf parts.** Our modules (ingestion, drift monitor, model runner, feature detector) are run by the orchestrator but import nothing from it. They are reached only through thin shims, so the orchestrator could be replaced.
+3. **The system is robust.** Failures are retried with backoff, one run happens at a time, consumers verify what they receive, and late joiners catch up.
+
+### Audience
+
+- Programme stakeholders and reviewers watching a presenter drive the demo live.
+- Engineers who want a concrete picture of the module boundary before building the real system.
+
+### Aspirations
+
+- **See the whole system at once.** Data visibly moves from the sea, through ingestion, the asset graph and the stores, out to consumers, on one screen with no scrolling.
+- **The logic is the layout.** Someone looking at the screen should be able to read the asset graph, what triggers it and which code runs where, without narration.
+- **Nothing moves unless something happened.** Every moving token corresponds to a real call, write, read or message in the simulation. A paused clock stops everything.
+- **Honest.** The data is synthetic and the numerics are illustrative. The engines are mocks; this runs no Dagster, Postgres or pygeoapi. The screen says so.
+- **Repeatable.** The same seed and the same sequence of control actions always produce the same event log, so a demo can be rehearsed and a defect reproduced.
+
+### Non-goals
+
+- Real oceanography, real data assimilation or realistic numerics.
+- Running or wrapping real Dagster, pygeoapi, Postgres/PostGIS, NetCDF or a broker.
+- A backend, accounts or persistence beyond the browser.
+
+---
+
+## 2. System model
+
+The screen and the simulation share one model, in three regions separated by two boundary lines:
+
+**World** (not our system)
+- **Ocean**: the real environment. Each input has a true value that drifts slowly, and a scenario shift moves it the way a passing front would.
+- **Sensors**: onboard instruments. Each input has its own noise stream and noise level.
+
+**System**
+- **Ingestion** (ours, not orchestrated): validates every observation and is the only writer to the Observations DB. It runs on every sample, not when the orchestrator calls it.
+- **Orchestrator** (off-the-shelf, mocked): the asset graph and its triggers.
+  - Assets: `observations` (a source asset that tracks the Observations DB and holds no data), `climatology`, `background` (the previous forecast), `forecast`, `features`, `announcement`.
+  - Lineage: observations + climatology + background → forecast → features → announcement; forecast → announcement.
+  - Triggers: the drift sensor (every 4 s), the staleness schedule (a forecast older than 180 s) and manual requests.
+  - Run policy: one run at a time. A request arriving during a run queues; later requests merge into the queued one. Failed steps are retried until they succeed, with backoff.
+  - Its own private store (run history, schedule, sensor state). This is modelled but not drawn.
+- **Shims** (thin wrappers, one per crossing): check, run, detect and announce. Each one calls a single module of ours and holds no logic.
+- **Our modules**, each embedded in the asset or sensor it computes:
+  - **Drift monitor** (inside the drift sensor): scores the latest observations against the current forecast.
+  - **Model runner** (inside forecast): moves the background 60% of the way towards recent observations, falling back to climatology. It stages the result, then commits it atomically with a digest.
+  - **Feature detector** (inside features): finds fronts and eddies in the new forecast.
+- **Stores** (ours): the Observations DB (time series), the NetCDF store (coverage files: climatology and forecasts) and the Features DB (PostGIS).
+- **pygeoapi** (off-the-shelf, mocked, read-only): SensorThings, EDR and Features. It is the only read path, both for our modules and for consumers.
+- **Broker** (off-the-shelf, mocked): sits on the System–Consumers boundary and delivers only to subscribers.
+
+**Onboard consumers**
+- Subscribe to the broker. On an announcement, they query pygeoapi for the forecast and its features and verify the digest and the feature count.
+- A consumer added mid-run queries pygeoapi straight away, without waiting for the next announcement.
+
+---
+
+## 3. Functional requirements
+
+### 3.1 Simulation core
+
+| ID | Requirement |
+|---|---|
+| SIM-1 | The simulation runs on a discrete tick clock (1 tick = 1 simulated second), shown as `T+mm:ss`. |
+| SIM-2 | All randomness comes from seeded, named streams (ocean, one per sensor, failures, consumers). No `Math.random`. |
+| SIM-3 | The number of inputs is configurable from 3 to 6: temperature, salinity, sound speed, current, dissolved O₂, turbidity. Each has a base value, a σ and a unit. |
+| SIM-4 | The simulation is a pure library with no UI imports. It can run headless (in tests or Node) at any speed. |
+| SIM-5 | Every significant action appends to an event log of `{tick, kind, text}`. A digest of the log is exposed for replay comparison. |
+| SIM-6 | Each interaction on a declared edge (call, write, read, publish, lineage, trigger) emits a token record `{edge, start, duration, retry?}`. Emitting on an undeclared edge is recorded as a defect. |
+
+### 3.2 Ingestion
+
+| ID | Requirement |
+|---|---|
+| ING-1 | Reject values that are not finite numbers. |
+| ING-2 | Reject values outside ±10σ of climatology. |
+| ING-3 | Reject a value that jumps more than 4σ from that input's last accepted value. |
+| ING-4 | Log each rejection with its value and reason. Count accepted and rejected readings. |
+
+### 3.3 Drift monitor
+
+| ID | Requirement |
+|---|---|
+| DRF-1 | On each sensor tick, compute each input's residual (latest observation − forecast) in σ. |
+| DRF-2 | Declare drift when at least *quorum* inputs exceed ±*threshold*σ for *persistence* consecutive checks. |
+| DRF-3 | Operator-tunable, within declared bounds: threshold 1–6σ (step 0.5), quorum 1–N inputs, persistence 1–5 checks. The value actually in force is always displayed. |
+| DRF-4 | Report a status line: no forecast yet / nothing out of range / below quorum / quorum met, persistence k of n / drift declared / drift persists, run already queued. |
+| DRF-5 | While a run is queued, persistent drift does not raise a new request. |
+
+### 3.4 Model runner and feature detector
+
+| ID | Requirement |
+|---|---|
+| MOD-1 | A model run takes 8 s. It stages a forecast, then commits it atomically with an id (`F1`, `F2`, …), cause, values, valid-until and digest. A failed run commits nothing. |
+| MOD-2 | When a forecast is committed, the previous one becomes the background. |
+| DET-1 | Detection takes 5 s. A front is reported for each input more than 0.75σ from climatology; 1–3 eddies are reported, derived from the digest. |
+| DET-2 | Features are tagged with their forecast id, so consumers can verify the feature count. |
+| FLT-1 | The presenter can take the model runner or the feature detector **offline**. While a module is offline, every call to it fails. |
+| FLT-2 | The presenter can make the next run fail once. In addition, a seeded random failure rate of about 3% applies. |
+
+### 3.5 Orchestrator
+
+| ID | Requirement |
+|---|---|
+| ORC-1 | Drift sensor every 4 s. Staleness schedule at 180 s. Both are declared configuration that is shown on screen, not operator-tunable. |
+| ORC-2 | One run at a time; queue, then merge. Log the causes of merged requests (e.g. `drift + manual`). |
+| ORC-3 | Retry failed steps (run or detect) until they succeed, with exponential backoff of 2, 4, 8 s, then 10 s thereafter. |
+| ORC-4 | Each run progresses through run → detect → announce. Each asset records when it was materialised. |
+| ORC-5 | An announcement carries `{forecastId, validUntil, cause, digest, featureCount}`. |
+| ORC-6 | The orchestrator reaches our modules **only** through the shims. |
+
+### 3.6 Consumers
+
+| ID | Requirement |
+|---|---|
+| CON-1 | On an announcement, after a short delay, query pygeoapi for the forecast and its features, then verify the digest and feature count (✓/✗). |
+| CON-2 | The presenter can add consumers at any time. A new consumer subscribes from that moment and immediately queries for the current forecast. The publisher is unchanged. |
+
+---
+
+## 4. Architecture requirements
+
+| ID | Requirement |
+|---|---|
+| ARC-1 | **Module boundary.** Our modules (ingestion, drift monitor, model runner, feature detector) must not import the orchestrator or the shims. CI enforces this (e.g. an ESLint `no-restricted-imports` rule or a dependency-cruiser rule) and the result is shown on screen. |
+| ARC-2 | Shims are one-line pass-throughs, one per crossing. |
+| ARC-3 | **Wiring is declared, not drawn.** Each element declares its relations (sends, calls, writes, reads, publishes, subscribes, queries, materialises). Edges are derived from these declarations. Layout supplies geometry only. |
+| ARC-4 | Simulation and rendering are separate. The UI reads simulation state each frame and never mutates it, except through the control API. |
+| ARC-5 | **Deterministic replay.** A test runs seed + a scripted sequence of control actions headless and asserts the event-log digest. Golden digests are checked in. |
+| ARC-6 | The app is a static site that works offline. It deploys to GitHub Pages and can also be built as a single self-contained HTML file. |
+
+Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vitest unit tests, an SVG-based UI in React or Svelte, and Playwright for screenshot and interaction checks.
+
+---
+
+## 5. Presentation requirements
+
+### 5.1 Layout
+
+| ID | Requirement |
+|---|---|
+| UI-1 | Three labelled regions (World \| System \| Onboard consumers) separated by visible boundary lines, with the broker straddling the right-hand line. |
+| UI-2 | **The orchestrator is the dominant element** and is drawn as its asset graph. Assets are the primary visual objects; lineage is drawn as heavy, highlighted flows. |
+| UI-3 | Each of our modules sits **inside** the asset or sensor it computes, with a shim strip above it. Our software is visually distinct from the off-the-shelf parts. Containment replaces arrows from the orchestrator to its shims. |
+| UI-4 | Ingestion sits outside the orchestrator and is marked "not orchestrated". |
+| UI-5 | The stores and pygeoapi sit below the orchestrator. Read lines are labelled "read only", and their arrows show the direction the data moves. |
+| UI-6 | **The whole diagram fits the viewport with no scrolling** and scales with the window. It must stay legible at 1280×720. |
+| UI-7 | The event log is a popup panel opened from the toolbar, showing the event count, newest first. It is not a permanent column. |
+| UI-8 | Different things carry different names: the `observations` asset is distinct from the Observations DB. |
+
+### 5.2 Motion and state cues
+
+| ID | Requirement |
+|---|---|
+| MOT-1 | Tokens travel along edges only when the simulation records an interaction. Lineage tokens are larger and stay visible for at least about 1.2 s of wall-clock time at any speed. |
+| MOT-2 | A reduced-motion mode replaces tokens with an "n · last time" label per edge. It can be toggled from the toolbar, and the default should respect the OS setting. *(Open question: see §8.)* |
+| MOT-3 | Countdowns show what triggers things: a ring on the drift sensor (time to the next check), a "stale in m:ss" bar on forecast, an execution bar on the model runner ("replacing stale F2"), an execution bar on the feature detector, and a retry countdown on the shim. |
+| MOT-4 | **Retry state belongs to the orchestrator, not our code.** The retry countdown appears on the shim strip, which turns amber. A retry sends one amber token from the shim into the module. Lineage tokens are not re-sent on a retry. |
+| MOT-5 | While a module is offline it shows an offline state (a red halo) and no progress, and stops "running". |
+
+### 5.3 Colour semantics
+
+Each colour has one meaning:
+
+- **Steel accent, pale fill**: our software.
+- **Green fill**: an asset being materialised (shown for a few ticks after it is materialised).
+- **Amber**: retry (shim strip and token).
+- **Red halo**: offline module.
+- **Dashed border**: off-the-shelf (mocked). **Double border**: our data store.
+
+The prototype used the Industry design system (steel blue, Barlow Condensed and Barlow, square blueprint frames with corner marks). A fresh UI may choose another system, but should keep the one-meaning-per-colour rule. Green, amber and red were added beyond the mono-accent palette.
+
+### 5.4 Controls
+
+Controls fall into three kinds, and each kind looks different so the audience can tell who would really have it:
+
+| Kind | Who would really have it | Controls |
+|---|---|---|
+| **Scenario** | Nobody (the sea, the sensors) | Per-input shift (+5σ over 20 s, toggle); per-input sensor noise (0–3σ) |
+| **Operator** | The ship's operator | Drift threshold, quorum, persistence; Request a run |
+| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate 1×/10×/60×, number of inputs, fail next run, offline toggles, add consumer, motion mode, event log |
+
+### 5.5 Banner
+
+A permanent line states: synthetic data, illustrative numerics, the engines are mocks, no Dagster runs. It also shows the boundary-check result and the event-log digest.
+
+---
+
+## 6. Acceptance criteria
+
+1. With the same seed and the same scripted actions, two runs (in the browser or headless) produce identical event-log digests.
+2. The boundary check fails the build if any of our modules imports the orchestrator or a shim.
+3. Injecting a shift on enough inputs to meet quorum declares drift within threshold/persistence checks. A drift-caused forecast is committed, its features are detected, and it is announced. Every consumer reports ✓.
+4. With no drift, a scheduled run fires when the forecast countdown reaches 0:00.
+5. Request a run during a run: it queues. Request again: the second merges into the first, and the log shows both causes.
+6. Model runner offline: the run shim turns amber with a retry countdown on the 2, 4, 8, 10, 10… second backoff. The runner shows a red halo and no progress, and nothing is committed. Bring it back online: the next retry commits, and the pipeline continues.
+7. Same as 6 for the feature detector, with the forecast already committed.
+8. Raising sensor noise to 3σ produces spike rejections with reasons in the log. Rejected values never reach the Observations DB.
+9. A consumer added after the first announcement shows the current forecast immediately (a catch-up query).
+10. Pausing freezes every token and countdown. Step advances exactly one tick.
+11. At 1280×720 and above, the whole diagram is visible without scrolling and no text overflows its box.
+12. Store counts are read from the stored rows and never kept as separate counters.
+
+---
+
+## 7. Lessons from the prototype
+
+- Layering two sections ("off-the-shelf" over "our software") hid the flow. Embedding our modules in the assets they compute made the asset-driven logic readable.
+- Drawing both containment and arrows for the same relationship is noise; pick containment.
+- Retry countdowns placed inside our modules misattributed responsibility. They belong on the shim.
+- At 10× and 60×, tokens became invisible unless they had a minimum on-screen duration.
+- Fixed-size cards overflowed repeatedly as status text grew. Design every card for its longest state (offline, retry, running), and test those states.
+- Reusing a fill colour for two meanings (our software vs. materialising) confused viewers.
+
+---
+
+## 8. Open questions
+
+1. Should reduced motion follow the OS setting by default (accessible), or default to tokens (what a live demo needs)?
+2. Should the source `observations` asset show an explicit link to the Observations DB, or is the label "tracks the Observations DB" enough?
+3. Is the background asset worth showing separately, or should it be a "previous forecast" loop arrow on forecast?
+4. Should the orchestrator's private store be drawn at all?
+5. Is a scripted "tour" mode wanted, with a presenter-free walkthrough of the acceptance scenarios?
+6. Target display: projector (1280×720) or large monitor?
