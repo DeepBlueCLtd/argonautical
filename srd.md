@@ -179,6 +179,8 @@ Each colour has one meaning:
 - **Red halo**: offline module.
 - **Dashed border**: off-the-shelf (mocked). **Double border**: our data store.
 
+These styles show the **production** build-vs-adopt decision (`docs/system-architecture.md` §5). In the demonstrator itself everything is custom code; off-the-shelf parts are mocks.
+
 The prototype used the Industry design system (steel blue, Barlow Condensed and Barlow, square blueprint frames with corner marks). A fresh UI may choose another system, but should keep the one-meaning-per-colour rule. Green, amber and red were added beyond the mono-accent palette.
 
 ### 5.4 Controls
