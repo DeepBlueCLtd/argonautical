@@ -6,7 +6,7 @@
  * Usage: node scripts/check-boundary.mjs [--json <out>]
  * Exit code 1 on any violation.
  */
-import { readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -47,7 +47,10 @@ export function checkBoundary(root = resolve(here, '..'), rules = RULES) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const result = checkBoundary();
   const i = process.argv.indexOf('--json');
-  if (i > 0 && process.argv[i + 1]) writeFileSync(process.argv[i + 1], JSON.stringify(result, null, 2) + '\n');
+  if (i > 0 && process.argv[i + 1]) {
+    mkdirSync(dirname(resolve(process.argv[i + 1])), { recursive: true });
+    writeFileSync(process.argv[i + 1], JSON.stringify(result, null, 2) + '\n');
+  }
   if (result.ok) {
     console.log(`boundary check passed: ${result.checkedFiles} module files import nothing from the orchestrator, shims or deployment model`);
   } else {

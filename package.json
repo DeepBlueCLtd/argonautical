@@ -2,16 +2,21 @@
   "name": "argonautical",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test --workspaces",
     "boundary": "npm run boundary --workspaces",
-    "ci": "npm run typecheck && npm run boundary && npm test"
+    "ci": "npm run typecheck && npm run boundary && npm test",
+    "build": "npm run build -w @argonautical/ui",
+    "dev": "npm run dev -w @argonautical/ui"
   },
   "devDependencies": {
     "@types/node": "22.19.1",
     "typescript": "5.9.3",
-    "vitest": "4.1.12"
+    "vitest": "4.1.12",
+    "vite": "8.3.5"
   }
 }
