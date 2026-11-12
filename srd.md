@@ -48,7 +48,7 @@ The screen and the simulation share one model, in three regions separated by two
   - Lineage: observations + climatology + background → forecast → features → announcement; forecast → announcement.
   - Triggers: the drift sensor (every 4 s), the staleness schedule (a forecast older than 180 s) and manual requests.
   - Run policy: one run at a time. A request arriving during a run queues; later requests merge into the queued one. Failed steps are retried until they succeed, with backoff.
-  - Its own private store (run history, schedule, sensor state). This is modelled but not drawn.
+  - Its own private store (run history, schedule, sensor state). This is modelled and drawn small, inside the orchestrator (UI-9).
 - **Shims** (thin wrappers, one per crossing): check, run, detect and announce. Each one calls a single module of ours and holds no logic.
 - **Our modules**, each embedded in the asset or sensor it computes:
   - **Drift monitor** (inside the drift sensor): scores the latest observations against the current forecast.
@@ -157,6 +157,7 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 | UI-6 | **The whole diagram fits the viewport with no scrolling** and scales with the window. It must stay legible at 1280×720. |
 | UI-7 | The event log is a popup panel opened from the toolbar, showing the event count, newest first. It is not a permanent column. |
 | UI-8 | Different things carry different names: the `observations` asset is distinct from the Observations DB. |
+| UI-9 | The orchestrator's private store is drawn as a small off-the-shelf store (dashed border) inside the orchestrator frame, labelled "run history · schedule · sensor state", with its run count read from stored rows. It is internal to the orchestrator, so it has no external edges and no tokens. It must not compete with the asset graph (UI-2) or break UI-6. |
 
 ### 5.2 Motion and state cues
 
@@ -249,7 +250,7 @@ The standard view is information flow (§5.1). A second, optional view shows the
 5. Is a scripted "tour" mode wanted, with a presenter-free walkthrough of the acceptance scenarios?
 6. Target display: projector (1280×720) or large monitor?
 
-Question 4 is answered for the system view only: the orchestrator's private store is drawn there (SYS-4) and stays undrawn in the information-flow view.
+Question 4 is answered: the orchestrator's private store is drawn in both views (UI-9, SYS-4).
 
 ### Decided (Nov 12, 2026)
 
