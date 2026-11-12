@@ -255,7 +255,7 @@ Adopted components must have: an OSI-approved licence compatible with redistribu
 
 | Component | Decision | Candidate | Rationale / caveat |
 |---|---|---|---|
-| Orchestrator | **Adopt** | Dagster (Apache-2.0) | Commodity. Behind shims (ARC-6) so it stays replaceable (Prefect, Airflow). |
+| Orchestrator | **Adopt** | Dagster (Apache-2.0) | Commodity. Behind shims (ARC-1, ARC-2) so it stays replaceable (Prefect, Airflow). |
 | Broker | **Adopt** | Mosquitto (EPL-2.0) | Commodity. Retained messages cover late joiners. |
 | Geospatial API | **Adopt** | pygeoapi (MIT) | Commodity, OGC-standard. |
 | Observations DB | **Adopt** | PostgreSQL (+ TimescaleDB *Apache-2.0 edition*) | **Licence trap:** several TimescaleDB features are under the non-OSI Timescale Licence. Use the Apache edition, or plain Postgres partitioning. |
