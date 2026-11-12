@@ -1,0 +1,34 @@
+{
+  "name": "drift",
+  "description": "Acceptance 3: a front shifts two inputs; drift is declared, a drift-caused forecast is committed, detected and announced, and every consumer verifies it.",
+  "seed": "demo",
+  "until": 70,
+  "steps": [
+    {
+      "at": 0,
+      "caption": "Steady state: forecast F1 is issued on schedule and both consumers verify it."
+    },
+    {
+      "at": 30,
+      "action": {
+        "type": "shift",
+        "input": "temp",
+        "on": true
+      },
+      "caption": "A front arrives: temperature starts climbing +5σ over 20 seconds."
+    },
+    {
+      "at": 30,
+      "action": {
+        "type": "shift",
+        "input": "sal",
+        "on": true
+      },
+      "caption": "Salinity shifts too, so two inputs (the quorum) will be out of range."
+    },
+    {
+      "at": 47,
+      "caption": "Watch the drift sensor: quorum met for 2 consecutive checks declares drift."
+    }
+  ]
+}

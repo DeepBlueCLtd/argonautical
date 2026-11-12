@@ -1,0 +1,16 @@
+{
+  "name": "@argonautical/sim",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure, deterministic simulation of the onboard forecast pipeline (no UI imports).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run",
+    "boundary": "node scripts/check-boundary.mjs",
+    "golden:update": "UPDATE_GOLDEN=1 vitest run test/replay.test.ts"
+  }
+}

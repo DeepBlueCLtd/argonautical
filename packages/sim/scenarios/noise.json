@@ -1,0 +1,10 @@
+{
+  "name": "noise",
+  "description": "Acceptance 8: sensor noise at 3σ produces spike rejections with reasons; rejected values never reach the Observations DB.",
+  "seed": "demo",
+  "until": 60,
+  "steps": [
+    { "at": 10, "action": { "type": "noise", "input": "temp", "sigma": 3 }, "caption": "Temperature sensor noise rises to 3σ." },
+    { "at": 10, "action": { "type": "noise", "input": "sal", "sigma": 3 }, "caption": "Ingestion rejects jumps over 4σ and logs each with its reason." }
+  ]
+}

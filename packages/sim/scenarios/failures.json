@@ -1,0 +1,20 @@
+{
+  "name": "failures",
+  "description": "FLT-2 and a long run: an injected failure, random failures and every trigger, over 15 simulated minutes with 6 inputs and 3 consumers.",
+  "seed": "long-haul",
+  "inputs": 6,
+  "consumers": 3,
+  "until": 900,
+  "steps": [
+    { "at": 5, "action": { "type": "failNextRun" } },
+    { "at": 100, "action": { "type": "shift", "input": "snd", "on": true } },
+    { "at": 100, "action": { "type": "shift", "input": "o2", "on": true } },
+    { "at": 200, "action": { "type": "noise", "input": "turb", "sigma": 2.5 } },
+    { "at": 300, "action": { "type": "requestRun" } },
+    { "at": 302, "action": { "type": "requestRun" } },
+    { "at": 400, "action": { "type": "shift", "input": "snd", "on": false } },
+    { "at": 450, "action": { "type": "addConsumer" } },
+    { "at": 600, "action": { "type": "quorum", "value": 1 } },
+    { "at": 600, "action": { "type": "shift", "input": "cur", "on": true } }
+  ]
+}

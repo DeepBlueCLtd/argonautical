@@ -1,0 +1,9 @@
+{
+  "name": "late-consumer",
+  "description": "Acceptance 9: a consumer added after the first announcement shows the current forecast immediately (catch-up query).",
+  "seed": "demo",
+  "until": 50,
+  "steps": [
+    { "at": 40, "action": { "type": "addConsumer" }, "caption": "A new consumer subscribes and queries pygeoapi straight away, without waiting for the next announcement." }
+  ]
+}
