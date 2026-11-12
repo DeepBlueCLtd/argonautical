@@ -111,7 +111,7 @@ The screen and the simulation share one model, in three regions separated by two
 
 | ID | Requirement |
 |---|---|
-| ORC-1 | Drift sensor every 4 s. Staleness schedule at 180 s. Both are declared configuration that is shown on screen, not operator-tunable. |
+| ORC-1 | Drift sensor every 4 s. Staleness schedule at 180 s. Both are declared configuration that is shown on screen, not operator-tunable. The 4 s interval is demo time-compression: production keeps the Dagster sensor at ≥30 s. |
 | ORC-2 | One run at a time; queue, then merge. Log the causes of merged requests (e.g. `drift + manual`). |
 | ORC-3 | Retry failed steps (run or detect) until they succeed, with exponential backoff of 2, 4, 8 s, then 10 s thereafter. |
 | ORC-4 | Each run progresses through run → detect → announce. Each asset records when it was materialised. |
@@ -137,6 +137,7 @@ The screen and the simulation share one model, in three regions separated by two
 | ARC-4 | Simulation and rendering are separate. The UI reads simulation state each frame and never mutates it, except through the control API. |
 | ARC-5 | **Deterministic replay.** A test runs seed + a scripted sequence of control actions headless and asserts the event-log digest. Golden digests are checked in. |
 | ARC-6 | The app is a static site that works offline. It deploys to GitHub Pages and can also be built as a single self-contained HTML file. |
+| ARC-7 | **Deployment is declared.** Each element declares a placement (node, process); nodes declare a zone; links between nodes are declared. Tests assert that every element is placed and every edge between nodes maps to a declared link. Our modules must not import the deployment model (it joins the ARC-1 restricted list). See `docs/system-architecture.md`. |
 
 Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vitest unit tests, an SVG-based UI in React or Svelte, and Playwright for screenshot and interaction checks.
 
@@ -187,11 +188,24 @@ Controls fall into three kinds, and each kind looks different so the audience ca
 |---|---|---|
 | **Scenario** | Nobody (the sea, the sensors) | Per-input shift (+5σ over 20 s, toggle); per-input sensor noise (0–3σ) |
 | **Operator** | The ship's operator | Drift threshold, quorum, persistence; Request a run |
-| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate 1×/10×/60×, number of inputs, fail next run, offline toggles, add consumer, motion mode, event log |
+| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate 1×/10×/60×, number of inputs, fail next run, offline toggles, add consumer, motion mode, view (information flow / system), event log |
 
 ### 5.5 Banner
 
-A permanent line states: synthetic data, illustrative numerics, the engines are mocks, no Dagster runs. It also shows the boundary-check result and the event-log digest.
+A permanent line states: synthetic data, illustrative numerics, the engines are mocks, no Dagster runs. It also shows the boundary-check result and the event-log digest. In the system-architecture view it adds: the deployment is a candidate design, not a commitment, and timings are compressed.
+
+### 5.6 System-architecture view (optional)
+
+The standard view is information flow (§5.1). A second, optional view shows the same running simulation as a candidate production deployment. Rationale, the production mapping and its critical analysis are in `docs/system-architecture.md`.
+
+| ID | Requirement |
+|---|---|
+| SYS-1 | A presenter toggle (and `?view=system`) switches between the information-flow view (default) and the system-architecture view. Switching does not pause, reset, reseed or otherwise alter the simulation. |
+| SYS-2 | The system view is a projection of the same token records (SIM-6). It introduces no new simulation events or token kinds. One interaction is one token, routed element → process → node → link → node → process → element. MOT-1's minimum on-screen duration applies to the whole route. |
+| SYS-3 | Zones are drawn left to right, mirroring World \| System \| Consumers: instrument network (OT), processing enclave, distribution zone (pygeoapi, broker), mission network. Zone boundaries use neutral labelled rules, not a semantic colour. |
+| SYS-4 | Orchestrator internals are shown on the orchestration node: webserver, daemon, code location and metadata DB (its private store). The shims, drift monitor and feature detector sit in the code-location process. The model runner sits in its own process (Dagster Pipes) on the compute node. |
+| SYS-5 | Node state is derived from existing state only: an offline module shows the offline state on its process and node. No node- or link-level faults are simulated. A static note states that the shore link is not simulated. |
+| SYS-6 | The system view meets UI-6 (fits 1280×720, no overflow, tested in its longest states) and the colour semantics of §5.3. Materialising (green) applies to the store that received the write. |
 
 ---
 
@@ -209,6 +223,9 @@ A permanent line states: synthetic data, illustrative numerics, the engines are 
 10. Pausing freezes every token and countdown. Step advances exactly one tick.
 11. At 1280×720 and above, the whole diagram is visible without scrolling and no text overflows its box.
 12. Store counts are read from the stored rows and never kept as separate counters.
+13. Running the same seed and script while toggling the view at arbitrary ticks gives the same event-log digest as running without toggling.
+14. With the model runner offline, the system view shows the compute node offline, and the run token's route ends at the orchestration→compute link, with the amber retry on the shim.
+15. Removing any element's placement, or a link that a cross-node edge needs, fails the test suite.
 
 ---
 
@@ -231,3 +248,11 @@ A permanent line states: synthetic data, illustrative numerics, the engines are 
 4. Should the orchestrator's private store be drawn at all?
 5. Is a scripted "tour" mode wanted, with a presenter-free walkthrough of the acceptance scenarios?
 6. Target display: projector (1280×720) or large monitor?
+
+Question 4 is answered for the system view only: the orchestrator's private store is drawn there (SYS-4) and stays undrawn in the information-flow view.
+
+### Decided (Nov 12, 2026)
+
+- **Drift monitor cadence.** It stays a Dagster sensor. The 4 s interval is demo-only; production uses ≥30 s (ORC-1).
+- **Read path.** Our modules read only through pygeoapi, as §2 states. Revisit if forecast grids grow large enough for the HTTP hop to matter.
+- **Network zones.** The instrument (OT) network and the mission network are separate, with a distribution zone between them (SYS-3).
