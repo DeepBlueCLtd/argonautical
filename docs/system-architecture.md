@@ -233,3 +233,53 @@ Questions raised by this proposal, now decided (Nov 12, 2026):
 - Drift cadence: Dagster sensor; ≥30 s in production, 4 s in the demo.
 - Read path: pygeoapi only, for now.
 - OT/mission network separation: confirmed.
+
+---
+
+## 5. Build vs adopt
+
+Policy: **build** only the components where the capability itself sets us apart (the exquisite part). **Adopt** off-the-shelf open source for commodity capabilities. The SRD's "ours / off-the-shelf (mocked)" split is the demonstrator's expression of this policy.
+
+### 5.1 Decision criteria
+
+Build only if most of these are true; otherwise adopt.
+
+1. **Differentiating:** it embodies domain knowledge or performance that is the reason the system exists.
+2. **No adequate OSS:** nothing mature fits without a fork, or the closest fit drags in an unwanted runtime or licence.
+3. **Owned lifecycle:** we must control its validation, certification or release cadence.
+4. **Small surface:** it can sit behind a narrow interface (shim, API) so the rest of the system is unaffected by its internals.
+
+Adopted components must have: an OSI-approved licence compatible with redistribution onboard, an active maintainer community, offline install, and a pinned, scanned supply chain (SBOM).
+
+### 5.2 Classification
+
+| Component | Decision | Candidate | Rationale / caveat |
+|---|---|---|---|
+| Orchestrator | **Adopt** | Dagster (Apache-2.0) | Commodity. Behind shims (ARC-6) so it stays replaceable (Prefect, Airflow). |
+| Broker | **Adopt** | Mosquitto (EPL-2.0) | Commodity. Retained messages cover late joiners. |
+| Geospatial API | **Adopt** | pygeoapi (MIT) | Commodity, OGC-standard. |
+| Observations DB | **Adopt** | PostgreSQL (+ TimescaleDB *Apache-2.0 edition*) | **Licence trap:** several TimescaleDB features are under the non-OSI Timescale Licence. Use the Apache edition, or plain Postgres partitioning. |
+| Features DB | **Adopt** | PostGIS (GPL-2.0) | GPL is fine when it runs as a separate server process; check if anything ever links it in. |
+| Coverage store | **Adopt** | NetCDF / Zarr on a filesystem or MinIO (AGPL-3.0) | **Licence check:** MinIO is AGPL. A plain filesystem or NFS avoids the question. |
+| Observability | **Adopt** | Prometheus, Grafana, Loki | Commodity. |
+| **Model runner** | **Build** (wrapper) + **assess** (core) | Our assimilation logic, possibly around an OSS ocean model (ROMS, NEMO, MOM6) and DA framework (DART, PDAF, OpenDA) | The special sauce is most likely the *assimilation configuration, onboard tuning and error models*, not a new numerical model. Building the core numerics from scratch is the highest-cost, highest-risk choice; it needs explicit justification. |
+| **Drift monitor** | **Build** | — | Small, domain-specific, and its thresholds are operationally tuned. Low cost to own. |
+| **Feature detector** | **Build** or **adapt** | py-eddy-tracker (GPL-3.0), front-detection literature algorithms | Differentiating if tuned to our sensors and regions; otherwise adapt OSS. **Licence check:** GPL-3.0 code inside our module makes that module GPL. |
+| **Ingestion** | **Build** (thin) on **adopted** QC | ioos_qc (QARTOD tests, Apache-2.0) | The sensor adapters and onboard rules are ours; the standard QC tests (range, spike, rate of change, i.e. ING-1–3) are commodity. |
+| Shims | **Build** | — | By definition ours, and deliberately trivial (ARC-2). |
+| Dashboards / consumers | Out of scope | — | Owned by the consumer systems. |
+
+### 5.3 Critical analysis
+
+- **"Ours" in the SRD conflates two things:** *our code* and *our data*. The stores are drawn as "ours" (double border) but are adopted products holding our data and schemas. The demonstrator should keep the double border as "our data" and make sure no one reads it as "we build a database".
+- **The real special sauce is thinner than the module list suggests.** Of the four "our modules", only the model runner (and possibly the feature detector) is plausibly exquisite. Ingestion QC and drift scoring are mostly standard techniques with our thresholds. That is fine, but it means the build budget should concentrate on the model runner.
+- **Adopting has a hidden cost: integration glue.** §1.4 points 3 and 4 show the shims will not stay one-line in production. That glue is unavoidable custom code that is neither special sauce nor off-the-shelf; it needs an owner and tests.
+- **Copyleft licences sit next to the special sauce.** GPL (PostGIS, py-eddy-tracker) and AGPL (MinIO) are acceptable as separate services, but risky if linked into our modules. A licence check belongs in CI next to the ARC-1 boundary check.
+- **Replaceability is only as good as the shims.** ARC-1 prevents our modules importing the orchestrator; nothing yet prevents them importing pygeoapi or broker client libraries directly. If those are commodity too, the same boundary rule should cover them.
+
+### 5.4 Demonstrator implications
+
+The SRD already encodes the split visually (steel/pale = ours; dashed = off-the-shelf). Two small additions would make the policy visible without new simulation:
+
+- Each off-the-shelf element names its candidate product and licence in a tooltip or the system view (e.g. "Broker — Mosquitto, EPL-2.0"), labelled "candidate".
+- The banner's boundary-check result could also show a licence-check result, once CI has one.
