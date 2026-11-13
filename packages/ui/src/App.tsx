@@ -1,6 +1,7 @@
 import { DRIFT_BOUNDS, MAX_INPUTS, MIN_INPUTS, NOISE_BOUNDS, type ControlAction, type Snapshot } from '@argonautical/sim';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Diagram, type Motion } from './diagram/Diagram.tsx';
+import { VIEW } from './diagram/layout.ts';
 import boundary from './generated/boundary.json';
 import { Runner, type Rate } from './runner.ts';
 
@@ -17,6 +18,51 @@ function useRunner(): Runner {
     ref.current = new Runner(params.get('seed') ?? 'demo', inputs >= MIN_INPUTS && inputs <= MAX_INPUTS ? inputs : 4);
   }
   return ref.current;
+}
+
+type Layout = 'side' | 'bottom';
+const layoutParam = params.get('layout');
+
+/**
+ * Put the scenario/operator controls in a left sidebar or a bottom strip, whichever leaves the
+ * diagram bigger (UI-6). On each resize the page is laid out with the strip, the strip's real
+ * height is measured, and the sidebar is chosen if it would give a larger diagram. This all
+ * happens before paint, so there is no flicker. `?layout=side|bottom` forces one.
+ */
+const SIDEBAR = 270;
+
+function sideWins(): boolean {
+  const w = innerWidth;
+  const h = innerHeight;
+  const top = (document.querySelector<HTMLElement>('.bar')?.offsetHeight ?? 52) + (document.querySelector<HTMLElement>('.banner')?.offsetHeight ?? 26);
+  const strip = document.querySelector<HTMLElement>('.controls')?.offsetHeight ?? 120;
+  const side = Math.min((w - SIDEBAR - 16) / VIEW.w, (h - top - 8) / VIEW.h);
+  const bottom = Math.min((w - 16) / VIEW.w, (h - top - strip - 8) / VIEW.h);
+  return side > bottom * 1.03;
+}
+
+function useLayout(inputs: number): Layout {
+  const [layout, setLayout] = useState<Layout>('bottom');
+  const [measuring, setMeasuring] = useState(true);
+  useLayoutEffect(() => {
+    if (!measuring) return;
+    setLayout(layoutParam === 'side' || layoutParam === 'bottom' ? layoutParam : sideWins() ? 'side' : 'bottom');
+    setMeasuring(false);
+  }, [measuring]);
+  useEffect(() => {
+    const remeasure = () => {
+      setLayout('bottom');
+      setMeasuring(true);
+    };
+    addEventListener('resize', remeasure);
+    return () => removeEventListener('resize', remeasure);
+  }, []);
+  // The strip's height depends on how many inputs there are.
+  useEffect(() => {
+    setLayout('bottom');
+    setMeasuring(true);
+  }, [inputs]);
+  return layout;
 }
 
 /** Re-render every animation frame while the runner advances. */
@@ -46,11 +92,12 @@ export function App() {
   );
   const [motion, setMotion] = useState<Motion>(initialMotion);
   const [logOpen, setLogOpen] = useState(false);
+  const layout = useLayout(runner.sim.inputs.length);
   const snap = runner.sim.snapshot();
   const act = (a: ControlAction) => runner.apply(a);
 
   return (
-    <div className="app">
+    <div className={`app ${layout}`}>
       <PresenterBar runner={runner} snap={snap} motion={motion} setMotion={setMotion} logOpen={logOpen} setLogOpen={setLogOpen} />
       <Banner snap={snap} />
       <main className="stage">

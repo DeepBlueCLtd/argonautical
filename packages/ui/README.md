@@ -14,7 +14,8 @@ The browser demonstrator and the explanatory site shell. React + SVG, built with
 - **Tokens are real interactions (MOT-1).** Each token record from the simulation becomes one moving dot. It stays on screen for at least 0.6 s (1.2 s for lineage) at any speed, and stops when paused. A step animates that one tick's tokens and then stays paused.
 - **Reduced motion (MOT-2).** It follows the OS setting, with a toolbar hint and switch. `?motion=tokens` or `?motion=reduced` force a mode.
 - **Boundary check on screen (ARC-1).** `npm run boundary` writes `src/generated/boundary.json` before `dev`, `build` and `typecheck`, and the banner shows the result. A violation fails the build.
-- **URL parameters:** `?seed=`, `?inputs=3..6`, `?motion=`.
+- **Adaptive layout (UI-6).** The scenario and operator controls sit in a bottom strip or a left sidebar, whichever leaves the diagram bigger. On each resize the strip's real height is measured before paint. Wide screens (1366×1024 and up) keep the strip. Tablets and 1280×720 get the sidebar: at about 1000×590 the diagram grows from 337 px to 714 px wide with 4 inputs. With 5–6 inputs on a small tablet, the sidebar scrolls. `?layout=side|bottom` forces a layout.
+- **URL parameters:** `?seed=`, `?inputs=3..6`, `?motion=`, `?layout=`.
 
 ## Not built yet
 
