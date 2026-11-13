@@ -11,7 +11,8 @@
   --ots: #6b7280; /* dashed: off-the-shelf (adopt), mocked */
   --ots-fill: #fbfbfc;
   --world: #eef1f4;
-  --lineage: #2c3a48;
+  --lineage: #2c3a48; /* lineage tokens and labels */
+  --lineage-track: #b7c2cd; /* heavy lineage lines: light, so dark tokens show on them */
 
   --mat: #22a05a; /* green: materialising */
   --mat-fill: #d6f5e1;
@@ -169,17 +170,17 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .diagram .axis.zero { stroke: var(--ink); }
 
 .edge { fill: none; stroke: #9aa5b1; stroke-width: 1.4; }
-.edge.lineage { stroke: var(--lineage); stroke-width: 5; opacity: 0.85; }
+.edge.lineage { stroke: var(--lineage-track); stroke-width: 7; stroke-linejoin: round; }
 .edge.trigger { stroke: var(--lineage); stroke-dasharray: 2 4; stroke-width: 1.6; }
 .edge.query, .edge.read { stroke: #b4bec8; }
 .edge.call { stroke: var(--ours); }
 .arrowhead { fill: #8995a1; }
-.arrowhead.heavy { fill: var(--lineage); }
+.arrowhead.heavy { fill: var(--lineage-track); }
 .diagram .edge-label { fill: var(--muted); font-style: italic; }
 .diagram .loop-label { fill: var(--lineage); font-style: italic; }
 
 .token { fill: var(--ink); stroke: #fff; stroke-width: 1.5; }
-.token.lineage { fill: var(--lineage); }
+.token.lineage { fill: var(--lineage); stroke-width: 2.5; }
 .token.retry { fill: var(--retry); }
 
 .counter rect { fill: #fff; stroke: var(--line); opacity: 0.92; }
