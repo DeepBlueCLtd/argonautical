@@ -1,8 +1,8 @@
 [
   {
     "number": 12,
-    "title": "Remove reduced-motion mode; always show tokens",
-    "summary": "The reduced-motion mode replaced moving tokens with per-edge \"12 · 00:12\" counter pills. It switched on automatically on devices with Reduce Motion enabled, such as the reviewer's iPad. The counters were judged too cluttered, and the…",
+    "title": "Remove reduced-motion mode; show the sensor broker backlog as an exit-edge tab",
+    "summary": "Two display changes from review on the reviewer's iPad.",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/12",
     "branch": "claude/sweet-newton-m24x65",
     "sha": "f1960c679639078e770ab5388d5d0399c290884e",
