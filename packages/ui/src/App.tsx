@@ -257,9 +257,6 @@ function OperatorPanel({ snap, act }: { snap: Snapshot; act: (a: ControlAction) 
         persistence <b className="mono">{d.persistence}</b>
         <input type="range" min={b.persistence.min} max={b.persistence.max} step={1} value={d.persistence} onChange={(e) => act({ type: 'persistence', value: Number(e.target.value) })} />
       </label>
-      <button className="primary" onClick={() => act({ type: 'requestRun' })}>
-        Request a run
-      </button>
     </section>
   );
 }

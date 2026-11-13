@@ -330,9 +330,19 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
         <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 22} cls="title">
           Manual request
         </T>
-        <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 44} cls="small">
+        <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 42} cls="small">
           {snap.queued ? `queued: ${snap.queued}` : 'nothing queued'}
         </T>
+        {/* Operator control (violet, §5.4): the operator asks for a run from here */}
+        <SvgButton
+          x={R.manualRequest.x + 10}
+          y={R.manualRequest.y + 52}
+          w={104}
+          label="Request a run"
+          title="Operator: request a forecast run"
+          cls="operator"
+          onClick={() => runner.apply({ type: 'requestRun' })}
+        />
       </Box>
       {/* Private store (UI-9): internal, no edges */}
       <Store r={R.privateStore} ours={false}>
@@ -562,9 +572,9 @@ function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: num
 }
 
 /** A small clickable control drawn inside the diagram (keyboard accessible). */
-function SvgButton({ x, y, w, label, title, onClick }: { x: number; y: number; w: number; label: string; title: string; onClick: () => void }) {
+function SvgButton({ x, y, w, label, title, onClick, cls = '' }: { x: number; y: number; w: number; label: string; title: string; onClick: () => void; cls?: string }) {
   return (
-    <g className="svg-button" role="button" tabIndex={0} aria-label={title} onClick={onClick} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick()}>
+    <g className={`svg-button ${cls}`} role="button" tabIndex={0} aria-label={title} onClick={onClick} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick()}>
       <title>{title}</title>
       <rect x={x} y={y} width={w} height={18} rx={4} />
       <text x={x + w / 2} y={y + 13} textAnchor="middle" className="tiny">

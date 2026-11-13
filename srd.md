@@ -197,7 +197,7 @@ Controls fall into three kinds, and each kind looks different so the audience ca
 | Kind | Who would really have it | Controls |
 |---|---|---|
 | **Scenario** | Nobody (the sea, the sensors) | Per-input shift (+5σ over 20 s, toggle); per-input sensor noise (0–3σ) |
-| **Operator** | The ship's operator | Drift threshold, quorum, persistence; Request a run |
+| **Operator** | The ship's operator | Drift threshold, quorum, persistence; Request a run (a violet button on the Manual request card) |
 | **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate 1×/10×/60×, number of inputs, fail next run, offline toggles, stop/start ingestion and Observations DB (on their cards), add consumer, view (information flow / system), tour, event log |
 
 ### 5.5 Banner

@@ -34,7 +34,7 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   shimCheck: { x: 574, y: 112, w: 222, h: 20 },
   driftMonitor: { x: 574, y: 138, w: 222, h: 96 },
   stalenessSchedule: { x: 830, y: 72, w: 180, h: 84 },
-  manualRequest: { x: 830, y: 168, w: 180, h: 64 },
+  manualRequest: { x: 830, y: 168, w: 180, h: 80 },
   privateStore: { x: 1160, y: 72, w: 165, h: 92 },
   climatology: { x: 548, y: 470, w: 140, h: 76 },
   forecast: { x: 720, y: 290, w: 215, h: 282 },
