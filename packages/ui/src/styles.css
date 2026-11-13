@@ -49,7 +49,7 @@ body { background: var(--bg); color: var(--ink); font: 13px/1.35 var(--font); ov
 .muted { color: var(--muted); fill: var(--muted); }
 .small { font-size: 12px; }
 
-.app { display: grid; grid-template-rows: 1fr auto; height: 100vh; }
+.app { display: grid; grid-template-rows: 1fr; height: 100vh; }
 
 /* ---- bars & controls ---- */
 .brand { display: flex; align-items: center; gap: 8px; margin-right: 6px; font-size: 14px; }
@@ -88,35 +88,6 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .sw.check { background: var(--lineage-track); opacity: 0.6; }
 .sw.offline { background: #fff; box-shadow: 0 0 0 2px var(--offline), 0 0 6px var(--offline); }
 
-.controls { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 6px 12px 8px; background: var(--panel); border-top: 1px solid var(--line); }
-.panel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 10px; border-radius: 6px; }
-.panel .who { margin-right: 6px; }
-.panel.scenario { background: #eef7f7; border: 1px solid #b9dcdc; border-left: 4px solid var(--k-scenario); }
-.panel.operator { background: #f3f0fa; border: 1px solid #d4caee; border-left: 4px solid var(--k-operator); }
-.panel label { display: inline-flex; align-items: center; gap: 6px; }
-.panel input[type='range'] { width: 90px; }
-.inputs { display: flex; flex-wrap: wrap; gap: 6px 14px; }
-.input { display: inline-flex; align-items: center; gap: 6px; }
-.input .name { font-weight: 600; min-width: 74px; }
-
-/* Sidebar layout (tablets, 1280×720): controls stacked on the left, the diagram gets the full height. */
-.app.side { grid-template-columns: 270px 1fr; grid-template-rows: 1fr; }
-.app.side > .controls { grid-column: 1; grid-row: 1; grid-template-columns: 1fr; align-content: start; gap: 8px; padding: 8px; border-top: 0; border-right: 1px solid var(--line); overflow: auto; min-height: 0; }
-.app.side > .stage { grid-column: 2; grid-row: 1; }
-.app.side .panel { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 10px; }
-.app.side .panel .who { margin: 0; }
-.app.side .panel .kind-tag { align-self: flex-start; }
-.app.side .inputs { flex-direction: column; gap: 8px; }
-.app.side .input { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }
-.app.side .input label { grid-column: 1 / -1; justify-content: space-between; }
-.app.side .panel label { justify-content: space-between; }
-.app.side .panel input[type='range'] { width: 120px; }
-.app.side .legend { flex-wrap: wrap; gap: 4px 12px; }
-.app.side .panel .who { font-size: 11px; line-height: 1.25; }
-.app.side .inputs { gap: 4px; }
-.app.side .input { row-gap: 0; }
-.app.side .panel button { padding: 1px 8px; }
-.app.side .panel label { min-height: 22px; }
 
 .eventlog { position: fixed; right: 16px; top: 90px; bottom: 120px; width: 520px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18); display: flex; flex-direction: column; z-index: 10; }
 .eventlog header { display: flex; gap: 8px; align-items: baseline; padding: 8px 12px; border-bottom: 1px solid var(--line); }
@@ -226,6 +197,13 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .play-pause:hover circle, .play-pause:focus-visible circle { stroke-width: 2.5; }
 .play-pause:focus { outline: none; }
 .svg-button.operator rect { fill: #f3f0fa; stroke: var(--k-operator); }
+.svg-button.scenario rect { fill: #eef7f7; stroke: var(--k-scenario); }
+.diagram .svg-button.scenario text { fill: var(--k-scenario); font-weight: 700; }
+.svg-button.scenario:hover rect { fill: #dcefef; }
+.svg-button.scenario.on rect { fill: var(--k-scenario); }
+.diagram .svg-button.scenario.on text { fill: #fff; }
+.svg-button.disabled { cursor: default; opacity: 0.35; }
+.diagram .operator-label { fill: var(--k-operator); font-weight: 600; }
 .diagram .svg-button.operator text { fill: var(--k-operator); font-weight: 700; }
 .svg-button.operator:hover rect { fill: #e6dff5; }
 .diagram .verdict.ok { fill: var(--mat); }

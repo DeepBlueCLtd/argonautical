@@ -198,8 +198,8 @@ Controls fall into three kinds, and each kind looks different so the audience ca
 
 | Kind | Who would really have it | Controls |
 |---|---|---|
-| **Scenario** | Nobody (the sea, the sensors) | Per-input shift (+5σ over 20 s, toggle); per-input sensor noise (0–3σ) |
-| **Operator** | The ship's operator | Drift threshold, quorum, persistence; Request a run (a violet button on the Manual request card) |
+| **Scenario** | Nobody (the sea, the sensors) | Teal, on the World cards: per-input shift (+5σ over 20 s, toggle; the button names what a click does) in **Ocean**; per-input sensor noise (0–3σ, − / + stepper) in **Sensors** |
+| **Operator** | The ship's operator | Violet: drift threshold, quorum, persistence (− / + steppers along the bottom of the **Drift sensor** card, greyed at their bounds); Request a run (a violet button on the Manual request card). There is no separate control strip. |
 | **Presenter** | The person giving the demo | In a **Control panel** occupying the top fifth of the World column (there is no toolbar): a large run/pause button (also Space), the clock, step, rate ½×/1×/10×/60× as a radio group (default ½×), add consumer, walkthrough and event log (with the event count). Elsewhere: play/pause buttons inline before the titles of fragile components (forecast, features, drift sensor, Ingestion, Observations DB) and view (information flow / system). Seed and number of inputs are URL parameters only (`?seed=`, `?inputs=`); F5 restarts. |
 
 ### 5.5 Banner

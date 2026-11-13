@@ -1,9 +1,8 @@
-import { DRIFT_BOUNDS, MAX_INPUTS, MIN_INPUTS, NOISE_BOUNDS, type ControlAction, type Snapshot } from '@argonautical/sim';
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { MAX_INPUTS, MIN_INPUTS } from '@argonautical/sim';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Diagram, type Picked, type SlotTip, type TokenTip } from './diagram/Diagram.tsx';
 import { SlotTipPanel, TokenTipPanel } from './SlotTip.tsx';
 import { TokenPopup } from './TokenPopup.tsx';
-import { VIEW } from './diagram/layout.ts';
 import { Runner } from './runner.ts';
 import { WalkCard } from './Walkthrough.tsx';
 import { WALKTHROUGH } from './walkthrough.ts';
@@ -23,51 +22,6 @@ function useRunner(): Runner {
 
 /** WALK-1: the walkthrough opens by default; `?walkthrough=off` skips it (`?tour=` is kept for TOUR-1's scenario tours). */
 const WALK_ON = params.get('walkthrough') !== 'off';
-
-type Layout = 'side' | 'bottom';
-const layoutParam = params.get('layout');
-
-/**
- * Put the scenario/operator controls in a left sidebar or a bottom strip, whichever leaves the
- * diagram bigger (UI-6). On each resize the page is laid out with the strip, the strip's real
- * height is measured, and the sidebar is chosen if it would give a larger diagram. This all
- * happens before paint, so there is no flicker. `?layout=side|bottom` forces one.
- */
-const SIDEBAR = 270;
-
-function sideWins(): boolean {
-  const w = innerWidth;
-  const h = innerHeight;
-  const top = 0; // no toolbar: the presenter controls live in the diagram (§5.4)
-  const strip = document.querySelector<HTMLElement>('.controls')?.offsetHeight ?? 120;
-  const side = Math.min((w - SIDEBAR - 16) / VIEW.w, (h - top - 8) / VIEW.h);
-  const bottom = Math.min((w - 16) / VIEW.w, (h - top - strip - 8) / VIEW.h);
-  return side > bottom * 1.03;
-}
-
-function useLayout(inputs: number): Layout {
-  const [layout, setLayout] = useState<Layout>('bottom');
-  const [measuring, setMeasuring] = useState(true);
-  useLayoutEffect(() => {
-    if (!measuring) return;
-    setLayout(layoutParam === 'side' || layoutParam === 'bottom' ? layoutParam : sideWins() ? 'side' : 'bottom');
-    setMeasuring(false);
-  }, [measuring]);
-  useEffect(() => {
-    const remeasure = () => {
-      setLayout('bottom');
-      setMeasuring(true);
-    };
-    addEventListener('resize', remeasure);
-    return () => removeEventListener('resize', remeasure);
-  }, []);
-  // The strip's height depends on how many inputs there are.
-  useEffect(() => {
-    setLayout('bottom');
-    setMeasuring(true);
-  }, [inputs]);
-  return layout;
-}
 
 /** Re-render every animation frame while the runner advances. */
 function useFrame(runner: Runner): number {
@@ -122,12 +76,10 @@ export function App() {
     setWalk(null);
     if (start) runner.setRunning(true);
   };
-  const layout = useLayout(runner.sim.inputs.length);
   const snap = runner.sim.snapshot();
-  const act = (a: ControlAction) => runner.apply(a);
 
   return (
-    <div className={`app ${layout}`}>
+    <div className="app">
       <main className="stage">
         <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} spotlight={spotlight} controls={{ logOpen, onLog: () => setLogOpen(!logOpen), onWalkthrough: startWalk }} />
         {runner.frozen && !picked && walk === null && (
@@ -135,10 +87,6 @@ export function App() {
         )}
         <Legend />
       </main>
-      <footer className="controls">
-        <ScenarioPanel snap={snap} act={act} />
-        <OperatorPanel snap={snap} act={act} />
-      </footer>
       {walk !== null && <WalkCard index={walk} rect={spotlight ?? undefined} onGo={setWalk} onClose={endWalk} />}
       {logOpen && <EventLogPanel runner={runner} onClose={() => setLogOpen(false)} />}
       {tip && !picked && <SlotTipPanel tip={tip} runner={runner} />}
@@ -177,52 +125,6 @@ function Legend() {
         <i className="sw check" /> dependency checked
       </span>
     </div>
-  );
-}
-
-function ScenarioPanel({ snap, act }: { snap: Snapshot; act: (a: ControlAction) => void }) {
-  return (
-    <section className="panel scenario" aria-label="Scenario controls">
-      <span className="kind-tag scenario">Scenario</span>
-      <span className="muted small who">the sea and the sensors · nobody really has these</span>
-      <div className="inputs">
-        {snap.inputs.map((s) => (
-          <div key={s.key} className="input">
-            <span className="name">{s.label}</span>
-            <button className={s.shiftOn ? 'on' : ''} onClick={() => act({ type: 'shift', input: s.key, on: !s.shiftOn })} title="+5σ over 20 s">
-              shift {s.shiftOn ? 'on' : 'off'}
-            </button>
-            <label className="small">
-              noise {s.noise}σ
-              <input type="range" min={NOISE_BOUNDS.min} max={NOISE_BOUNDS.max} step={0.5} value={s.noise} onChange={(e) => act({ type: 'noise', input: s.key, sigma: Number(e.target.value) })} />
-            </label>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function OperatorPanel({ snap, act }: { snap: Snapshot; act: (a: ControlAction) => void }) {
-  const d = snap.drift;
-  const b = DRIFT_BOUNDS;
-  return (
-    <section className="panel operator" aria-label="Operator controls">
-      <span className="kind-tag operator">Operator</span>
-      <span className="muted small who">the ship's operator</span>
-      <label>
-        threshold <b className="mono">{d.threshold}σ</b>
-        <input type="range" min={b.threshold.min} max={b.threshold.max} step={b.threshold.step} value={d.threshold} onChange={(e) => act({ type: 'threshold', value: Number(e.target.value) })} />
-      </label>
-      <label>
-        quorum <b className="mono">{d.quorum}</b>
-        <input type="range" min={1} max={snap.inputs.length} step={1} value={d.quorum} onChange={(e) => act({ type: 'quorum', value: Number(e.target.value) })} />
-      </label>
-      <label>
-        persistence <b className="mono">{d.persistence}</b>
-        <input type="range" min={b.persistence.min} max={b.persistence.max} step={1} value={d.persistence} onChange={(e) => act({ type: 'persistence', value: Number(e.target.value) })} />
-      </label>
-    </section>
   );
 }
 

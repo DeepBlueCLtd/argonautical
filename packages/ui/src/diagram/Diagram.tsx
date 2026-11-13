@@ -1,4 +1,4 @@
-import { EDGES, INPUTS, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
+import { DRIFT_BOUNDS, EDGES, INPUTS, NOISE_BOUNDS, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, useRef, type ReactNode } from 'react';
 import type { Rate, Runner } from '../runner.ts';
 import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
@@ -226,8 +226,17 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
             <g key={s.key}>
               <T x={R.ocean.x + 10} y={y} cls="small">
                 {s.label}
-                {s.shiftOn ? ' ↑ shift' : ''}
               </T>
+              {/* Scenario: a front moves this input +5σ over 20 s (toggle). The label says what a click does. */}
+              <SvgButton
+                x={R.ocean.x + R.ocean.w - 74}
+                y={y - 13}
+                w={64}
+                label={s.shiftOn ? 'clear front' : '+5σ front'}
+                title={s.shiftOn ? `Clear the front: ${s.label} returns to climatology` : `Scenario: a front moves ${s.label} +5σ over 20 s`}
+                cls={`scenario ${s.shiftOn ? 'on' : ''}`}
+                onClick={() => runner.apply({ type: 'shift', input: s.key, on: !s.shiftOn })}
+              />
               <line className="axis" x1={cx - 80} x2={cx + 80} y1={y + 10} y2={y + 10} />
               <line className="axis zero" x1={cx} x2={cx} y1={y + 5} y2={y + 15} />
               <rect className="zbar" x={Math.min(cx, cx + z * 13)} y={y + 7} width={Math.abs(z * 13)} height={6} />
@@ -250,9 +259,17 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
             <T x={R.sensors.x + 10} y={R.sensors.y + 80 + i * 36} cls="small mono">
               {fmt(s.reading, s.sigma < 1 ? 2 : 1)} {s.unit}
             </T>
-            <T x={R.sensors.x + R.sensors.w - 10} y={R.sensors.y + 80 + i * 36} cls="small muted" anchor="end">
-              ±{s.noise}σ
-            </T>
+            <Stepper
+              x={R.sensors.x + R.sensors.w - 90}
+              y={R.sensors.y + 67 + i * 36}
+              vw={48}
+              value={`±${s.noise}σ`}
+              what={`${s.label} sensor noise`}
+              cls="scenario"
+              dec={stepIn(NOISE_STEPS, s.noise, -1)}
+              inc={stepIn(NOISE_STEPS, s.noise, 1)}
+              onSet={(v) => runner.apply({ type: 'noise', input: s.key, sigma: v })}
+            />
           </g>
         ))}
       </Box>
@@ -335,15 +352,13 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.driftMonitor.x + 8} y={R.driftMonitor.y + 16} cls="title small-title">
           Drift monitor
         </T>
-        <T x={R.driftMonitor.x + R.driftMonitor.w - 8} y={R.driftMonitor.y + 16} cls="small mono" anchor="end">
-          {snap.drift.threshold}σ · q{snap.drift.quorum} · p{snap.drift.persistence}
-        </T>
         <ResidualBars r={R.driftMonitor} snap={snap} />
         <T x={R.driftMonitor.x + 8} y={R.driftMonitor.y + R.driftMonitor.h - 8} cls={`small status ${snap.drift.status.startsWith('drift') ? 'alert' : ''}`}>
           {snap.drift.status}
         </T>
       </Box>
       </g>
+      <OperatorControls snap={snap} runner={runner} />
       <PlayPause at={{ x: R.driftSensor.x + 18, y: R.driftSensor.y + 17 }} running={!snap.offline.driftMonitor} what="the drift monitor (checks fail, no drift runs)" onToggle={() => runner.apply({ type: 'offline', module: 'driftMonitor', offline: !snap.offline.driftMonitor })} />
       <Box r={R.stalenessSchedule} style="ots">
         <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 22} cls="title">
@@ -849,6 +864,84 @@ function PlayPause({ at, running, what, onToggle }: { at: { x: number; y: number
       ) : (
         <path className="glyph-fill" d={`M${cx - 3},${cy - 5} L${cx + 5},${cy} L${cx - 3},${cy + 5} Z`} />
       )}
+    </g>
+  );
+}
+
+/** Scenario noise levels (σ), within NOISE_BOUNDS; includes the default. */
+const NOISE_STEPS = [0, 0.3, 0.5, 1, 1.5, 2, 2.5, 3].filter((v) => v >= NOISE_BOUNDS.min && v <= NOISE_BOUNDS.max);
+
+/** The neighbouring value in `steps` (or undefined at either end). */
+function stepIn(steps: readonly number[], v: number, dir: 1 | -1): number | undefined {
+  return dir > 0 ? steps.find((x) => x > v) : [...steps].reverse().find((x) => x < v);
+}
+
+function range(min: number, max: number, step: number): number[] {
+  const out: number[] = [];
+  for (let v = min; v <= max + 1e-9; v += step) out.push(Math.round(v / step) * step);
+  return out;
+}
+
+/** Operator: the drift monitor's parameters (DRF-3), in a column right of the drift monitor. */
+function OperatorControls({ snap, runner }: { snap: Snapshot; runner: Runner }) {
+  const r = RECTS.driftSensor;
+  const d = snap.drift;
+  const b = DRIFT_BOUNDS;
+  const m = RECTS.driftMonitor;
+  const left = m.x + m.w;
+  const cx = (left + r.x + r.w) / 2;
+  const thresholds = range(b.threshold.min, b.threshold.max, b.threshold.step);
+  const quorums = range(b.quorum.min, snap.inputs.length, 1);
+  const persistences = range(b.persistence.min, b.persistence.max, 1);
+  // vw: width of the value between − and + (the threshold needs room for "2.5σ").
+  const items: { label: string; value: string; vw: number; v: number; steps: number[]; act: (v: number) => void }[] = [
+    { label: 'threshold', value: `${d.threshold}σ`, vw: 42, v: d.threshold, steps: thresholds, act: (v) => runner.apply({ type: 'threshold', value: v }) },
+    { label: 'quorum', value: String(d.quorum), vw: 26, v: d.quorum, steps: quorums, act: (v) => runner.apply({ type: 'quorum', value: v }) },
+    { label: 'persistence', value: String(d.persistence), vw: 26, v: d.persistence, steps: persistences, act: (v) => runner.apply({ type: 'persistence', value: v }) },
+  ];
+  return (
+    <g className="operator-controls" aria-label="Operator controls">
+      {items.map((it, i) => {
+        const y = RECTS.shimCheck.y + 16 + i * 40;
+        return (
+          <g key={it.label}>
+            <T x={cx} y={y - 5} cls="tiny operator-label" anchor="middle">
+              {it.label}
+            </T>
+            <Stepper x={cx - (32 + it.vw) / 2} y={y} vw={it.vw} value={it.value} what={`Drift ${it.label}`} cls="operator" dec={stepIn(it.steps, it.v, -1)} inc={stepIn(it.steps, it.v, 1)} onSet={it.act} />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+/** − value + : steps a control through its allowed values; an end stop greys its button out. */
+function Stepper({ x, y, value, what, cls, dec, inc, onSet, vw = 36 }: { x: number; y: number; value: string; what: string; cls: string; dec?: number; inc?: number; onSet: (v: number) => void; vw?: number }) {
+  const btn = (bx: number, label: string, to: number | undefined, verb: string) => (
+    <g
+      className={`svg-button stepper ${cls} ${to === undefined ? 'disabled' : ''}`}
+      role="button"
+      tabIndex={to === undefined ? -1 : 0}
+      aria-label={`${verb} ${what}`}
+      aria-disabled={to === undefined}
+      onClick={() => to !== undefined && onSet(to)}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && to !== undefined && onSet(to)}
+    >
+      <title>{to === undefined ? `${what}: at its ${verb === 'Lower' ? 'minimum' : 'maximum'}` : `${verb} ${what} to ${to}`}</title>
+      <rect x={bx} y={y} width={16} height={16} rx={3} />
+      <text x={bx + 8} y={y + 12} textAnchor="middle" className="small">
+        {label}
+      </text>
+    </g>
+  );
+  return (
+    <g>
+      {btn(x, '−', dec, 'Lower')}
+      <text x={x + 16 + vw / 2} y={y + 12} textAnchor="middle" className="small mono strong">
+        {value}
+      </text>
+      {btn(x + 16 + vw, '+', inc, 'Raise')}
     </g>
   );
 }

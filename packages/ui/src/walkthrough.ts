@@ -36,7 +36,7 @@ export const WALKTHROUGH: readonly WalkStep[] = [
     id: 'world',
     kind: 'Region',
     title: 'World',
-    body: 'The sea and the ship’s instruments. Nobody in the project builds these. In the demo, the Scenario controls play the sea: shift an input or add noise to make the ocean drift away from the forecast.',
+    body: 'The sea and the ship’s instruments. Nobody in the project builds these. In the demo, the teal Scenario controls play the sea: “+5σ front” in Ocean moves an input away from the forecast, and − / + in Sensors adds noise.',
     rect: () => ({ x: 0, y: CONTROL.y + CONTROL.h + 6, w: REGIONS.worldRight, h: VIEW.h - CONTROL.y - CONTROL.h - 6 }),
   },
   {
@@ -60,7 +60,7 @@ export const WALKTHROUGH: readonly WalkStep[] = [
   { id: 'ingestion', kind: 'Component', title: 'Ingestion', body: 'Our code. It validates each reading and writes it to the Observations DB. It is not orchestrated: it runs continuously. The ⏸ button stops it, to show the broker buffering.', rect: () => pad(R.ingestion) },
   { id: 'observationsDb', kind: 'Component', title: 'Observations DB', body: 'Our data store of every validated reading, and the orchestrator’s source asset: it straddles the orchestrator frame because the pipeline reads from it but does not produce it. ⏸ stops it.', rect: () => pad(R.observationsDb) },
   { id: 'orchestrator', kind: 'Component', title: 'Orchestrator', body: 'Off-the-shelf (Dagster in production, mocked here). It decides when to run, runs the steps in dependency order and retries failures. One run at a time. Our code plugs in through thin “shim” strips.', rect: () => pad(REGIONS.orchestrator, 4) },
-  { id: 'driftSensor', kind: 'Component', title: 'Drift sensor', body: 'Every 10 s it calls our drift monitor, which compares the latest observations with the current forecast. If enough inputs stay out of range for long enough, it asks for a new run. The document icons show what it needs; hover them.', rect: () => pad(R.driftSensor) },
+  { id: 'driftSensor', kind: 'Component', title: 'Drift sensor', body: 'Every 10 s it calls our drift monitor, which compares the latest observations with the current forecast. If enough inputs stay out of range for long enough, it asks for a new run. The violet Operator steppers along its bottom set how far is out of range (threshold), how many inputs (quorum) and for how many checks (persistence). The document icons show what it needs; hover them.', rect: () => pad(R.driftSensor) },
   { id: 'stalenessSchedule', kind: 'Component', title: 'Staleness schedule', body: 'The second trigger: when the forecast is more than 180 s old, it asks for a replacement, drift or no drift. The ring counts down.', rect: () => pad(R.stalenessSchedule) },
   { id: 'manualRequest', kind: 'Component', title: 'Manual request', body: 'The third trigger: the ship’s operator can ask for a run at any time. Requests that arrive during a run are queued and merged.', rect: () => pad(R.manualRequest) },
   { id: 'climatology', kind: 'Component', title: 'climatology', body: 'An asset: the long-term mean of each input. The model falls back on it when there is no previous forecast.', rect: () => pad(R.climatology) },
