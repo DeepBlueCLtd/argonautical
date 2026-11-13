@@ -1,8 +1,8 @@
 [
   {
     "number": 15,
-    "title": "One staleness countdown: schedule keeps the ring, forecast shows \"valid until\"",
-    "summary": "",
+    "title": "One staleness countdown; separate crowded arrows",
+    "summary": "Arrow spacing Sensors → sensor broker crosses the World | System line straight, not along it. Ingestion → Observations DB leaves ingestion's top rather than squeezing between the boxes; the DB's read line is clear of the orchestrator…",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/15",
     "branch": "claude/forecast-valid-until",
     "sha": "155a46781ee670a4a4ba1ade271fc133d0def469",
