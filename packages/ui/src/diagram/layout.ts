@@ -90,7 +90,6 @@ const HINTS: Record<string, { from: Side; to: Side; drop?: number }> = {
   'forecast>lineage>announcement': { from: 'bottom', to: 'bottom', drop: 588 },
   'features>lineage>announcement': { from: 'right', to: 'left' },
   'driftSensor>trigger>forecast': { from: 'bottom', to: 'top' },
-  'stalenessSchedule>trigger>forecast': { from: 'bottom', to: 'top' },
   'manualRequest>trigger>forecast': { from: 'bottom', to: 'top' },
   'broker>deliver>consumer': { from: 'right', to: 'left' },
   'consumer>query>pygeoapi': { from: 'left', to: 'right' },
@@ -127,6 +126,13 @@ const CUSTOM: Record<string, (a: Rect, b: Rect) => Pt[]> = {
   'sensorBroker>deliver>ingestion': (a, b) => {
     const x = a.x + 44;
     return [{ x, y: a.y }, { x, y: b.y + b.h }];
+  },
+  // Staleness schedule → forecast: down the gap left of the schedule and manual-request cards, so it
+  // never runs behind the Manual request card (which made it look like a second manual trigger).
+  'stalenessSchedule>trigger>forecast': (a, b) => {
+    const x = a.x - 11;
+    const y = a.y + a.h / 2;
+    return [{ x: a.x, y }, { x, y }, { x, y: b.y }];
   },
   // Announcer → broker: out of the announcer's right side, then up into the broker from below.
   'announcer>publish>broker': (a, b) => {
