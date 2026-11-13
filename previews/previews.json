@@ -1,5 +1,16 @@
 [
   {
+    "number": 11,
+    "title": "Drill down into tokens: click a paused dot to see what it carries",
+    "summary": "Pause the demonstrator, click a dot, and a popup shows what is moving along that arrow: a short description, the real-world format it stands for in production, and a mock data object built from the simulation's actual values.",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/11",
+    "branch": "claude/sweet-newton-m24x65",
+    "sha": "72f1d1d5331d04ece5419e0909bc7a888e1a55a0",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-13T07:47:09.007Z"
+  },
+  {
     "number": 10,
     "title": "Move PR-preview tab to bottom centre and make it dismissible",
     "summary": "Small fix to DeepBlueCLtd/argonautical#9.",
