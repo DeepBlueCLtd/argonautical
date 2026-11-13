@@ -28,7 +28,7 @@ interface Gathering {
 
 export type SlotState = { state: 'awaiting' } | { state: 'filled'; token: Token };
 
-/** Lineage signals (MOT-8), wall seconds at any speed: a release sweeps then flashes; a check is a brief light sweep. */
+/** Lineage signals (MOT-8), wall seconds at ½× (shorter when faster): a release sweeps then flashes; a check is a brief light sweep. */
 const SIGNAL_WALL = { release: 2.4, check: 1.4 } as const;
 /** When a release's sweep reaches the arrowhead (fraction of its time); what it releases starts then. */
 const RELEASE_LANDS = 0.65;
@@ -36,9 +36,9 @@ const RELEASE_LANDS = 0.65;
 const LINEAGE = new Set(EDGES.filter((e) => e.kind === 'lineage').map((e) => e.id));
 /** Orchestrator → module calls (via a shim): the module's reads leave only once its call has arrived. */
 const CALLS = new Set(EDGES.filter((e) => e.kind === 'call').map((e) => e.id));
-/** MOT-1: minimum on-screen time, in wall-clock seconds, at any speed. */
+/** MOT-1: minimum on-screen time, in wall-clock seconds, at ½× (shorter when faster). */
 const MIN_WALL = { lineage: 1.2, other: 0.6 };
-/** The four legs of a pygeoapi read play one after another, each this long (wall seconds), so a round trip takes ~8 s at any speed. */
+/** The four legs of a pygeoapi read play one after another, each this long (wall seconds) at ½×, so a round trip takes ~8 s; shorter when faster. */
 const LEG = 2.0;
 /** Reading a NetCDF file (xarray) is slower than a SQL query, so its store legs take longer and its reply comes back later. */
 const NETCDF_LEG = 3.5;
@@ -109,9 +109,29 @@ export class Runner {
     this.emit();
   }
 
+  /**
+   * Change speed. Animations already under way finish; anything queued to start later (later legs
+   * of a round trip, work held behind a release) is dropped, so a backlog built at a high rate never
+   * plays out after slowing down.
+   */
   setRate(rate: Rate): void {
+    if (rate === this.rate) return;
     this.rate = rate;
+    this.visuals = this.visuals.filter((v) => v.born <= this.anim);
+    this.legCursor = this.anim;
+    this.hold = { tick: -1, at: 0 };
     this.emit();
+  }
+
+  /**
+   * Animation times are tuned for the default ½×. Faster, they shrink in proportion (with a floor),
+   * so each tick's tokens are gone before many more ticks' worth arrive: no backlog builds up.
+   */
+  private get pace(): number {
+    return Math.min(1, DEFAULT_RATE / this.rate);
+  }
+  private wall(base: number, floor: number): number {
+    return Math.max(floor, base * this.pace);
   }
 
   /** Advance exactly one tick and let its tokens fly part-way, then stay paused so they can be inspected. */
@@ -168,15 +188,15 @@ export class Runner {
           this.legCursor = now;
           this.abreast = n;
         }
-        dur = (t.role === 'db-query' || t.role === 'db-rows') && t.edge.startsWith('netcdfStore>') ? NETCDF_LEG : LEG;
+        dur = this.wall((t.role === 'db-query' || t.role === 'db-rows') && t.edge.startsWith('netcdfStore>') ? NETCDF_LEG : LEG, 0.15);
         born = this.legCursor;
         this.legCursor += dur;
         abreast = this.abreast;
       } else if (t.signal) {
-        dur = SIGNAL_WALL[t.signal];
+        dur = this.wall(SIGNAL_WALL[t.signal], 0.3);
         if (t.signal === 'release') this.hold = { tick: t.start, at: now + dur * RELEASE_LANDS };
       } else {
-        dur = Math.max(t.duration * secondsPerTick, lineage ? MIN_WALL.lineage : MIN_WALL.other);
+        dur = Math.max(t.duration * secondsPerTick, this.wall(lineage ? MIN_WALL.lineage : MIN_WALL.other, 0.2));
         // The module starts work (and sends its reads) when the call lands, not when it leaves.
         if (CALLS.has(t.edge)) this.hold = { tick: t.start, at: now + dur };
       }
