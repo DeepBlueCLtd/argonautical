@@ -3,7 +3,7 @@
  * run queue with merge, and retry with backoff. ORC-1..6, DRF-5.
  */
 import { TIMING } from '../config.ts';
-import { ServiceUnavailable, type Feature, type Forecast, type Job } from '../contracts.ts';
+import { ServiceUnavailable, type Capabilities, type Feature, type Forecast, type Job } from '../contracts.ts';
 import type { EventLog } from '../events.ts';
 import { clockLabel } from '../events.ts';
 import { ModuleFailure } from '../faults.ts';
@@ -37,6 +37,8 @@ export interface ActiveRun {
   lastFailure?: string;
   forecast?: Forecast;
   featureCount?: number;
+  /** CAT-1: the capabilities this run started with (a change takes effect from the next run). */
+  readonly caps: Capabilities;
   totalFailures: number;
   job?: Job<unknown>;
 }
@@ -49,7 +51,7 @@ export interface RunRecord {
   readonly startedAt: number;
   readonly endedAt: number;
   readonly failures: number;
-  readonly featureCount: number;
+  readonly featureCount?: number;
 }
 
 export interface SensorCursor {
@@ -69,6 +71,8 @@ export interface OrchestratorDeps {
   readonly detector: Pick<FeatureDetector, 'start'>;
   readonly announcer: Pick<Announcer, 'announce'>;
   readonly params: DriftParams;
+  /** CAT-1: read when a run starts. */
+  readonly capabilities: () => Capabilities;
 }
 
 const STEP_MODULE: Record<'run' | 'detect', { shim: ElementId; module: ElementId; name: string }> = {
@@ -183,7 +187,7 @@ export class Orchestrator {
     const p = this.pending!;
     this.pending = null;
     const n = ++this.runSeq;
-    this.active = { id: `R${n}`, forecastId: `F${n}`, causes: p.causes, startedAt: t, step: 'run', attempt: 0, failures: 0, label: '', totalFailures: 0 };
+    this.active = { id: `R${n}`, forecastId: `F${n}`, causes: p.causes, startedAt: t, step: 'run', attempt: 0, failures: 0, label: '', totalFailures: 0, caps: this.d.capabilities() };
     this.d.log.append(t, 'run', `${this.active.id} started (${p.causes.join(' + ')}) → ${this.active.forecastId}`);
     this.beginAttempt(t);
   }
@@ -209,7 +213,7 @@ export class Orchestrator {
           payload: P.shimCall('model_runner.run', 'Dagster Pipes: launch the model-runner container', { forecast_id: a.forecastId, cause: a.causes.join(' + ') }, a.attempt),
         });
         if (!first) this.d.log.append(t, 'retry', `${a.id}: retry ${a.attempt - 1} of model run`);
-        a.job = shims.run(this.d.runner, { id: a.forecastId, cause: a.causes.join(' + '), tick: t });
+        a.job = shims.run(this.d.runner, { id: a.forecastId, cause: a.causes.join(' + '), tick: t, horizon: a.caps.longRange ? 48 : 12 });
       } else if (a.step === 'detect') {
         this.d.tokens.emit(edgeId('shimDetect', 'call', 'featureDetector'), {
           ...retry,
@@ -257,9 +261,15 @@ export class Orchestrator {
       this.current = { id: f.id, validUntil: f.validUntil, digest: f.digest, cause: f.cause };
       this.d.log.append(t, 'commit', `${f.id} committed (${f.cause}), valid until ${clockLabel(f.validUntil)}, digest ${f.digest}`);
       this.materialise('forecast', t);
-      // Materialising forecast releases the features step.
-      this.d.tokens.emit(edgeId('forecast', 'lineage', 'features'), { signal: 'release', payload: P.dependencyReleased('forecast', 'features', a.id, f.id) });
-      this.nextStep('detect', t);
+      if (a.caps.featureDetector) {
+        // Materialising forecast releases the features step.
+        this.d.tokens.emit(edgeId('forecast', 'lineage', 'features'), { signal: 'release', payload: P.dependencyReleased('forecast', 'features', a.id, f.id) });
+        this.nextStep('detect', t);
+      } else {
+        // CAT-2: no feature detector, so the forecast alone releases the announcement.
+        this.d.tokens.emit(edgeId('forecast', 'lineage', 'announcement'), { signal: 'release', payload: P.dependencyReleased('forecast', 'announcement', a.id, f.id) });
+        this.nextStep('announce', t);
+      }
     } else if (a.step === 'detect') {
       const feats = result as readonly Feature[];
       a.featureCount = feats.length;
@@ -287,12 +297,12 @@ export class Orchestrator {
     const a = this.active!;
     const f = a.forecast!;
     this.d.tokens.emit(edgeId('shimAnnounce', 'call', 'announcer'), {
-      payload: P.shimCall('announcer.announce', 'Python call inside the Dagster asset', { forecast_id: f.id, feature_count: a.featureCount ?? 0 }),
+      payload: P.shimCall('announcer.announce', 'Python call inside the Dagster asset', { forecast_id: f.id, ...(a.caps.featureDetector ? { feature_count: a.featureCount ?? 0 } : {}) }),
     });
-    const msg = shims.announce(this.d.announcer, { forecast: f, featureCount: a.featureCount ?? 0 });
-    this.d.log.append(t, 'announce', `announce ${msg.forecastId} (${msg.cause}), ${msg.featureCount} features, digest ${msg.digest}`);
+    const msg = shims.announce(this.d.announcer, { forecast: f, ...(a.caps.featureDetector ? { featureCount: a.featureCount ?? 0 } : {}) });
+    this.d.log.append(t, 'announce', `announce ${msg.forecastId} (${msg.cause}), ${msg.horizon} h, ${msg.featureCount === undefined ? 'no feature detector' : `${msg.featureCount} features`}, digest ${msg.digest}`);
     this.materialise('announcement', t);
-    this.history.push({ id: a.id, forecastId: f.id, causes: a.causes.join(' + '), startedAt: a.startedAt, endedAt: t, failures: a.totalFailures, featureCount: msg.featureCount });
+    this.history.push({ id: a.id, forecastId: f.id, causes: a.causes.join(' + '), startedAt: a.startedAt, endedAt: t, failures: a.totalFailures, ...(msg.featureCount !== undefined ? { featureCount: msg.featureCount } : {}) });
     this.d.log.append(t, 'run', `${a.id} complete in ${t - a.startedAt}s`);
     this.active = null;
   }

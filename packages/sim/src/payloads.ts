@@ -4,7 +4,7 @@
  * mock data object filled with the simulation's actual values. Payloads never affect the event
  * log or its digest. They are plain JSON: non-finite numbers become strings.
  */
-import type { Announcement, Feature, Forecast, InputKey, Observation, SensorMessage } from './contracts.ts';
+import type { BrokerMessage, CollectionInfo, Feature, Forecast, InputKey, Observation, SensorMessage, Topic } from './contracts.ts';
 
 /** The standard (or format) a token's content follows, shown as a letter on the token. */
 export const STANDARDS = {
@@ -18,6 +18,7 @@ export const STANDARDS = {
   M: 'MQTT announcement',
   D: 'Dagster',
   H: 'HTTP status',
+  O: 'OGC API – Common',
 } as const;
 export type StandardCode = keyof typeof STANDARDS;
 
@@ -42,6 +43,7 @@ const lonlat = (x: number, y: number) => [num(SHIP.lon - 0.5 + x), num(SHIP.lat 
 export function standardOf(format: string): StandardCode | undefined {
   const rules: [RegExp, StandardCode][] = [
     [/^HTTP \d{3}/, 'H'],
+    [/^OGC API – Common/, 'O'],
     [/^SQL|SQL from|Database connection/, 'Q'],
     [/Dagster/, 'D'],
     [/SensorThings/, 'S'],
@@ -171,7 +173,7 @@ export const coverage = (what: string, values: Readonly<Record<InputKey, number>
     : p(`${what}: not found`, 'HTTP 404 response', { status: 404, title: 'Not Found' });
 
 export const forecastCoverage = (f: Forecast | undefined) =>
-  coverage(f ? `Forecast ${f.id} (${f.cause})` : 'Forecast', f?.values, f ? { id: f.id, cause: f.cause, issued: iso(f.issuedAt), validUntil: iso(f.validUntil), digest: f.digest } : {});
+  coverage(f ? `Forecast ${f.id} (${f.cause}, ${f.horizon} h)` : 'Forecast', f?.values, f ? { id: f.id, cause: f.cause, horizon_hours: f.horizon, issued: iso(f.issuedAt), validUntil: iso(f.validUntil), digest: f.digest } : {});
 
 export const featureCollection = (forecastId: string, feats: readonly Feature[]) =>
   p(`${feats.length} feature(s) of ${forecastId}`, 'GeoJSON FeatureCollection', {
@@ -241,10 +243,52 @@ export const featuresInsert = (forecastId: string, feats: readonly Feature[]) =>
 
 // ---- broker ----
 
-export const TOPIC = 'argonautical/forecast/announcements';
+const topicPath = (t: Topic) => `argonautical/${t}`;
+/** Announcements are retained, so a new subscriber gets the latest straight away; catalogue changes are not. */
+const RETAINED: Record<Topic, boolean> = { 'forecast/new': true, 'features/new': true, 'catalogue/changed': false };
 
-export const mqtt = (msg: Announcement, to?: string) =>
-  p(to ? `Announcement of ${msg.forecastId} delivered to ${to}` : `Announcement of ${msg.forecastId}`, `MQTT ${to ? 'message' : 'PUBLISH'} on '${TOPIC}' (QoS 1, retained)`, {
-    topic: TOPIC,
-    payload: { forecast_id: msg.forecastId, valid_until: iso(msg.validUntil), cause: msg.cause, digest: msg.digest, feature_count: msg.featureCount },
+const messageBody = (m: BrokerMessage): { summary: string; payload: unknown } => {
+  switch (m.topic) {
+    case 'forecast/new': {
+      const a = m.body;
+      return {
+        summary: `${a.forecastId} is ready (${a.horizon} h${a.featureCount === undefined ? '' : `, ${a.featureCount} features`})`,
+        payload: { forecast_id: a.forecastId, valid_until: iso(a.validUntil), horizon_hours: a.horizon, cause: a.cause, digest: a.digest, ...(a.featureCount !== undefined ? { feature_count: a.featureCount } : {}) },
+      };
+    }
+    case 'features/new':
+      return { summary: `Features of ${m.body.forecastId} are ready`, payload: { forecast_id: m.body.forecastId, feature_count: m.body.featureCount } };
+    case 'catalogue/changed':
+      return { summary: 'The catalogue changed: discover again', payload: { collections: m.body.collections, href: '/collections' } };
+  }
+};
+
+export const mqtt = (msg: BrokerMessage, to?: string) => {
+  const { summary, payload } = messageBody(msg);
+  return p(to ? `${summary} → ${to}` : summary, `MQTT ${to ? 'message' : 'PUBLISH'} on '${topicPath(msg.topic)}' (QoS 1${RETAINED[msg.topic] ? ', retained' : ''})`, { topic: topicPath(msg.topic), retained: RETAINED[msg.topic], payload });
+};
+
+export const catalogueHook = (msg: BrokerMessage) => {
+  const { summary, payload } = messageBody(msg);
+  return p(summary, `MQTT PUBLISH on '${topicPath(msg.topic)}' by the deployment hook (pygeoapi does not announce its own configuration)`, { topic: topicPath(msg.topic), payload });
+};
+
+export const subscribe = (topic: Topic, who: string, on: boolean) =>
+  p(`${who} ${on ? 'subscribes to' : 'unsubscribes from'} ${topic}`, `MQTT ${on ? 'SUBSCRIBE' : 'UNSUBSCRIBE'} (QoS 1)`, { client_id: who, topic: topicPath(topic) });
+
+// ---- catalogue (CAT-3) ----
+
+export const collectionsRequest = () => p('Which collections are offered?', 'OGC API – Common request', { method: 'GET', url: '/collections' });
+
+export const collectionsResponse = (cols: readonly CollectionInfo[]) =>
+  p(`${cols.length} collection(s): ${cols.map((c) => c.id + (c.status === 'available' ? '' : ` (${c.status})`)).join(', ')}`, 'OGC API – Common collections (JSON)', {
+    collections: cols.map((c) => ({
+      id: c.id,
+      title: c.title,
+      itemType: c.api === 'Features' ? 'feature' : c.api === 'EDR' ? 'coverage' : 'observation',
+      links: [{ rel: 'items', href: c.api === 'SensorThings' ? '/v1.1/Datastreams' : `/collections/${c.id}${c.api === 'EDR' ? '/position' : '/items'}` }],
+      ...(c.horizon !== undefined ? { extent: { temporal: { horizon_hours: c.horizon } } } : {}),
+      ...(c.status !== 'available' ? { 'x-status': c.status } : {}),
+      ...(c.nextHorizon !== undefined ? { 'x-next-run': { horizon_hours: c.nextHorizon } } : {}),
+    })),
   });

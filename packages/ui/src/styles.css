@@ -25,6 +25,7 @@
   --std-M: #364fc7; /* MQTT announcement: indigo */
   --std-D: #5f7d95; /* Dagster: slate */
   --std-H: #e03131; /* HTTP status: red */
+  --std-O: #2b8a3e; /* OGC API – Common catalogue: green */
   --lineage-track: #6f8599; /* lineage lines: thin, a darker blue-grey than data lines */
 
   --mat: #22a05a; /* green: materialising */
@@ -176,6 +177,7 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .token.std-M { --tc: var(--std-M); }
 .token.std-D { --tc: var(--std-D); }
 .token.std-H { --tc: var(--std-H); }
+.token.std-O { --tc: var(--std-O); }
 .token.retry .page { fill: var(--retry-fill); stroke: var(--retry); }
 
 
@@ -237,6 +239,7 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .token-popup .std-badge.std-M { color: var(--std-M); border-color: var(--std-M); }
 .token-popup .std-badge.std-D { color: var(--std-D); border-color: var(--std-D); }
 .token-popup .std-badge.std-H { color: var(--std-H); border-color: var(--std-H); }
+.token-popup .std-badge.std-O { color: var(--std-O); border-color: var(--std-O); }
 .token-popup .std-badge { display: inline-block; min-width: 16px; text-align: center; font: 800 11px var(--mono); font-style: normal; color: var(--ink); border: 1px solid var(--ink); border-radius: 3px; padding: 0 3px; }
 .token-popup .note { margin: 6px 10px 8px; color: var(--muted); font-size: 11px; }
 
@@ -280,6 +283,13 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .slot-tip.std-C { --tc: var(--std-C); }
 .slot-tip.std-G { --tc: var(--std-G); }
 .slot-tip.std-E { --tc: var(--std-E); }
+.slot-tip.std-Q { --tc: var(--std-Q); }
+.slot-tip.std-F { --tc: var(--std-F); }
+.slot-tip.std-N { --tc: var(--std-N); }
+.slot-tip.std-M { --tc: var(--std-M); }
+.slot-tip.std-D { --tc: var(--std-D); }
+.slot-tip.std-H { --tc: var(--std-H); }
+.slot-tip.std-O { --tc: var(--std-O); }
 @keyframes slot-tip-in { from { opacity: 0; transform: translateY(3px); } }
 @media (prefers-reduced-motion: reduce) { .slot-tip { animation: none; } }
 
@@ -344,3 +354,17 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .ctl-btn .glyph-stroke { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; }
 .ctl-badge rect { fill: var(--k-presenter); }
 .diagram .ctl-badge text { fill: #fff; font-weight: 700; font-size: 8.5px; }
+
+/* CAT-1..5: capabilities, catalogue and consumer status */
+.diagram .ctl-text.cap-text { font-size: 10px; }
+.box.absent > rect { opacity: 0.45; }
+.box.absent text { opacity: 0.6; }
+.absent-part { opacity: 0.35; }
+.diagram .cat-from-next-run { fill: var(--retry); font-style: italic; }
+.diagram .cat-no-longer-updated { fill: var(--muted); font-style: italic; }
+.status-badge rect { stroke-width: 1.2; }
+.status-badge.good rect { fill: var(--mat-fill); stroke: var(--mat); }
+.status-badge.pending rect { fill: #fff; stroke: var(--retry); stroke-dasharray: 3 2; }
+.status-badge.basic rect { fill: #eef1f4; stroke: #9aa5b1; }
+.status-badge.neutral rect { fill: #fff; stroke: var(--line); }
+.diagram .status-badge text { font-weight: 700; fill: var(--ink); }

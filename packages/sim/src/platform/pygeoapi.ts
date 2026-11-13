@@ -3,7 +3,7 @@
  * The only read path for our modules and for consumers. Every read is a round trip of
  * four tokens: request, the provider's database query, the rows, and the response.
  */
-import { ServiceUnavailable, type Feature, type Forecast, type InputKey, type Observation, type Values } from '../contracts.ts';
+import { ServiceUnavailable, type CollectionInfo, type Feature, type Forecast, type InputKey, type Observation, type Values } from '../contracts.ts';
 import * as P from '../payloads.ts';
 import type { Payload } from '../payloads.ts';
 import type { FeaturesDb, NetcdfStore, ObservationsDb } from '../stores/stores.ts';
@@ -60,6 +60,18 @@ export class PygeoApi {
       if (!latest.has(r.input)) latest.set(r.input, r);
     }
     return [...latest.values()];
+  }
+
+  /**
+   * CAT-3: the catalogue, `GET /collections`. pygeoapi answers from its own configuration, so this
+   * read is two legs (request, response) with no store behind it.
+   */
+  collections(caller: Caller, cols: readonly CollectionInfo[]): readonly CollectionInfo[] {
+    const inst = caller.instance ? { instance: caller.instance } : {};
+    const q = edgeId(caller.element, 'query', 'pygeoapi');
+    this.tokens.emit(q, { ...inst, payload: P.collectionsRequest(), role: 'request' });
+    this.tokens.emit(q, { ...inst, payload: P.collectionsResponse(cols), role: 'response', reverse: true });
+    return cols;
   }
 
   /** SensorThings: latest observation per input. */

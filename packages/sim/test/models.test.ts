@@ -16,7 +16,7 @@ function runner(background?: Forecast, obs: Record<string, number[]> = {}) {
 describe('model runner', () => {
   it('MOD-1 stages, then commits atomically only on completion, with id, cause, valid-until and digest', () => {
     const { r, committed } = runner(undefined, { temp: [13, 13], sal: [35], snd: [1500] });
-    const job = r.start({ id: 'F1', cause: 'manual', tick: 10 });
+    const job = r.start({ id: 'F1', cause: 'manual', tick: 10, horizon: 12 });
     expect(job.readDuration).toBe(7);
     expect(job.duration).toBe(8);
     expect(committed).toHaveLength(0);
@@ -27,9 +27,9 @@ describe('model runner', () => {
   });
 
   it('moves the background 60% of the way towards the mean of recent observations', () => {
-    const bg: Forecast = { id: 'F1', cause: 's', issuedAt: 0, validUntil: 180, inputs: ['temp', 'sal', 'snd'], values: { temp: 12, sal: 35, snd: 1500 }, digest: '' };
+    const bg: Forecast = { id: 'F1', cause: 's', issuedAt: 0, validUntil: 180, inputs: ['temp', 'sal', 'snd'], values: { temp: 12, sal: 35, snd: 1500 }, digest: '', horizon: 12 };
     const { r } = runner(bg, { temp: [13, 15], sal: [], snd: [1500] });
-    const f = r.start({ id: 'F2', cause: 'drift', tick: 0 }).complete();
+    const f = r.start({ id: 'F2', cause: 'drift', tick: 0, horizon: 12 }).complete();
     expect(f.values.temp).toBeCloseTo(12 + NUMERICS.nudge * (14 - 12));
     // no observations: falls back to climatology
     expect(f.values.sal).toBeCloseTo(35);
@@ -37,21 +37,21 @@ describe('model runner', () => {
 
   it('falls back to climatology when there is no background', () => {
     const { r } = runner(undefined, { temp: [14] });
-    expect(r.start({ id: 'F1', cause: 's', tick: 0 }).complete().values.temp).toBeCloseTo(12 + 0.6 * 2);
+    expect(r.start({ id: 'F1', cause: 's', tick: 0, horizon: 12 }).complete().values.temp).toBeCloseTo(12 + 0.6 * 2);
   });
 
   it('labels the execution bar with what it replaces', () => {
-    const bg: Forecast = { id: 'F2', cause: 's', issuedAt: 0, validUntil: 100, inputs: [], values: {}, digest: '' };
-    expect(runner(undefined).r.start({ id: 'F1', cause: 's', tick: 0 }).label).toBe('first forecast');
-    expect(runner(bg).r.start({ id: 'F3', cause: 's', tick: 50 }).label).toBe('replacing F2');
-    expect(runner(bg).r.start({ id: 'F3', cause: 's', tick: 100 }).label).toBe('replacing stale F2');
+    const bg: Forecast = { id: 'F2', cause: 's', issuedAt: 0, validUntil: 100, inputs: [], values: {}, digest: '', horizon: 12 };
+    expect(runner(undefined).r.start({ id: 'F1', cause: 's', tick: 0, horizon: 12 }).label).toBe('first forecast');
+    expect(runner(bg).r.start({ id: 'F3', cause: 's', tick: 50, horizon: 12 }).label).toBe('replacing F2');
+    expect(runner(bg).r.start({ id: 'F3', cause: 's', tick: 100, horizon: 12 }).label).toBe('replacing stale F2');
   });
 });
 
 describe('feature detector', () => {
   const values = { temp: 12 + 0.8 * 0.5, sal: 35 + 0.7 * 0.2, snd: 1500 - 2 * 3 };
   const base = { id: 'F7', validUntil: 200, inputs: ['temp', 'sal', 'snd'], values };
-  const f: Forecast = { ...base, cause: 's', issuedAt: 0, digest: forecastDigest(base) };
+  const f: Forecast = { ...base, cause: 's', issuedAt: 0, digest: forecastDigest(base), horizon: 12 };
 
   it('DET-1 reports a front for each input more than 0.75σ from climatology, and 1–3 eddies from the digest', () => {
     const d = new FeatureDetector(inputs, { forecast: () => f, climatology: () => clim }, { writeAll: () => {} });

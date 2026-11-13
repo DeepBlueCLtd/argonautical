@@ -19,13 +19,15 @@ export interface Script {
   readonly seed: string;
   readonly inputs?: number;
   readonly consumers?: number;
+  /** CAT-1: starting capabilities (default: feature detector present, 12 h). */
+  readonly capabilities?: { readonly featureDetector?: boolean; readonly longRange?: boolean };
   /** Run until this tick. */
   readonly until: number;
   readonly steps: readonly ScriptStep[];
 }
 
 export function runScript(script: Script, onTick?: (sim: Simulation) => void): Simulation {
-  const sim = new Simulation({ seed: script.seed, inputs: script.inputs, consumers: script.consumers });
+  const sim = new Simulation({ seed: script.seed, inputs: script.inputs, consumers: script.consumers, capabilities: script.capabilities });
   const steps = [...script.steps].sort((a, b) => a.at - b.at);
   let i = 0;
   while (sim.tick < script.until) {

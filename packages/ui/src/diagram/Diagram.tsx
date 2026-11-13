@@ -1,10 +1,12 @@
-import { DRIFT_BOUNDS, EDGES, INPUTS, NOISE_BOUNDS, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
+import { DRIFT_BOUNDS, EDGES, INPUTS, NOISE_BOUNDS, PROFILES, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, useRef, type ReactNode } from 'react';
 import type { Rate, Runner } from '../runner.ts';
 import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
 
 
 const MATERIALISING_TICKS = 3;
+/** CAT-5: badge colour per consumer status. */
+const STATUS_TONE: Record<string, 'good' | 'pending' | 'basic' | 'neutral'> = { 'HI RES': 'good', '48 h': 'good', OK: 'good', 'HI RES pending': 'pending', '48 h pending': 'pending', 'LOW RES': 'basic', '12 h': 'basic' };
 /** Gap, in diagram pixels, between reads a caller sends together (a token is ~12 px long). */
 const ABREAST_GAP = 18;
 
@@ -143,6 +145,8 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
 
   const R = RECTS;
   const f = snap.forecast;
+  /** CAT-1: a feature detector is present (the toggle takes effect from the next run). */
+  const detector = snap.capabilities.featureDetector;
   // Staleness countdown (ORC-1, MOT-3): smooth between ticks; "replacing" once a run is under way.
   const staleRemaining = f ? Math.max(0, snap.schedule.staleIn - (snap.schedule.staleIn > 0 ? runner.frac : 0)) : 0;
   const stale = { replacing: !!run && f !== undefined && snap.schedule.staleIn === 0 };
@@ -176,7 +180,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <rect className="region consumers" x={REGIONS.consumersLeft} y={0} width={VIEW.w - REGIONS.consumersLeft} height={VIEW.h} />
         <line className="boundary" x1={REGIONS.worldRight} y1={0} x2={REGIONS.worldRight} y2={VIEW.h} />
         <line className="boundary" x1={REGIONS.consumersLeft} y1={0} x2={REGIONS.consumersLeft} y2={VIEW.h} />
-        <T x={REGIONS.worldRight / 2} y={186} cls="region-label" anchor="middle">
+        <T x={REGIONS.worldRight / 2} y={222} cls="region-label" anchor="middle">
           WORLD
         </T>
         <T x={(REGIONS.worldRight + REGIONS.consumersLeft) / 2} y={24} cls="region-label" anchor="middle">
@@ -431,7 +435,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
           forecast
         </T>
         <T x={R.forecast.x + 12} y={R.forecast.y + 44} cls="small">
-          {f ? `${f.id} · ${f.cause}` : 'none yet'}
+          {f ? `${f.id} · ${f.cause} · ${f.horizon} h` : 'none yet'}
         </T>
         {/* The asset states when it goes out of date; the countdown ring belongs to the Staleness schedule (the trigger). */}
         {f && (
@@ -439,6 +443,9 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
             {staleRemaining > 0 ? `valid until ${clockLabel(f.validUntil)}` : stale.replacing ? 'stale · replacing' : 'stale'}
           </T>
         )}
+        <T x={R.forecast.x + 12} y={R.forecast.y + R.forecast.h - 46} cls="tiny waiting">
+          {snap.capabilities.longRange !== (f ? f.horizon === 48 : false) ? `${snap.capabilities.longRange ? 48 : 12} h from the next run` : ''}
+        </T>
         <T x={R.forecast.x + 12} y={R.forecast.y + R.forecast.h - 30} cls="tiny muted">
           {run ? `${run.id} → ${run.forecastId} · ${run.causes}` : 'idle'}
         </T>
@@ -461,13 +468,18 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         </T>
       </Module>
 
-      <Box r={R.features} style="asset" cls={materialising('features')}>
+      <Box r={R.features} style="asset" cls={`${materialising('features')} ${detector ? '' : 'absent'}`}>
         <T x={R.features.x + 34} y={R.features.y + 24} cls="asset-title">
           features
         </T>
         <T x={R.features.x + 12} y={R.features.y + 44} cls="small">
           {snap.stores.features} stored
         </T>
+        {!detector && (
+          <T x={R.features.x + 12} y={R.features.y + 60} cls="tiny strong">
+            no feature detector{snap.stores.features ? ' · not updated' : ''}
+          </T>
+        )}
         <T x={R.features.x + 12} y={R.features.y + R.features.h - 30} cls="tiny waiting">
           {run && run.step === 'run' ? `waiting for forecast ${run.forecastId}` : ''}
         </T>
@@ -475,8 +487,9 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
           {snap.assets.features !== undefined ? `materialised ${clockLabel(snap.assets.features)}` : ''}
         </T>
       </Box>
-      <InputSlots x={R.features.x + 96} y={R.features.y + 66} reader="featureDetector" who="Feature detector" inputs={INPUTS.featureDetector} runner={runner} onPick={onPick} onTip={onTip} />
-      <PlayPause at={{ x: R.features.x + 20, y: R.features.y + 19 }} running={!snap.offline.featureDetector} what="the feature detector (detection fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })} />
+      {detector && <InputSlots x={R.features.x + 96} y={R.features.y + 66} reader="featureDetector" who="Feature detector" inputs={INPUTS.featureDetector} runner={runner} onPick={onPick} onTip={onTip} />}
+      {detector && <PlayPause at={{ x: R.features.x + 20, y: R.features.y + 19 }} running={!snap.offline.featureDetector} what="the feature detector (detection fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })} />}
+      <g className={detector ? '' : 'absent-part'}>
       <Shim r={R.shimDetect} name="detect" retryIn={retryOn('detect')} />
       <Module r={R.featureDetector} name="Feature detector" offline={snap.offline.featureDetector}>
         <ExecLine r={R.featureDetector} label={execLabel('detect')} frac={shownProgress('detect', 5)} active={!!executing('detect') && !retrieving('detect')} />
@@ -484,6 +497,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
           fronts &amp; eddies
         </T>
       </Module>
+      </g>
 
       <Box r={R.announcement} style="asset" cls={materialising('announcement')}>
         <T x={R.announcement.x + 12} y={R.announcement.y + 24} cls="asset-title">
@@ -539,12 +553,15 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.pygeoapi.x + 12} y={R.pygeoapi.y + 42} cls="tag">
           read only
         </T>
-        <T x={R.pygeoapi.x + 12} y={R.pygeoapi.y + 66} cls="small">
-          SensorThings · EDR · Features
+        <T x={R.pygeoapi.x + 120} y={R.pygeoapi.y + 24} cls="tiny muted">
+          /collections
         </T>
-        <T x={R.pygeoapi.x + 12} y={R.pygeoapi.y + 88} cls="muted small">
-          the only read path
-        </T>
+        {/* CAT-3: the catalogue, as consumers discover it */}
+        {snap.catalogue.map((c, i) => (
+          <T key={c.id} x={R.pygeoapi.x + 12} y={R.pygeoapi.y + 60 + i * 14} cls={`tiny cat-${c.status.replace(/ /g, '-')}`}>
+            {`${c.id}${c.horizon ? ` · ${c.horizon} h${c.nextHorizon ? ` → ${c.nextHorizon} h next run` : ''}` : ''}${c.status === 'available' ? '' : ` · ${c.status}`}`}
+          </T>
+        ))}
       </Box>
 
       {/* Broker straddles the boundary */}
@@ -552,37 +569,52 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.broker.x + 10} y={R.broker.y + 24} cls="title">
           Broker
         </T>
-        <T x={R.broker.x + 10} y={R.broker.y + 50} cls="small">
-          {snap.consumers.length} subs
-        </T>
-        <T x={R.broker.x + 10} y={R.broker.y + 72} cls="muted tiny">
-          delivers to
-        </T>
-        <T x={R.broker.x + 10} y={R.broker.y + 86} cls="muted tiny">
-          subscribers only
-        </T>
+        {/* CAT-4: topics and their subscriber counts */}
+        {(
+          [
+            ['forecast/new', 'forecast'],
+            ['features/new', 'features'],
+            ['catalogue/changed', 'catalogue'],
+          ] as const
+        ).map(([topic, label], i) => (
+          <T key={topic} x={R.broker.x + 10} y={R.broker.y + 46 + i * 16} cls={`tiny mono ${snap.topics[topic] ? '' : 'muted'}`}>
+            {`${label} ×${snap.topics[topic]}`}
+          </T>
+        ))}
       </Box>
 
       {/* Consumers */}
       {snap.consumers.slice(0, CONSUMER_AREA.max).map((c, i) => {
         const r = consumerRect(i);
         const l = c.latest;
+        const tone = STATUS_TONE[c.status] ?? 'neutral';
         return (
           <Box key={c.id} r={r} style="world">
-            <T x={r.x + 10} y={r.y + 22} cls="title">
+            <T x={r.x + 10} y={r.y + 20} cls="title">
               {c.id}
             </T>
-            <InputSlots x={r.x + 40} y={r.y + 17} reader="consumer" instance={c.id} who={c.id} inputs={INPUTS.consumer[c.needs]} runner={runner} onPick={onPick} onTip={onTip} label={false} />
-            <T x={r.x + r.w - 10} y={r.y + 24} cls={`verdict ${l ? (l.ok ? 'ok' : 'bad') : ''}`} anchor="end">
+            <T x={r.x + 34} y={r.y + 19} cls="tiny muted">
+              {PROFILES[c.profile].title}
+            </T>
+            <T x={r.x + r.w - 10} y={r.y + 21} cls={`verdict ${l ? (l.ok ? 'ok' : 'bad') : ''}`} anchor="end">
               {l ? (l.ok ? '✓' : '✗') : '·'}
             </T>
-            <T x={r.x + 10} y={r.y + 42} cls="small">
-              {l ? `${l.forecastId}${{ announcement: '', 'catch-up': ' (catch-up)', reconfigure: ' (reconfigured)' }[l.trigger]}` : 'waiting'}
+            {/* CAT-5: the level of service it can give with what is offered */}
+            <g className={`status-badge ${tone}`}>
+              <title>{PROFILES[c.profile].about}</title>
+              <rect x={r.x + 10} y={r.y + 28} width={c.status.length * 6.4 + 14} height={17} rx={8.5} />
+              <text x={r.x + 17} y={r.y + 40.5} className="tiny">
+                {c.status}
+              </text>
+            </g>
+            <InputSlots x={r.x + r.w - 52} y={r.y + 37} reader="consumer" instance={c.id} who={c.id} inputs={INPUTS.consumer[c.profile]} runner={runner} onPick={onPick} onTip={onTip} label={false} />
+            <T x={r.x + 10} y={r.y + 62} cls="small">
+              {l ? `${l.forecastId}${c.waiting ? ' …' : ''}` : 'no data'}
             </T>
-            <T x={r.x + 10} y={r.y + 58} cls="tiny muted">
-              {l ? `${l.featureCount === undefined ? "coverage" : `${l.featureCount} features`}${c.waiting ? ' · querying…' : ''}` : clockLabel(c.subscribedAt)}
+            <T x={r.x + 10} y={r.y + 82} cls="tiny muted">
+              {`subs: ${c.topics.filter((t) => t !== 'catalogue/changed').map((t) => t.split('/')[0]).join(', ') || '—'}`}
             </T>
-            {/* CON-3: the app's user reconfigures it, so it queries pygeoapi again (no new data implied) */}
+            {/* CON-3: the app's user reconfigures it, so it discovers and fetches again (no new data implied) */}
             <g
               className="svg-button"
               role="button"
@@ -591,9 +623,9 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
               onClick={() => runner.apply({ type: 'reconfigureConsumer', consumer: c.id })}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && runner.apply({ type: 'reconfigureConsumer', consumer: c.id })}
             >
-              <title>The app's user changes what it shows, so it queries pygeoapi again</title>
-              <rect x={r.x + r.w - 82} y={r.y + 44} width={74} height={18} rx={4} />
-              <text x={r.x + r.w - 45} y={r.y + 57} textAnchor="middle" className="tiny">
+              <title>The app's user changes what it shows, so it discovers the catalogue and fetches again</title>
+              <rect x={r.x + r.w - 82} y={r.y + 50} width={74} height={18} rx={4} />
+              <text x={r.x + r.w - 45} y={r.y + 63} textAnchor="middle" className="tiny">
                 Reconfigure
               </text>
             </g>
@@ -617,8 +649,8 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         </T>
         {Object.entries(STANDARDS).map(([code, name], i) => (
           <g key={code}>
-            <DocToken x={TOKEN_KEY.x + 22} y={TOKEN_KEY.y + 58 + i * 23} size={1.4} letter={code} cls="token" />
-            <T x={TOKEN_KEY.x + 40} y={TOKEN_KEY.y + 63 + i * 23} cls="small">
+            <DocToken x={TOKEN_KEY.x + 22} y={TOKEN_KEY.y + 58 + i * 21} size={1.4} letter={code} cls="token" />
+            <T x={TOKEN_KEY.x + 40} y={TOKEN_KEY.y + 63 + i * 21} cls="small">
               {name}
             </T>
           </g>
@@ -741,6 +773,20 @@ function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runn
       </CtlButton>
       <CtlButton x={c.x + 178} y={c.y + 120} w={26} h={28} title={`Event log (${snap.events.count} events)`} pressed={controls.logOpen} onClick={controls.onLog}>
         <path className="glyph-stroke" d={[0, 5, 10].map((k) => `M${c.x + 185},${c.y + 129 + k} h12`).join(' ')} />
+      </CtlButton>
+      {/* CAT-1: capabilities of the deployed system; each takes effect from the next run */}
+      <T x={c.x + 12} y={c.y + 168} cls="tiny muted">
+        Capabilities · from next run
+      </T>
+      <CtlButton x={c.x + 12} y={c.y + 174} w={118} h={16} title="Feature detector: present or absent (takes effect from the next run)" pressed={snap.capabilities.featureDetector} onClick={() => runner.apply({ type: 'capability', name: 'featureDetector', on: !snap.capabilities.featureDetector })} cls="cap">
+        <text x={c.x + 71} y={c.y + 185.5} textAnchor="middle" className="ctl-text cap-text">
+          {snap.capabilities.featureDetector ? '✓ ' : ''}Feature detector
+        </text>
+      </CtlButton>
+      <CtlButton x={c.x + 136} y={c.y + 174} w={64} h={16} title="48 h forecasts instead of 12 h (from the next run)" pressed={snap.capabilities.longRange} onClick={() => runner.apply({ type: 'capability', name: 'longRange', on: !snap.capabilities.longRange })} cls="cap">
+        <text x={c.x + 168} y={c.y + 185.5} textAnchor="middle" className="ctl-text cap-text">
+          {snap.capabilities.longRange ? '✓ ' : ''}48 h
+        </text>
       </CtlButton>
       {/* Event count, as a badge on the log icon */}
       <g className="ctl-badge" aria-hidden>
@@ -1098,7 +1144,10 @@ function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; b
     <g className={`tokens ${frozen ? 'inspectable' : ''}`}>
       {runner.tokens.map(({ v, p }) => {
         const tk = v.token;
-        const pts = tk.edge === 'forecast>lineage>forecast' ? loop : byKey.get(tk.instance ? `${tk.edge}#${tk.instance}` : tk.edge)?.points;
+        // A SUBSCRIBE travels back along the consumer's delivery line: one MQTT connection, both ways (CAT-4).
+        const sub = tk.edge === 'consumer>subscribe>broker';
+        const routeKey = sub ? `broker>deliver>consumer#${tk.instance}` : tk.instance ? `${tk.edge}#${tk.instance}` : tk.edge;
+        const pts = tk.edge === 'forecast>lineage>forecast' ? loop : byKey.get(routeKey)?.points;
         if (!pts) return null;
         if (tk.signal) return <Pulse key={tk.seq} pts={pts} p={p} token={tk} frozen={frozen} onPick={onPick} />;
         // Reads sent together travel side by side: the nth stays a constant ABREAST_GAP·n pixels behind
@@ -1107,7 +1156,7 @@ function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; b
         const q = Math.min(1, p - lag);
         if (q < 0) return null;
         // Replies travel back along the line, against its arrow.
-        const pt = pointAt(pts, tk.reverse ? 1 - q : q);
+        const pt = pointAt(pts, tk.reverse || sub ? 1 - q : q);
         const dot = <DocToken x={pt.x} y={pt.y} size={v.lineage ? 1.5 : 1.25} letter={tk.payload?.standard} cls={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} />;
         // Hover (any time) shows what the token carries; paused, a click opens the full data.
         const tip = (el: Element) => {

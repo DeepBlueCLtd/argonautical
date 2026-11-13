@@ -8,6 +8,8 @@ export interface RunRequest {
   readonly id: string;
   readonly cause: string;
   readonly tick: number;
+  /** Hours: 12, or 48 with the long-range capability. */
+  readonly horizon: number;
 }
 
 export class ModelRunner {
@@ -43,7 +45,7 @@ export class ModelRunner {
         const issuedAt = req.tick + TIMING.inputReadDuration + TIMING.modelRunDuration;
         const validUntil = issuedAt + TIMING.staleAfter;
         const base = { id: req.id, cause: req.cause, issuedAt, validUntil, inputs, values };
-        staged = { ...base, digest: forecastDigest(base) };
+        staged = { ...base, digest: forecastDigest(base), horizon: req.horizon };
         writer.commit(staged);
         return staged;
       },

@@ -18,13 +18,14 @@ export interface Rect {
 export const REGIONS = {
   worldRight: 230,
   consumersLeft: 1360,
-  orchestrator: { x: 470, y: 40, w: 870, h: 560 },
+  // Ends at x 1316, leaving a corridor (x 1316–1360) for the two lines up into the broker.
+  orchestrator: { x: 470, y: 40, w: 846, h: 560 },
 } as const;
 
 export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   // The top fifth of the World column is the presenter's Control panel (CONTROL below).
-  ocean: { x: 20, y: 196, w: 190, h: 236 },
-  sensors: { x: 20, y: 446, w: 190, h: 280 },
+  ocean: { x: 20, y: 232, w: 190, h: 228 },
+  sensors: { x: 20, y: 470, w: 190, h: 272 },
   ingestion: { x: 248, y: 430, w: 150, h: 130 },
   // Persistent queue between the DAQ gateway and ingestion (FLT-3).
   sensorBroker: { x: 252, y: 612, w: 162, h: 104 },
@@ -58,9 +59,9 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
 };
 
 /** Presenter controls (§5.4): the top fifth of the World column. */
-export const CONTROL: Rect = { x: 10, y: 8, w: 210, h: 160 };
+export const CONTROL: Rect = { x: 10, y: 8, w: 210, h: 196 };
 
-export const CONSUMER_AREA = { x: 1430, y: 196, w: 160, cardH: 66, gap: 10, max: 4 } as const;
+export const CONSUMER_AREA = { x: 1430, y: 196, w: 160, cardH: 94, gap: 10, max: 3 } as const;
 
 /** Token key, at the foot of the Onboard consumers column. */
 export const TOKEN_KEY: Rect = { x: 1404, y: 540, w: 190, h: 292 };
@@ -134,10 +135,18 @@ const CUSTOM: Record<string, (a: Rect, b: Rect) => Pt[]> = {
     const y = a.y + a.h / 2;
     return [{ x: a.x, y }, { x, y }, { x, y: b.y }];
   },
+  // pygeoapi → broker: its deployment hook publishes catalogue changes (CAT-4), up the corridor
+  // right of the orchestrator frame and into the broker from below.
+  'pygeoapi>publish>broker': (a, b) => {
+    const x = b.x + 40;
+    const sx = a.x + a.w - 10;
+    const y = 642;
+    return [{ x: sx, y: a.y }, { x: sx, y }, { x, y }, { x, y: b.y + b.h }];
+  },
   // Announcer → broker: out of the announcer's right side, then up into the broker from below,
   // clear of the orchestrator frame (x 1340) and the announcement card (x 1300).
   'announcer>publish>broker': (a, b) => {
-    const x = b.x + 12;
+    const x = b.x + 22;
     const y = a.y + a.h / 2;
     return [{ x: a.x + a.w, y }, { x, y }, { x, y: b.y + b.h }];
   },
@@ -236,6 +245,7 @@ export function routeAll(edges: readonly Edge[], consumers: readonly string[]): 
   const pending: Pending[] = [];
   for (const e of edges) {
     if (e.from === e.to) continue; // self-loop drawn separately (UI-10)
+    if (e.kind === 'subscribe') continue; // CAT-4: rides the delivery line back (same MQTT connection)
     const instances = e.from === 'consumer' || e.to === 'consumer' ? consumers.map((c, i) => ({ c, i })) : [{ c: undefined, i: 0 }];
     for (const { c, i } of instances) {
       if (c !== undefined && i >= CONSUMER_AREA.max) continue;
