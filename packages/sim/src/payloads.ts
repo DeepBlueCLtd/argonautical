@@ -25,14 +25,21 @@ const p = (summary: string, format: string, data: unknown): Payload => ({ summar
 
 // ---- world → ingestion → store ----
 
-export const sensorReadings = (tick: number, readings: Readonly<Record<InputKey, number>>, units: Record<InputKey, string>) =>
-  p(`One sample from each of ${Object.keys(readings).length} instruments`, 'Instrument messages via the DAQ gateway (JSON)', {
-    time: iso(tick),
-    readings: Object.entries(readings).map(([sensor, v]) => ({ sensor, value: num(v), unit: units[sensor] })),
-  });
-
 /** A SensorThings Datastream id for an input (one Thing: this ship; one Datastream per input). */
 const datastream = (input: InputKey) => `ship-1:${input}`;
+
+/**
+ * The DAQ gateways translate raw instrument output (serial, NMEA, vendor formats) into SensorThings
+ * Observation messages on the SensorThings MQTT topic pattern. There is no SensorThings server: the
+ * schema travels in the messages. Values are raw and not yet validated.
+ */
+export const sensorReadings = (tick: number, readings: Readonly<Record<InputKey, number>>, units: Record<InputKey, string>) =>
+  p(`${Object.keys(readings).length} raw SensorThings Observation message(s), one per instrument, not yet validated`, 'MQTT messages from the DAQ gateways, SensorThings topic and Observation schema', {
+    messages: Object.entries(readings).map(([input, v]) => ({
+      topic: `v1.1/Datastreams('${datastream(input)}')/Observations`,
+      payload: { phenomenonTime: iso(tick), result: num(v), parameters: { unitOfMeasurement: units[input] } },
+    })),
+  });
 
 /**
  * Ingestion writes SensorThings Observation entities over SQL into the SensorThings schema that

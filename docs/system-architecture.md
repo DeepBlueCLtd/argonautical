@@ -73,13 +73,13 @@ flowchart LR
 
 | SRD element | Production component | Node / zone | Notes |
 |---|---|---|---|
-| Sensors | Instruments + DAQ gateways | OT | Gateways normalise serial/NMEA to a single message format. |
+| Sensors | Instruments + DAQ gateways | OT | Gateways translate serial/NMEA/vendor output into **SensorThings Observation messages** on the SensorThings MQTT topic pattern (`v1.1/Datastreams('<id>')/Observations`). This needs an MQTT broker on the OT network: the same product as the distribution broker, but a separate instance, because the zones are separate. |
 | Ingestion | Long-running service | OT (edge of) | Only writer to Observations DB. Not orchestrated (UI-4) — correct in production too: per-sample work does not belong in a batch orchestrator. |
 | Orchestrator | Dagster webserver + daemon + metadata Postgres | Orchestration node | The "private store" (§2) is Dagster's own Postgres. |
 | Shims | `@asset` / `@sensor` definitions | Code location process | See §1.4 — the boundary is an import boundary, not a process boundary. |
 | Drift monitor, feature detector, announcer | Python packages imported by the code location | Orchestration node | Run in-process with the shims. The announcer owns the announcement message contract. |
 | Model runner | Container launched by Dagster Pipes | Compute node | Heavier, may be a different language/runtime; isolate it. |
-| Observations DB | Postgres + TimescaleDB, **SensorThings schema** | Data node | Data model is SensorThings end to end (Thing = ship, a Datastream per input, Observations). Ingestion writes Observation entities over SQL; pygeoapi serves them as the SensorThings API. A SensorThings write API (e.g. FROST-Server, which also offers SensorThings over MQTT) was considered and not adopted: it adds a component and a write path that bypasses pygeoapi. The cost: ingestion is coupled to the schema. |
+| Observations DB | Postgres + TimescaleDB, **SensorThings schema** | Data node | Data model is SensorThings end to end (Thing = ship, a Datastream per input, Observations). Ingestion writes Observation entities over SQL; pygeoapi serves them as the SensorThings API. There is no SensorThings server (FROST-Server was considered and not adopted): the schema travels in the gateways' messages, and ingestion validates and writes those entities. The cost: ingestion is coupled to the schema. |
 | NetCDF store | Shared volume (NFS) or MinIO with Zarr | Data node | Atomic commit = write to staging path, then rename/manifest swap. |
 | Features DB | PostGIS | Data node | |
 | pygeoapi | Container behind reverse proxy | Distribution zone | Read-only DB role. |
