@@ -1,0 +1,13 @@
+[
+  {
+    "number": 9,
+    "title": "Publish persistent PR previews to GitHub Pages, with a previews list",
+    "summary": "Each pull request gets a persistent preview on GitHub Pages, linked from a PR comment and listed on a previews page.",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/9",
+    "branch": "claude/pr-previews",
+    "sha": "cef8a2a2e334ce1de2e85c032126ab4e74a5188f",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-13T06:59:50.376Z"
+  }
+]

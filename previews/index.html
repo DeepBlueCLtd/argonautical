@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR previews</title>
+<meta name="description" content="Persistent previews of pull requests, one per PR, rebuilt on every push.">
+<style>
+  :root { --ink:#1f2933; --muted:#6b7785; --line:#d5dbe1; --bg:#f6f7f9; --open:#22a05a; --merged:#6a4fb3; --closed:#9aa5b1; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
+  main { max-width:860px; margin:0 auto; padding:48px 20px 64px; }
+  h1 { margin:0 0 4px; font-size:30px; }
+  .lede { color:var(--muted); margin:0 0 24px; }
+  ul { list-style:none; margin:0; padding:0; display:grid; gap:12px; }
+  .card { background:#fff; border:1px solid var(--line); border-left:4px solid var(--closed); border-radius:8px; padding:14px 16px; }
+  .card.open { border-left-color:var(--open); } .card.merged { border-left-color:var(--merged); }
+  .head { display:flex; gap:12px; align-items:baseline; justify-content:space-between; }
+  .title { font-weight:650; color:var(--ink); text-decoration:none; } .title:hover { text-decoration:underline; }
+  .badge { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#fff; background:var(--closed); padding:2px 8px; border-radius:3px; white-space:nowrap; }
+  .open .badge { background:var(--open); } .merged .badge { background:var(--merged); }
+  p { margin:6px 0; }
+  .meta { color:var(--muted); font-size:13px; } .meta a { color:inherit; }
+  code { font-size:12px; }
+  .empty { color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../">← Back to the site</a></p>
+  <h1>PR previews</h1>
+  <p class="lede">One preview per pull request, rebuilt on every push and kept after the PR closes. Newest first.</p>
+  <ul>
+    <li class="card open">
+      <div class="head">
+        <a class="title" href="./pr-9/">#9 · Publish persistent PR previews to GitHub Pages, with a previews list</a>
+        <span class="badge">Open</span>
+      </div>
+      <p>Each pull request gets a persistent preview on GitHub Pages, linked from a PR comment and listed on a previews page.</p>
+      <div class="meta">
+        <a href="./pr-9/">Open preview</a> ·
+        <a href="https://github.com/DeepBlueCLtd/argonautical/pull/9">View PR</a> ·
+        claude/pr-previews @ <code>cef8a2a</code> ·
+        updated 2026-11-13 06:59 UTC
+      </div>
+    </li>
+  </ul>
+  <p class="meta">Live site: <a href="https://deepbluecltd.github.io/argonautical/">https://deepbluecltd.github.io/argonautical/</a></p>
+</main>
+</body>
+</html>
