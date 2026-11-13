@@ -20,7 +20,15 @@ export interface Token {
   readonly role?: ExchangeRole;
   /** On a response: which declared input of the caller it fills (see INPUTS). */
   readonly slot?: InputSlot;
+  /**
+   * On a lineage edge nothing moves; the token marks a moment instead. 'release': the upstream asset
+   * was just materialised and that lets the downstream step start. 'check': the upstream was already
+   * available when the run began (a dependency, never a trigger).
+   */
+  readonly signal?: LineageSignal;
 }
+
+export type LineageSignal = 'release' | 'check';
 
 /** The four legs of a read through pygeoapi. */
 export type ExchangeRole = 'request' | 'db-query' | 'db-rows' | 'response';
@@ -38,6 +46,7 @@ export interface EmitOptions {
   reverse?: boolean;
   role?: ExchangeRole;
   slot?: InputSlot;
+  signal?: LineageSignal;
 }
 
 const KEEP_TICKS = 60;
@@ -61,7 +70,7 @@ export class TokenRecorder {
       this.log.append(tick, 'defect', msg);
       return;
     }
-    const t: Token = { seq: ++this.seq, edge, start: tick, duration: opts.duration ?? 1, ...(opts.retry ? { retry: true } : {}), ...(opts.instance ? { instance: opts.instance } : {}), ...(opts.payload ? { payload: opts.payload } : {}), ...(opts.reverse ? { reverse: true } : {}), ...(opts.role ? { role: opts.role } : {}), ...(opts.slot ? { slot: opts.slot } : {}) };
+    const t: Token = { seq: ++this.seq, edge, start: tick, duration: opts.duration ?? 1, ...(opts.retry ? { retry: true } : {}), ...(opts.instance ? { instance: opts.instance } : {}), ...(opts.payload ? { payload: opts.payload } : {}), ...(opts.reverse ? { reverse: true } : {}), ...(opts.role ? { role: opts.role } : {}), ...(opts.slot ? { slot: opts.slot } : {}), ...(opts.signal ? { signal: opts.signal } : {}) };
     this.recent.push(t);
     const s = this.stats.get(edge);
     this.stats.set(edge, { count: (s?.count ?? 0) + 1, last: tick });

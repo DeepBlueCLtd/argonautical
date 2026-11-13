@@ -203,11 +203,23 @@ export const runRequest = (cause: string, from: string, note: string, tick: numb
     { run_key: `${cause}-${tick}`, asset_selection: ASSETS, tags: { cause, ...(note ? { reason: note } : {}) }, requested_at: iso(tick) },
   );
 
-export const lineage = (upstream: string, downstream: string, runId: string, extra: Record<string, unknown> = {}) =>
-  p(`${upstream} is an input of ${downstream} in ${runId}`, 'Dagster asset lineage (metadata; no data moves on this line)', { upstream, downstream, run_id: runId, ...extra });
+/** A dependency that was already satisfied when the run began: checked, never a trigger. */
+export const dependencyChecked = (upstream: string, downstream: string, runId: string, extra: Record<string, unknown> = {}) =>
+  p(`${upstream} is already available, so ${downstream} need not wait for it (${runId})`, 'Dagster run plan: upstream dependency satisfied (no data moves on this line)', { upstream, downstream, run_id: runId, status: 'satisfied', ...extra });
 
-export const backgroundLoop = (f: Forecast) =>
-  p(`${f.id} committed; it becomes the background of the next run`, 'Dagster asset materialisation event', { asset: 'forecast', partition: f.id, metadata: { digest: f.digest, valid_until: iso(f.validUntil) }, next_role: 'background' });
+/** The upstream asset has just been materialised, which releases the downstream step. */
+export const dependencyReleased = (upstream: string, downstream: string, runId: string, partition: string) =>
+  p(`${upstream} ${partition} materialised, so ${downstream} can now run (${runId})`, 'Dagster ASSET_MATERIALIZATION event releases the downstream step (no data moves on this line)', {
+    event: 'ASSET_MATERIALIZATION',
+    asset: upstream,
+    partition,
+    run_id: runId,
+    unblocks: downstream,
+  });
+
+/** UI-10: the previous forecast is the background of this run. */
+export const backgroundChecked = (prev: { id: string; digest: string }, runId: string) =>
+  p(`${prev.id} is available as the background for ${runId}`, 'Dagster run plan: upstream dependency satisfied (no data moves on this line)', { upstream: 'forecast', partition: prev.id, digest: prev.digest, downstream: 'forecast', role: 'background', run_id: runId, status: 'satisfied' });
 
 export const shimCall = (fn: string, transport: string, args: Record<string, unknown>, attempt?: number) =>
   p(`Call ${fn}${attempt && attempt > 1 ? ` (retry ${attempt - 1})` : ''}`, transport, { function: fn, args, ...(attempt ? { attempt } : {}) });

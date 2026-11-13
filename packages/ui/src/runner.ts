@@ -26,6 +26,11 @@ interface Gathering {
 
 export type SlotState = { state: 'awaiting' } | { state: 'filled'; token: Token };
 
+/** Lineage signals (MOT-8), wall seconds at any speed: a release sweeps then flashes; a check is a brief light sweep. */
+const SIGNAL_WALL = { release: 2.4, check: 1.4 } as const;
+/** When a release's sweep reaches the arrowhead (fraction of its time); what it releases starts then. */
+const RELEASE_LANDS = 0.65;
+
 const LINEAGE = new Set(EDGES.filter((e) => e.kind === 'lineage').map((e) => e.id));
 /** MOT-1: minimum on-screen time, in wall-clock seconds, at any speed. */
 const MIN_WALL = { lineage: 1.2, other: 0.6 };
@@ -55,6 +60,8 @@ export class Runner {
   private legCursor = 0;
   /** Which of the caller's same-tick reads the current round trip is (0 = the first). */
   private abreast = 0;
+  /** After a release, the rest of that tick's tokens wait until its pulse lands, so cause visibly precedes effect. */
+  private hold = { tick: -1, at: 0 };
   private listeners = new Set<() => void>();
   /** Per reader (element#instance): the latest gathering and the one before it. */
   private gatherings = new Map<string, Gathering[]>();
@@ -82,6 +89,7 @@ export class Runner {
     this.lastSeq = 0;
     this.exchangesThisTick.clear();
     this.gatherings.clear();
+    this.hold = { tick: -1, at: 0 };
     this.frac = 0;
     this.emit();
   }
@@ -144,7 +152,8 @@ export class Runner {
       // the same caller in the same tick leave together, side by side, and the slower NetCDF reads
       // come back later than SQL ones, so the replies arrive staggered.
       let dur: number;
-      let born = this.anim;
+      const now = t.start === this.hold.tick ? Math.max(this.anim, this.hold.at) : this.anim;
+      let born = now;
       let abreast = 0;
       if (t.role) {
         if (t.role === 'request') {
@@ -152,13 +161,16 @@ export class Runner {
           const n = this.exchangesThisTick.get(key) ?? 0;
           this.exchangesThisTick.set(key, n + 1);
           // All leave together; the diagram draws the nth a few pixels behind the first.
-          this.legCursor = this.anim;
+          this.legCursor = now;
           this.abreast = n;
         }
         dur = (t.role === 'db-query' || t.role === 'db-rows') && t.edge.startsWith('netcdfStore>') ? NETCDF_LEG : LEG;
         born = this.legCursor;
         this.legCursor += dur;
         abreast = this.abreast;
+      } else if (t.signal) {
+        dur = SIGNAL_WALL[t.signal];
+        if (t.signal === 'release') this.hold = { tick: t.start, at: now + dur * RELEASE_LANDS };
       } else {
         dur = Math.max(t.duration * secondsPerTick, lineage ? MIN_WALL.lineage : MIN_WALL.other);
       }

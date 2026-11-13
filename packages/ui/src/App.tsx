@@ -205,6 +205,12 @@ function Legend() {
       <span>
         <i className="sw offline" /> offline
       </span>
+      <span title="An upstream asset was just materialised, which lets the next step start">
+        <i className="sw release" /> dependency releases next step
+      </span>
+      <span title="At run start: the upstream was already there (a dependency, never a trigger)">
+        <i className="sw check" /> dependency checked
+      </span>
     </div>
   );
 }

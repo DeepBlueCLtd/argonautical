@@ -198,8 +198,11 @@ export class Orchestrator {
     try {
       if (a.step === 'run') {
         if (first) {
-          this.d.tokens.emit(edgeId('observationsDb', 'lineage', 'forecast'), { payload: P.lineage('observations', 'forecast', a.id) });
-          this.d.tokens.emit(edgeId('climatology', 'lineage', 'forecast'), { payload: P.lineage('climatology', 'forecast', a.id) });
+          // Dependencies that are already available: checked, never triggers (new observations start nothing).
+          this.d.tokens.emit(edgeId('observationsDb', 'lineage', 'forecast'), { signal: 'check', payload: P.dependencyChecked('observations', 'forecast', a.id) });
+          this.d.tokens.emit(edgeId('climatology', 'lineage', 'forecast'), { signal: 'check', payload: P.dependencyChecked('climatology', 'forecast', a.id) });
+          const prev = this.current;
+          if (prev) this.d.tokens.emit(edgeId('forecast', 'lineage', 'forecast'), { signal: 'check', payload: P.backgroundChecked(prev, a.id) });
         }
         this.d.tokens.emit(edgeId('shimRun', 'call', 'modelRunner'), {
           ...retry,
@@ -208,7 +211,6 @@ export class Orchestrator {
         if (!first) this.d.log.append(t, 'retry', `${a.id}: retry ${a.attempt - 1} of model run`);
         a.job = shims.run(this.d.runner, { id: a.forecastId, cause: a.causes.join(' + '), tick: t });
       } else if (a.step === 'detect') {
-        if (first) this.d.tokens.emit(edgeId('forecast', 'lineage', 'features'), { payload: P.lineage('forecast', 'features', a.id, { partition: a.forecastId }) });
         this.d.tokens.emit(edgeId('shimDetect', 'call', 'featureDetector'), {
           ...retry,
           payload: P.shimCall('feature_detector.detect', 'Python call inside the Dagster asset', { forecast_id: a.forecastId }, a.attempt),
@@ -254,9 +256,9 @@ export class Orchestrator {
       a.forecast = f;
       this.current = { id: f.id, validUntil: f.validUntil, digest: f.digest, cause: f.cause };
       this.d.log.append(t, 'commit', `${f.id} committed (${f.cause}), valid until ${clockLabel(f.validUntil)}, digest ${f.digest}`);
-      // UI-10: the committed forecast becomes the next background.
-      this.d.tokens.emit(edgeId('forecast', 'lineage', 'forecast'), { payload: P.backgroundLoop(f) });
       this.materialise('forecast', t);
+      // Materialising forecast releases the features step.
+      this.d.tokens.emit(edgeId('forecast', 'lineage', 'features'), { signal: 'release', payload: P.dependencyReleased('forecast', 'features', a.id, f.id) });
       this.nextStep('detect', t);
     } else if (a.step === 'detect') {
       const feats = result as readonly Feature[];
@@ -264,6 +266,9 @@ export class Orchestrator {
       const fronts = feats.filter((x) => x.kind === 'front').length;
       this.d.log.append(t, 'detect', `${a.forecastId}: ${fronts} front(s), ${feats.length - fronts} eddy(ies)`);
       this.materialise('features', t);
+      // Features was the last thing announcement waited for; forecast was already there.
+      this.d.tokens.emit(edgeId('features', 'lineage', 'announcement'), { signal: 'release', payload: P.dependencyReleased('features', 'announcement', a.id, a.forecastId) });
+      this.d.tokens.emit(edgeId('forecast', 'lineage', 'announcement'), { signal: 'check', payload: P.dependencyChecked('forecast', 'announcement', a.id, { partition: a.forecastId }) });
       this.nextStep('announce', t);
     }
   }
@@ -281,8 +286,6 @@ export class Orchestrator {
   private announce(t: number): void {
     const a = this.active!;
     const f = a.forecast!;
-    this.d.tokens.emit(edgeId('features', 'lineage', 'announcement'), { payload: P.lineage('features', 'announcement', a.id, { partition: f.id }) });
-    this.d.tokens.emit(edgeId('forecast', 'lineage', 'announcement'), { payload: P.lineage('forecast', 'announcement', a.id, { partition: f.id }) });
     this.d.tokens.emit(edgeId('shimAnnounce', 'call', 'announcer'), {
       payload: P.shimCall('announcer.announce', 'Python call inside the Dagster asset', { forecast_id: f.id, feature_count: a.featureCount ?? 0 }),
     });

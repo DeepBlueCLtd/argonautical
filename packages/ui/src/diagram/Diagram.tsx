@@ -1,7 +1,7 @@
 import { EDGES, INPUTS, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, type ReactNode } from 'react';
 import type { Runner } from '../runner.ts';
-import { CONSUMER_AREA, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Rect, type Route } from './layout.ts';
+import { CONSUMER_AREA, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
 
 
 const MATERIALISING_TICKS = 3;
@@ -425,6 +425,9 @@ export function Diagram({ snap, runner, onPick, onTip }: { snap: Snapshot; runne
         <T x={R.features.x + 12} y={R.features.y + 44} cls="small">
           {snap.stores.features} stored
         </T>
+        <T x={R.features.x + 12} y={R.features.y + R.features.h - 30} cls="tiny waiting">
+          {run && run.step === 'run' ? `waiting for forecast ${run.forecastId}` : ''}
+        </T>
         <T x={R.features.x + 12} y={R.features.y + R.features.h - 14} cls="tiny muted">
           {snap.assets.features !== undefined ? `materialised ${clockLabel(snap.assets.features)}` : ''}
         </T>
@@ -442,6 +445,9 @@ export function Diagram({ snap, runner, onPick, onTip }: { snap: Snapshot; runne
       <Box r={R.announcement} style="asset" cls={materialising('announcement')}>
         <T x={R.announcement.x + 12} y={R.announcement.y + 24} cls="asset-title">
           announcement
+        </T>
+        <T x={R.announcement.x + 12} y={R.announcement.y + R.announcement.h - 30} cls="tiny waiting">
+          {run && (run.step === 'run' || run.step === 'detect') ? 'waiting for features' : ''}
         </T>
         <T x={R.announcement.x + 12} y={R.announcement.y + R.announcement.h - 14} cls="tiny muted">
           {snap.assets.announcement !== undefined ? `materialised ${clockLabel(snap.assets.announcement)}` : ''}
@@ -797,6 +803,48 @@ function ResidualBars({ r, snap }: { r: Rect; snap: Snapshot }) {
   );
 }
 
+/**
+ * MOT-8: a moment on a lineage edge, not data. A release (upstream just materialised, so the
+ * downstream step may start) sweeps a bright pulse along the line, then flashes the arrowhead.
+ * A check (upstream already available at run start) is a fainter sweep with no flash.
+ */
+function Pulse({ pts, p, token, frozen, onPick }: { pts: Pt[]; p: number; token: Token; frozen: boolean; onPick: (p: Picked) => void }) {
+  const release = token.signal === 'release';
+  const L = lengthOf(pts);
+  const sweepEnd = release ? 0.65 : 1;
+  const s = Math.min(1, p / sweepEnd);
+  const seg = Math.min(70, L * 0.45);
+  const head = s * (L + seg * 0.4);
+  const end = pts[pts.length - 1]!;
+  const flash = release && p > sweepEnd ? (p - sweepEnd) / (1 - sweepEnd) : -1;
+  const at = pointAt(pts, Math.min(1, head / L));
+  const pick = (x: number, y: number) => onPick({ token, x, y });
+  return (
+    <g className={`pulse ${token.signal}`}>
+      {s < 1 || !release ? <path d={pathD(pts)} className="sweep" strokeDasharray={`${seg} ${L + seg * 2}`} strokeDashoffset={seg - head} opacity={release ? 1 : 1 - s * 0.6} /> : null}
+      {flash >= 0 && <circle className="flash" cx={end.x} cy={end.y} r={5 + flash * 16} opacity={1 - flash} />}
+      {flash >= 0 && <circle className="flash-core" cx={end.x} cy={end.y} r={5} opacity={1 - flash * 0.7} />}
+      {frozen && (
+        <circle
+          className="hit pulse-hit"
+          cx={flash >= 0 ? end.x : at.x}
+          cy={flash >= 0 ? end.y : at.y}
+          r={14}
+          role="button"
+          tabIndex={0}
+          aria-label={`Inspect ${token.payload?.summary ?? token.edge}`}
+          onClick={(e) => pick(e.clientX, e.clientY)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const b = (e.currentTarget as SVGCircleElement).getBoundingClientRect();
+            pick(b.x + b.width / 2, b.y + b.height / 2);
+          }}
+        />
+      )}
+    </g>
+  );
+}
+
 function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void }) {
   // Drill-down: once paused, frozen tokens get a larger hit area and open a popup on click.
   const frozen = runner.frozen;
@@ -806,6 +854,7 @@ function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<st
         const tk = v.token;
         const pts = tk.edge === 'forecast>lineage>forecast' ? loop : byKey.get(tk.instance ? `${tk.edge}#${tk.instance}` : tk.edge)?.points;
         if (!pts) return null;
+        if (tk.signal) return <Pulse key={tk.seq} pts={pts} p={p} token={tk} frozen={frozen} onPick={onPick} />;
         // Reads sent together travel side by side: the nth sits ABREAST_GAP·n pixels behind the first,
         // closing up as they leave and arrive.
         const lag = v.abreast ? (v.abreast * ABREAST_GAP) / Math.max(1, lengthOf(pts)) : 0;

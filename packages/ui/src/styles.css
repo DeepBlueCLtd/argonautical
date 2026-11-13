@@ -87,6 +87,9 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .sw.store { background: #fff; border: 3px double var(--ours); }
 .sw.mat { background: var(--mat-fill); border: 1.5px solid var(--mat); }
 .sw.retry { background: var(--retry-fill); border: 1.5px solid var(--retry); }
+.legend .sw.release, .legend .sw.check { height: 4px; width: 18px; vertical-align: 2px; border-radius: 2px; }
+.sw.release { background: var(--mat); box-shadow: 0 0 4px var(--mat); }
+.sw.check { background: var(--lineage-track); opacity: 0.6; }
 .sw.offline { background: #fff; box-shadow: 0 0 0 2px var(--offline), 0 0 6px var(--offline); }
 
 .controls { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 6px 12px 8px; background: var(--panel); border-top: 1px solid var(--line); }
@@ -306,3 +309,13 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .slot-tip.std-E { --tc: var(--std-E); }
 @keyframes slot-tip-in { from { opacity: 0; transform: translateY(3px); } }
 @media (prefers-reduced-motion: reduce) { .slot-tip { animation: none; } }
+
+/* MOT-8: lineage signals — moments, not data */
+.pulse .sweep { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.pulse.release .sweep { stroke: var(--mat); stroke-width: 5; filter: drop-shadow(0 0 4px var(--mat)); }
+.pulse.check .sweep { stroke: var(--lineage-track); stroke-width: 4; opacity: 0.55; }
+.pulse .flash { fill: none; stroke: var(--mat); stroke-width: 3; pointer-events: none; }
+.pulse .flash-core { fill: var(--mat); pointer-events: none; }
+.pulse .pulse-hit { fill: transparent; cursor: pointer; }
+.pulse .pulse-hit:focus { outline: none; }
+.diagram .waiting { fill: var(--muted); font-style: italic; }
