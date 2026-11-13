@@ -31,11 +31,22 @@ export const sensorReadings = (tick: number, readings: Readonly<Record<InputKey,
     readings: Object.entries(readings).map(([sensor, v]) => ({ sensor, value: num(v), unit: units[sensor] })),
   });
 
+/** A SensorThings Datastream id for an input (one Thing: this ship; one Datastream per input). */
+const datastream = (input: InputKey) => `ship-1:${input}`;
+
+/**
+ * Ingestion writes SensorThings Observation entities over SQL into the SensorThings schema that
+ * pygeoapi serves. The data model is SensorThings end to end; the transport is plain SQL.
+ */
 export const observationInsert = (rows: readonly Observation[], rejected: number) =>
-  p(`${rows.length} validated observation(s) written${rejected ? `; ${rejected} rejected and not written` : ''}`, 'SQL INSERT into the Observations DB (TimescaleDB)', {
-    table: 'observations',
-    rows: rows.map((r) => ({ time: iso(r.tick), datastream: r.input, result: num(r.value) })),
-  });
+  p(
+    `${rows.length} SensorThings Observation(s) written${rejected ? `; ${rejected} rejected and not written` : ''}`,
+    'SQL INSERT of SensorThings Observation entities (schema served by pygeoapi)',
+    {
+      table: 'OBSERVATIONS',
+      rows: rows.map((r) => ({ 'Datastream@iot.id': datastream(r.input), phenomenonTime: iso(r.tick), resultTime: iso(r.tick), result: num(r.value), resultQuality: 'passed ingestion QC' })),
+    },
+  );
 
 // ---- read path: pygeoapi ----
 
@@ -44,12 +55,12 @@ export const request = (summary: string, api: 'SensorThings' | 'EDR' | 'Features
 
 export const sensorThingsLatest = (latest: readonly Observation[]) =>
   p(`Latest observation of ${latest.length} datastream(s)`, 'SensorThings Observations (JSON)', {
-    value: latest.map((o) => ({ Datastream: o.input, phenomenonTime: iso(o.tick), result: num(o.value) })),
+    value: latest.map((o) => ({ 'Datastream@iot.id': datastream(o.input), phenomenonTime: iso(o.tick), result: num(o.value) })),
   });
 
 export const sensorThingsRecent = (n: number, recent: Partial<Record<InputKey, readonly number[]>>) =>
   p(`Up to ${n} recent observations per datastream`, 'SensorThings Observations (JSON)', {
-    value: Object.entries(recent).map(([ds, vals]) => ({ Datastream: ds, results: (vals ?? []).map(num) })),
+    value: Object.entries(recent).map(([ds, vals]) => ({ 'Datastream@iot.id': datastream(ds), results: (vals ?? []).map(num) })),
   });
 
 export const coverage = (what: string, values: Readonly<Record<InputKey, number>> | undefined, meta: Record<string, unknown> = {}) =>

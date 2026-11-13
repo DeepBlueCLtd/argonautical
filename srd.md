@@ -55,7 +55,7 @@ The screen and the simulation share one model, in three regions separated by two
   - **Model runner** (inside forecast): moves the background 60% of the way towards recent observations, falling back to climatology. It stages the result, then commits it atomically with a digest.
   - **Feature detector** (inside features): finds fronts and eddies in the new forecast.
   - **Announcer** (inside announcement): builds the announcement (ORC-5) and publishes it to the broker. The message contract is ours.
-- **Stores** (ours): the Observations DB (time series), the NetCDF store (coverage files: climatology and forecasts) and the Features DB (PostGIS).
+- **Stores** (ours): the Observations DB (time series in the SensorThings data model: one Thing, the ship; a Datastream per input; Observations with `phenomenonTime` and `result`. Ingestion writes Observation entities over SQL and pygeoapi serves them as SensorThings), the NetCDF store (coverage files: climatology and forecasts) and the Features DB (PostGIS).
 - **pygeoapi** (off-the-shelf, mocked, read-only): SensorThings, EDR and Features. It is the only read path, both for our modules and for consumers.
 - **Broker** (off-the-shelf, mocked): sits on the System–Consumers boundary and delivers only to subscribers.
 
@@ -272,6 +272,7 @@ None open. The six questions from v2 and three raised by the system-architecture
 - **Tour mode.** Wanted, built from the replay scripts (§5.7).
 - **Target display.** 1920×1080 minimum (UI-6), raised from 1280×720 to give the straddling Observations DB (UI-8) room. Scales up to large monitors; below 1080p (e.g. an older 720p projector) legibility is not guaranteed.
 - **Drift monitor cadence.** It stays a Dagster sensor. The 4 s interval is demo-only; production uses ≥30 s (ORC-1).
+- **Observation write path.** Observations use the SensorThings data model end to end. Ingestion writes Observation entities over SQL into the schema pygeoapi serves; there is no SensorThings write API (e.g. FROST-Server). Revisit if live SensorThings subscriptions (MQTT) are wanted.
 - **Read path.** Our modules read only through pygeoapi, as §2 states. Revisit if forecast grids grow large enough for the HTTP hop to matter.
 - **Network zones.** The instrument (OT) network and the mission network are separate, with a distribution zone between them (SYS-3).
 - **Announce shim.** It calls a new module of ours, the announcer, which publishes to the broker, so every shim calls one of our modules (§2).

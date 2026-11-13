@@ -79,7 +79,7 @@ flowchart LR
 | Shims | `@asset` / `@sensor` definitions | Code location process | See §1.4 — the boundary is an import boundary, not a process boundary. |
 | Drift monitor, feature detector, announcer | Python packages imported by the code location | Orchestration node | Run in-process with the shims. The announcer owns the announcement message contract. |
 | Model runner | Container launched by Dagster Pipes | Compute node | Heavier, may be a different language/runtime; isolate it. |
-| Observations DB | Postgres + TimescaleDB | Data node | |
+| Observations DB | Postgres + TimescaleDB, **SensorThings schema** | Data node | Data model is SensorThings end to end (Thing = ship, a Datastream per input, Observations). Ingestion writes Observation entities over SQL; pygeoapi serves them as the SensorThings API. A SensorThings write API (e.g. FROST-Server, which also offers SensorThings over MQTT) was considered and not adopted: it adds a component and a write path that bypasses pygeoapi. The cost: ingestion is coupled to the schema. |
 | NetCDF store | Shared volume (NFS) or MinIO with Zarr | Data node | Atomic commit = write to staging path, then rename/manifest swap. |
 | Features DB | PostGIS | Data node | |
 | pygeoapi | Container behind reverse proxy | Distribution zone | Read-only DB role. |
