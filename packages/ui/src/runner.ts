@@ -22,6 +22,8 @@ interface Gathering {
   readonly tick: number;
   readonly start: number;
   readonly fills: Map<InputSlot, { at: number; token: Token }>;
+  /** When the last leg of any of these reads lands (wall seconds). */
+  lastAt: number;
 }
 
 export type SlotState = { state: 'awaiting' } | { state: 'filled'; token: Token };
@@ -182,7 +184,7 @@ export class Runner {
       const same = this.visuals.filter((v) => `${v.token.edge}#${v.token.instance ?? ''}#${v.token.role ?? ''}` === key);
       if (same.length >= MAX_PER_EDGE) this.visuals.splice(this.visuals.indexOf(same[0]!), 1);
       this.visuals.push({ token: t, born, dur, lineage, ...(abreast ? { abreast } : {}) });
-      if (t.role === 'request' || t.slot) this.gather(t, born, dur);
+      if (t.role) this.gather(t, born, dur);
     }
   }
 
@@ -192,12 +194,24 @@ export class Runner {
     const list = this.gatherings.get(reader) ?? [];
     let g = list[list.length - 1];
     if (t.role === 'request' && (!g || g.tick !== t.start)) {
-      g = { tick: t.start, start: born, fills: new Map() };
+      g = { tick: t.start, start: born, fills: new Map(), lastAt: born + dur };
       list.push(g);
       if (list.length > 3) list.shift();
       this.gatherings.set(reader, list);
     }
-    if (t.slot && g) g.fills.set(t.slot, { at: born + dur, token: t });
+    if (!g) return;
+    g.lastAt = Math.max(g.lastAt, born + dur);
+    if (t.slot) g.fills.set(t.slot, { at: born + dur, token: t });
+  }
+
+  /**
+   * True while the reader's latest reads are still on screen: requests out, replies not yet back.
+   * The diagram shows "retrieving data" until then, so a step never looks busy before its inputs arrive.
+   */
+  readsPending(element: string, instance?: string): boolean {
+    const list = this.gatherings.get(`${element}#${instance ?? ''}`) ?? [];
+    const g = list[list.length - 1];
+    return !!g && this.anim < g.lastAt;
   }
 
   /** What a reader's input slot shows now: the document it last received, or pale while it waits for one. */
