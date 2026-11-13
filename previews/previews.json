@@ -1,5 +1,16 @@
 [
   {
+    "number": 17,
+    "title": "Hover any moving token for its page-styled panel",
+    "summary": "",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/17",
+    "branch": "claude/token-hover",
+    "sha": "ad019c5a3d43ca5fb4a37373f8f34d1ba2e61d3e",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-13T11:24:41.303Z"
+  },
+  {
     "number": 16,
     "title": "Draft C4 model of the production candidate (physical view)",
     "summary": "Adds docs/c4-model.md, a C4 model of the eventual production system. It is kept separate from docs/system-architecture.md so the two can be compared before one is chosen.",
