@@ -5,10 +5,10 @@
     "summary": "Pause the demonstrator, click a dot, and a popup shows what is moving along that arrow: a short description, the real-world format it stands for in production, and a mock data object built from the simulation's actual values.",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/11",
     "branch": "claude/sweet-newton-m24x65",
-    "sha": "3521c47ed2b36da3d43da6b16ffe91f0182acee0",
+    "sha": "a6b7fa18677c6e04f441974399b79eafeef772b6",
     "author": "IanMayo",
     "status": "open",
-    "updated": "2026-11-13T07:51:17.847Z"
+    "updated": "2026-11-13T07:52:09.505Z"
   },
   {
     "number": 10,
