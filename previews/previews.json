@@ -1,5 +1,16 @@
 [
   {
+    "number": 25,
+    "title": "Show how consumers learn about new data",
+    "summary": "Broker tokens carry a topic tag (forecast / features / catalogue; +/− topic for subscription changes), so the messages can be told apart without hovering. A consumer card shows what it just heard (\"▸ F3 ready\", \"▸ features of F3\", \"▸…",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/25",
+    "branch": "claude/consumer-notices",
+    "sha": "6dc1b1eba5c2aa4fa8e651483d74a4cc8de6aa50",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-13T20:37:45.044Z"
+  },
+  {
     "number": 24,
     "title": "Stop a token backlog building at high rates",
     "summary": "Measured after 20 s at 60×, then ½× (tokens on screen, every 2 s): before (live site): 29 → 18 → 14 → 13 → 12 → 12 after: 21 → 3 → 3 → 4 → 5 → 5",
