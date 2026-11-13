@@ -1,7 +1,7 @@
 [
   {
     "number": 17,
-    "title": "Hover any moving token for its page-styled panel",
+    "title": "Hover panels for moving tokens; fix same-tick reads opening each other's data",
     "summary": "",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/17",
     "branch": "claude/token-hover",
