@@ -22,7 +22,7 @@ The browser demonstrator and the explanatory site shell. React + SVG, built with
 - **Token letters.** Each token is a white document lettered with the standard its content follows (`STANDARDS` in `packages/sim/src/payloads.ts`), and a Token key card sits at the foot of the Onboard consumers column. That column shows up to five consumer cards, then "+N more". The letter is by payload, so an EDR request is **E** and its CoverageJSON response is **C**.
 - **No reduced-motion mode.** Tokens are always shown (MOT-2 withdrawn).
 - **Boundary check (ARC-1).** `npm run boundary` writes `src/generated/boundary.json` before `dev`, `build` and `typecheck`; a violation fails the build. (The on-screen banner that showed it was removed with the toolbar.)
-- **Adaptive layout (UI-6).** The scenario and operator controls sit in a bottom strip or a left sidebar, whichever leaves the diagram bigger. On each resize the strip's real height is measured before paint. Wide screens (1366×1024 and up) keep the strip. Tablets and 1280×720 get the sidebar: at about 1000×590 the diagram grows from 337 px to 714 px wide with 4 inputs. With 5–6 inputs on a small tablet, the sidebar scrolls. `?layout=side|bottom` forces a layout.
+- **Controls live on the cards they affect (UI-6).** Scenario controls are on the World cards (shift in Ocean, noise in Sensors) and operator controls on the Drift sensor card, so there is no control strip and the diagram gets the whole window.
 - **URL parameters:** `?seed=`, `?inputs=3..6`, `?layout=`.
 
 ## Not built yet

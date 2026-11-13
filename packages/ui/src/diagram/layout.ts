@@ -31,9 +31,11 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   // UI-8: straddles the orchestrator's left edge (x = 470).
   observationsDb: { x: 404, y: 270, w: 128, h: 120 },
   orchestrator: REGIONS.orchestrator,
-  driftSensor: { x: 560, y: 72, w: 250, h: 172 },
-  shimCheck: { x: 574, y: 112, w: 222, h: 20 },
-  driftMonitor: { x: 574, y: 138, w: 222, h: 96 },
+  // Reaches left into the orchestrator's empty top-left corner: room for the operator's drift controls
+  // in a column right of the drift monitor.
+  driftSensor: { x: 486, y: 72, w: 324, h: 172 },
+  shimCheck: { x: 500, y: 112, w: 222, h: 20 },
+  driftMonitor: { x: 500, y: 138, w: 222, h: 96 },
   stalenessSchedule: { x: 830, y: 72, w: 180, h: 78 },
   manualRequest: { x: 830, y: 176, w: 180, h: 78 },
   privateStore: { x: 1160, y: 72, w: 138, h: 92 },
