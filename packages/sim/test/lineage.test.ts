@@ -20,9 +20,9 @@ describe('lineage signals', () => {
     for (const t of tokens) expect(['release', 'check'], t.edge).toContain(t.signal);
   });
 
-  it('only forecast → features and features → announcement ever release a step', () => {
+  it('only forecast → features and features → announcement release a step, or forecast → announcement when there is no feature detector', () => {
     const released = new Set(tokens.filter((t) => t.signal === 'release').map((t) => t.edge));
-    expect([...released].sort()).toEqual(['features>lineage>announcement', 'forecast>lineage>features']);
+    expect([...released].sort()).toEqual(['features>lineage>announcement', 'forecast>lineage>announcement', 'forecast>lineage>features']);
   });
 
   it('observations, climatology and the background loop are only ever checked', () => {

@@ -37,6 +37,8 @@ export interface Forecast {
   readonly inputs: readonly InputKey[];
   readonly values: Values;
   readonly digest: string;
+  /** Forecast horizon in hours (12, or 48 with the long-range capability). Not part of the digest. */
+  readonly horizon: number;
 }
 
 export type FeatureKind = 'front' | 'eddy';
@@ -58,8 +60,46 @@ export interface Announcement {
   readonly validUntil: number;
   readonly cause: string;
   readonly digest: string;
+  /** Undefined when no feature detector ran (CAT-2). */
+  readonly featureCount?: number;
+  readonly horizon: number;
+}
+
+/** CAT-1: what the deployed system can do. Each takes effect from the next run. */
+export interface Capabilities {
+  /** A feature detector is present: runs detect fronts and eddies. */
+  readonly featureDetector: boolean;
+  /** The model produces 48 h forecasts instead of 12 h. */
+  readonly longRange: boolean;
+}
+
+/** CAT-3: one entry in pygeoapi's `/collections`. */
+export interface CollectionInfo {
+  readonly id: 'observations' | 'climatology' | 'forecast' | 'features';
+  readonly title: string;
+  readonly api: 'SensorThings' | 'EDR' | 'Features';
+  /** 'from next run': configured, no data yet. 'no longer updated': its producer is gone; old data stays readable. */
+  readonly status: 'available' | 'from next run' | 'no longer updated';
+  /** Forecast only: the horizon (h) of the data now served, and the next run's if different. */
+  readonly horizon?: number;
+  readonly nextHorizon?: number;
+}
+
+/** Broker topics (CAT-4). */
+export type Topic = 'forecast/new' | 'features/new' | 'catalogue/changed';
+
+/** A `features/new` message: features for a forecast are ready. */
+export interface FeaturesReady {
+  readonly forecastId: string;
   readonly featureCount: number;
 }
+
+/** A `catalogue/changed` message, published by the deployment hook. */
+export interface CatalogueChanged {
+  readonly collections: readonly string[];
+}
+
+export type BrokerMessage = { readonly topic: 'forecast/new'; readonly body: Announcement } | { readonly topic: 'features/new'; readonly body: FeaturesReady } | { readonly topic: 'catalogue/changed'; readonly body: CatalogueChanged };
 
 export function forecastDigest(f: Pick<Forecast, 'id' | 'validUntil' | 'inputs' | 'values'>): string {
   const body = f.inputs.map((k) => `${k}=${(f.values[k] ?? NaN).toFixed(6)}`).join(',');
@@ -95,7 +135,7 @@ export interface FeatureWriter {
   writeAll(forecastId: string, features: readonly Feature[]): void;
 }
 export interface AnnouncementPublisher {
-  publish(msg: Announcement): void;
+  publish(msg: BrokerMessage): void;
 }
 
 /** A long-running step (model run, detection). Pipes-style: start, report progress, complete. */

@@ -29,6 +29,7 @@ export type RelationKind =
   | 'reads'
   | 'publishes'
   | 'subscribes'
+  | 'registers'
   | 'queries'
   | 'lineage'
   | 'triggers';
@@ -143,16 +144,17 @@ export const ELEMENTS: readonly ElementDecl[] = [
     kind: 'service',
     provenance: 'off-the-shelf',
     region: 'system',
-    relations: [r('reads', 'observationsDb'), r('reads', 'netcdfStore'), r('reads', 'featuresDb')],
+    // CAT-4: its deployment hook publishes catalogue changes (pygeoapi itself does not).
+    relations: [r('reads', 'observationsDb'), r('reads', 'netcdfStore'), r('reads', 'featuresDb'), r('publishes', 'broker')],
     note: 'read only',
   },
   { id: 'broker', label: 'Broker', kind: 'service', provenance: 'off-the-shelf', region: 'boundary', relations: [] },
 
   // Onboard consumers
-  { id: 'consumer', label: 'Consumer', kind: 'consumer', provenance: 'world', region: 'consumers', template: true, relations: [r('subscribes', 'broker'), r('queries', 'pygeoapi')] },
+  { id: 'consumer', label: 'Consumer', kind: 'consumer', provenance: 'world', region: 'consumers', template: true, relations: [r('subscribes', 'broker'), r('registers', 'broker'), r('queries', 'pygeoapi')] },
 ];
 
-export type EdgeKind = 'send' | 'call' | 'write' | 'read' | 'publish' | 'deliver' | 'query' | 'lineage' | 'trigger';
+export type EdgeKind = 'send' | 'call' | 'write' | 'read' | 'publish' | 'deliver' | 'subscribe' | 'query' | 'lineage' | 'trigger';
 
 export interface Edge {
   readonly id: string;
@@ -185,6 +187,9 @@ function deriveEdge(owner: ElementId, rel: Relation): Edge {
     // Messages move from the broker to the subscriber.
     case 'subscribes':
       return mk(rel.to, 'deliver', owner);
+    // CAT-4: the subscriber's own SUBSCRIBE / UNSUBSCRIBE requests.
+    case 'registers':
+      return mk(owner, 'subscribe', rel.to);
     case 'lineage':
       return mk(owner, 'lineage', rel.to, true);
     case 'triggers':

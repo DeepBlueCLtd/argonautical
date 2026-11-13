@@ -28,7 +28,7 @@ export const WALKTHROUGH: readonly WalkStep[] = [
     id: 'control',
     kind: 'Overview',
     title: 'Control',
-    body: 'Run or pause (also Space), the simulated clock, and the speed: ½× is the default so each step can be followed. Step advances one second and leaves its tokens part-way so you can click them. + Consumer adds an onboard app; ? reopens this walkthrough; the list icon opens the event log.',
+    body: 'Run or pause (also Space), the simulated clock, and the speed: ½× is the default so each step can be followed. Step advances one second and leaves its tokens part-way so you can click them. + Consumer adds an onboard app; ? reopens this walkthrough; the list icon opens the event log. Capabilities grow the system: add a feature detector, or move to 48 h forecasts. Each takes effect from the next run, and the consumers adapt.',
     rect: () => pad(CONTROL, 4),
   },
   // ---- regions ----
@@ -65,18 +65,18 @@ export const WALKTHROUGH: readonly WalkStep[] = [
   { id: 'manualRequest', kind: 'Component', title: 'Manual request', body: 'The third trigger: the ship’s operator can ask for a run at any time. Requests that arrive during a run are queued and merged.', rect: () => pad(R.manualRequest) },
   { id: 'climatology', kind: 'Component', title: 'climatology', body: 'An asset: the long-term mean of each input. The model falls back on it when there is no previous forecast.', rect: () => pad(R.climatology) },
   { id: 'forecast', kind: 'Component', title: 'forecast', body: 'An asset, produced by our model runner. It reads climatology, the previous forecast and recent observations (the icons), then nudges the previous forecast towards the observations. Green while it is being saved.', rect: () => pad(R.forecast) },
-  { id: 'features', kind: 'Component', title: 'features', body: 'An asset, produced by our feature detector from the new forecast: fronts and eddies. It waits until the forecast is saved; a green pulse on the dependency line shows that release.', rect: () => pad(R.features) },
+  { id: 'features', kind: 'Component', title: 'features', body: 'An asset, produced by our feature detector from the new forecast: fronts and eddies. The demo starts without a feature detector, so this step is greyed out and runs skip it. Switch it on under Capabilities: from the next run, features are detected after the forecast is saved (a green pulse shows that release).', rect: () => pad(R.features) },
   { id: 'announcement', kind: 'Component', title: 'announcement', body: 'The last step. Once features are saved, our announcer publishes the forecast’s id, validity, digest and feature count, so consumers can check what they fetch.', rect: () => pad(R.announcement) },
   { id: 'privateStore', kind: 'Component', title: 'Private store', body: 'The orchestrator’s own bookkeeping: run history, the schedule and the drift sensor’s state. Nothing else reads it.', rect: () => pad(R.privateStore) },
   { id: 'netcdfStore', kind: 'Component', title: 'NetCDF store', body: 'Our store of gridded data: climatology and every forecast, as NetCDF files.', rect: () => pad(R.netcdfStore) },
   { id: 'featuresDb', kind: 'Component', title: 'Features DB', body: 'Our PostGIS database of detected features.', rect: () => pad(R.featuresDb) },
-  { id: 'pygeoapi', kind: 'Component', title: 'pygeoapi', body: 'Off-the-shelf and read-only: the only way anyone reads data. It speaks open standards (SensorThings, OGC API-EDR, OGC API-Features) and queries the stores on the caller’s behalf. Each read is a round trip of four tokens.', rect: () => pad(R.pygeoapi) },
-  { id: 'broker', kind: 'Component', title: 'Broker', body: 'Off-the-shelf publish/subscribe. It delivers each announcement to the consumers that subscribed. Announcements only say what is new; consumers fetch the data from pygeoapi.', rect: () => pad(R.broker) },
+  { id: 'pygeoapi', kind: 'Component', title: 'pygeoapi', body: 'Off-the-shelf and read-only: the only way anyone reads data. It speaks open standards (SensorThings, OGC API-EDR, OGC API-Features) and queries the stores on the caller’s behalf. Each read is a round trip of four tokens. Its card lists its catalogue (/collections): what it offers now, and what changes from the next run.', rect: () => pad(R.pygeoapi) },
+  { id: 'broker', kind: 'Component', title: 'Broker', body: 'Off-the-shelf publish/subscribe, by topic: forecast, features and catalogue (the card shows how many subscribe to each). It delivers only to a topic’s subscribers and keeps the latest announcement, so a late subscriber catches up at once. Announcements only say what is new; consumers fetch the data from pygeoapi.', rect: () => pad(R.broker) },
   {
     id: 'consumerCards',
     kind: 'Component',
     title: 'Consumers',
-    body: 'C1, C3… need the forecast and its features; C2, C4… need the forecast only. Reconfigure stands for a user changing what the app shows, which makes it query again. Add more with “Add consumer”.',
+    body: 'Each consumer first asks pygeoapi what it offers (GET /collections), then subscribes to the topics it will use, and does so again whenever the catalogue changes. Its badge says what it can do with what is offered: a chart display is LOW RES without features and HI RES with them; a passage planner works to 12 h, or 48 h once long-range forecasts arrive; a basic display just shows the forecast. Reconfigure stands for its user changing what the app shows.',
     rect: (n) => {
       const first = consumerRect(0);
       const last = consumerRect(Math.max(0, Math.min(n, CONSUMER_AREA.max) - 1));

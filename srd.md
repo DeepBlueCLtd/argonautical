@@ -126,9 +126,19 @@ The screen and the simulation share one model, in three regions separated by two
 
 | ID | Requirement |
 |---|---|
-| CON-1 | On an announcement, after a short delay, query pygeoapi for what the consumer needs and verify it (✓/✗). Consumers come in two kinds, alternating as they are added: C1, C3… need the forecast coverage (CoverageJSON via EDR) **and** its features (GeoJSON via OGC API-Features), and verify the digest and feature count; C2, C4… need the coverage only and verify the digest. |
-| CON-2 | The presenter can add consumers at any time. A new consumer subscribes from that moment and immediately queries for the current forecast. The publisher is unchanged. |
-| CON-3 | Each consumer has a Reconfigure button, standing for the consumer app's user changing what it shows. That makes the consumer query pygeoapi again for the latest complete forecast and verify it, without waiting for an announcement. No new data is implied. The result is labelled "reconfigured". |
+| CON-1 | On an announcement on a topic it subscribes to, after a short delay, fetch from pygeoapi what it announces and verify it (✓/✗): a forecast's digest, or a feature set's count. Consumers take three profiles in turn (CAT-5): C1 chart display, C2 passage planner, C3 basic, C4 chart display… |
+| CON-2 | The presenter can add consumers at any time. A new consumer discovers the catalogue and subscribes from that moment; the broker hands it the retained latest announcement, so it catches up at once without waiting for the next run. The publisher is unchanged. |
+| CON-3 | Each consumer has a Reconfigure button, standing for the consumer app's user changing what it shows. That makes the consumer discover the catalogue again and fetch the latest forecast (and, for a chart display, that forecast's features if they exist) and verify it, without waiting for an announcement. No new data is implied. The result is labelled "reconfigured". |
+
+### 3.7 Capabilities and catalogue
+
+| ID | Requirement |
+|---|---|
+| CAT-1 | Two presenter toggles change what the deployed system can do: **Feature detector** (present or absent) and **48 h** (forecasts cover 48 h instead of 12 h). Each takes effect from the next run: a run uses the capabilities set when it started. The demo opens with both off; scenarios and tests default to the classic pipeline (detector present, 12 h). |
+| CAT-2 | With no feature detector, a run skips detection: the forecast releases the announcement directly, which carries no feature count, and `features/new` is not published. The `features` asset and the feature detector are drawn greyed out. |
+| CAT-3 | pygeoapi's catalogue (`GET /collections`, OGC API – Common) lists `observations`, `climatology`, `forecast` (with its horizon, and the next run's horizon when it will change) and, while a detector is present, `features`: "from next run" until it has written features, then available. After the detector is removed, `features` stays listed as "no longer updated" and its old features stay readable. pygeoapi answers this from its configuration: two legs, no store. Its card lists the catalogue. |
+| CAT-4 | The broker has topics: `forecast/new` (the whole run is complete), `features/new` (that run's features are ready) and `catalogue/changed`. It delivers only to a topic's subscribers and retains the latest announcement on each announcement topic. Whenever the catalogue changes, a deployment hook (pygeoapi itself does not announce its configuration) publishes `catalogue/changed`. A SUBSCRIBE travels back along the consumer's delivery line. The broker card shows each topic's subscriber count. |
+| CAT-5 | Each consumer discovers the catalogue at start, on Reconfigure and on `catalogue/changed`, then subscribes to (or drops) topics to match its profile. Its status badge says what it can do with what is offered: **chart display**, which needs the forecast and uses features if offered, shows LOW RES, then HI RES pending while features are offered but not yet in hand for its forecast, then HI RES; **passage planner** shows 12 h, 48 h pending, then 48 h; **basic** shows OK. Its card shows its profile, status, needs (features marked optional) and topics. |
 
 ---
 

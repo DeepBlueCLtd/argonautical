@@ -5,9 +5,9 @@
  */
 import type { InputSpec } from './config.ts';
 import { DEFAULT_CONSUMERS, DRIFT_BOUNDS, NOISE_BOUNDS, NUMERICS, TIMING, inputsFor } from './config.ts';
-import type { Values } from './contracts.ts';
+import type { Capabilities, CollectionInfo, Values } from './contracts.ts';
 import { Consumer } from './consumers/consumer.ts';
-import { consumerNeeds } from './topology/inputs.ts';
+import { consumerProfile } from './topology/inputs.ts';
 import { EventLog, clockLabel } from './events.ts';
 import { Faults, type FaultTarget } from './faults.ts';
 import { Announcer } from './modules/announcer.ts';
@@ -33,6 +33,8 @@ export interface SimOptions {
   readonly inputs?: number;
   /** Consumers present at T+00:00. Default 2. */
   readonly consumers?: number;
+  /** CAT-1. Default: feature detector present, 12 h forecasts (the classic pipeline). The demo opens with both off. */
+  readonly capabilities?: Partial<Capabilities>;
 }
 
 /** Every presenter/operator/scenario action, as data (used by replay scripts and tours). */
@@ -48,7 +50,8 @@ export type ControlAction =
   | { readonly type: 'addConsumer' }
   | { readonly type: 'reconfigureConsumer'; readonly consumer: string }
   | { readonly type: 'ingestion'; readonly running: boolean }
-  | { readonly type: 'observationsDb'; readonly up: boolean };
+  | { readonly type: 'observationsDb'; readonly up: boolean }
+  | { readonly type: 'capability'; readonly name: keyof Capabilities; readonly on: boolean };
 
 export class Simulation {
   readonly seed: string;
@@ -71,6 +74,11 @@ export class Simulation {
   readonly orchestrator: Orchestrator;
   readonly faults: Faults;
   readonly consumers: Consumer[] = [];
+  /** CAT-1: what the deployed system can do; a run uses what was set when it started. */
+  capabilities: Capabilities;
+  /** The latest features id when the detector was last switched on: `features` is live once a newer one exists. */
+  private featuresAtToggle: string | undefined;
+  private lastCatalogue = '';
   private t = 0;
   private readonly units: Record<string, string>;
 
@@ -135,10 +143,13 @@ export class Simulation {
       detector: this.faults.detector(detector),
       announcer: new Announcer({ publish: (msg) => this.broker.publish('announcer', msg) }),
       params: { threshold: DRIFT_BOUNDS.threshold.default, quorum: Math.min(DRIFT_BOUNDS.quorum.default, this.inputs.length), persistence: DRIFT_BOUNDS.persistence.default },
+      capabilities: () => this.capabilities,
     });
 
-    this.log.append(0, 'control', `start: seed "${opts.seed}", ${this.inputs.length} inputs`);
+    this.capabilities = { featureDetector: true, longRange: false, ...opts.capabilities };
+    this.log.append(0, 'control', `start: seed "${opts.seed}", ${this.inputs.length} inputs, feature detector ${this.capabilities.featureDetector ? 'present' : 'absent'}, ${this.capabilities.longRange ? 48 : 12} h forecasts`);
     this.orchestrator.materialise('climatology', 0);
+    this.lastCatalogue = JSON.stringify(this.catalogue());
     for (let i = 0; i < (opts.consumers ?? DEFAULT_CONSUMERS); i++) this.newConsumer();
   }
 
@@ -164,6 +175,7 @@ export class Simulation {
     this.sensorBroker.publish(t, this.sensors.sample());
     this.ingest(t);
     this.orchestrator.tick(t);
+    this.publishCatalogueChange();
     for (const c of this.consumers) c.tick(t);
     this.tokens.prune();
   }
@@ -225,6 +237,8 @@ export class Simulation {
         return this.setIngestionRunning(a.running);
       case 'observationsDb':
         return this.setObservationsDbUp(a.up);
+      case 'capability':
+        return this.setCapability(a.name, a.on);
     }
   }
 
@@ -304,12 +318,53 @@ export class Simulation {
     this.control('presenter: fail next run');
   }
 
-  /** Presenter: CON-2. */
+  /** Presenter: CON-2. It discovers and subscribes; the broker's retained announcement is its catch-up. */
   addConsumer(): Consumer {
     this.control(`presenter: add consumer C${this.consumers.length + 1}`);
-    const c = this.newConsumer();
-    c.query(this.t, 'catch-up');
-    return c;
+    return this.newConsumer();
+  }
+
+  /** Presenter: CAT-1. Takes effect from the next run; the catalogue says so straight away. */
+  setCapability(name: keyof Capabilities, on: boolean): void {
+    if (this.capabilities[name] === on) return;
+    this.capabilities = { ...this.capabilities, [name]: on };
+    if (name === 'featureDetector' && on) this.featuresAtToggle = this.featuresDb.latestForecastId;
+    this.control(`presenter: ${name === 'featureDetector' ? 'feature detector' : '48 h forecast'} ${on ? 'on' : 'off'} (from the next run)`);
+    this.publishCatalogueChange();
+  }
+
+  /**
+   * CAT-3: what pygeoapi's `/collections` lists now. `features` is listed while a detector is
+   * present ("from next run" until it has written some) and, after it is removed, while old
+   * features remain ("no longer updated").
+   */
+  catalogue(): CollectionInfo[] {
+    const caps = this.capabilities;
+    const latest = this.netcdf.latest;
+    const nextHorizon = caps.longRange ? 48 : 12;
+    const horizon = latest?.horizon ?? nextHorizon;
+    const cols: CollectionInfo[] = [
+      { id: 'observations', title: 'Ship observations', api: 'SensorThings', status: 'available' },
+      { id: 'climatology', title: 'Climatology at the ship', api: 'EDR', status: 'available' },
+      { id: 'forecast', title: 'Forecast at the ship', api: 'EDR', status: 'available', horizon, ...(nextHorizon !== horizon ? { nextHorizon } : {}) },
+    ];
+    const latestFeatures = this.featuresDb.latestForecastId;
+    if (caps.featureDetector) {
+      cols.push({ id: 'features', title: 'Fronts and eddies', api: 'Features', status: latestFeatures !== undefined && latestFeatures !== this.featuresAtToggle ? 'available' : 'from next run' });
+    } else if (latestFeatures !== undefined) {
+      cols.push({ id: 'features', title: 'Fronts and eddies', api: 'Features', status: 'no longer updated' });
+    }
+    return cols;
+  }
+
+  /** CAT-4: when the catalogue changes, the deployment hook says so on `catalogue/changed`. */
+  private publishCatalogueChange(): void {
+    const cols = this.catalogue();
+    const sig = JSON.stringify(cols);
+    if (sig === this.lastCatalogue) return;
+    this.lastCatalogue = sig;
+    this.log.append(this.t, 'control', `catalogue changed: ${cols.map((c) => c.id + (c.status === 'available' ? '' : ` (${c.status})`) + (c.nextHorizon ? ` (${c.horizon} h → ${c.nextHorizon} h next run)` : c.horizon ? ` (${c.horizon} h)` : '')).join(', ')}`);
+    this.broker.publish('pygeoapi', { topic: 'catalogue/changed', body: { collections: cols.map((c) => c.id) } });
   }
 
   /**
@@ -324,7 +379,7 @@ export class Simulation {
   }
 
   private newConsumer(): Consumer {
-    const c = new Consumer(`C${this.consumers.length + 1}`, this.t, this.pygeoapi, this.broker, this.streams.get('consumers'), this.log, () => this.t, consumerNeeds(this.consumers.length));
+    const c = new Consumer(`C${this.consumers.length + 1}`, this.t, this.pygeoapi, this.broker, this.streams.get('consumers'), this.log, () => this.t, consumerProfile(this.consumers.length), this.tokens, () => this.catalogue());
     this.consumers.push(c);
     return c;
   }
@@ -380,7 +435,10 @@ export class Simulation {
       privateStore: { runs: o.history.length, sensorStreak: o.cursor.streak },
       offline: { ...this.faults.offline },
       failNextRun: this.faults.failNextRun,
-      consumers: this.consumers.map((c) => ({ id: c.id, needs: c.needs, subscribedAt: c.subscribedAt, latest: c.latest, waiting: c.waiting })),
+      consumers: this.consumers.map((c) => ({ id: c.id, profile: c.profile, status: c.status, topics: [...c.topics], subscribedAt: c.subscribedAt, latest: c.latest, waiting: c.waiting })),
+      capabilities: { ...this.capabilities },
+      catalogue: this.catalogue(),
+      topics: this.broker.topics,
       tokens: this.tokens.tokens,
       edgeStats: Object.fromEntries(this.tokens.edgeStats),
       defects: [...this.tokens.defects],

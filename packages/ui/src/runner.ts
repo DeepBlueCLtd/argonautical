@@ -4,6 +4,9 @@
  */
 import { EDGES, Simulation, type ControlAction, type InputSlot, type Token } from '@argonautical/sim';
 
+/** CAT-1: the demo opens on the minimal system (no feature detector, 12 h); the presenter grows it. */
+const DEMO_CAPABILITIES = { featureDetector: false, longRange: false } as const;
+
 export type Rate = 0.5 | 1 | 10 | 60;
 /** Default speed: half real time, so a live audience can follow each step. */
 export const DEFAULT_RATE: Rate = 0.5;
@@ -74,7 +77,7 @@ export class Runner {
     public seed: string,
     public inputs: number,
   ) {
-    this.sim = new Simulation({ seed, inputs });
+    this.sim = new Simulation({ seed, inputs, consumers: 3, capabilities: DEMO_CAPABILITIES });
   }
 
   subscribe(fn: () => void): () => void {
@@ -88,7 +91,7 @@ export class Runner {
   restart(seed: string, inputs: number): void {
     this.seed = seed;
     this.inputs = inputs;
-    this.sim = new Simulation({ seed, inputs });
+    this.sim = new Simulation({ seed, inputs, consumers: 3, capabilities: DEMO_CAPABILITIES });
     this.visuals = [];
     this.lastSeq = 0;
     this.exchangesThisTick.clear();

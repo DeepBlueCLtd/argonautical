@@ -49,7 +49,8 @@ describe('token payloads (drill-down)', () => {
     const reads = ts.filter((t) => t.role);
     expect(reads.length).toBeGreaterThan(0);
     // group consecutive legs by seq: each exchange is four tokens in order
-    const requests = reads.filter((t) => t.role === 'request');
+    // The catalogue read (GET /collections) is answered from pygeoapi's configuration: two legs, no store.
+    const requests = reads.filter((t) => t.role === 'request' && t.payload!.standard !== 'O');
     for (const req of requests.slice(0, 20)) {
       const legs = reads.filter((t) => t.seq > req.seq && t.seq <= req.seq + 3);
       expect(legs.map((t) => t.role), req.edge).toEqual(['db-query', 'db-rows', 'response']);
@@ -83,10 +84,18 @@ describe('token payloads (drill-down)', () => {
     expect(std((t) => t.edge.endsWith('>read>pygeoapi') && t.edge.startsWith('observationsDb'))).toEqual(['Q']);
     expect(std((t) => t.edge.startsWith('netcdfStore>read'))).toEqual(['N']);
     expect(std((t) => t.edge === 'modelRunner>write>netcdfStore')).toEqual(['N']);
-    expect(std((t) => t.edge === 'consumer>query>pygeoapi' && t.role === 'request')).toEqual(['E', 'F']);
-    expect(std((t) => t.edge === 'consumer>query>pygeoapi' && t.role === 'response')).toEqual(['C', 'G']);
+    expect(std((t) => t.edge === 'consumer>query>pygeoapi' && t.role === 'request')).toEqual(['E', 'F', 'O']);
+    expect(std((t) => t.edge === 'consumer>query>pygeoapi' && t.role === 'response')).toEqual(['C', 'G', 'O']);
+    expect(std((t) => t.edge === 'consumer>subscribe>broker')).toEqual(['M']);
     expect(std((t) => t.edge === 'driftMonitor>query>pygeoapi')).toEqual(['C', 'E', 'H', 'S']);
     expect(std((t) => t.edge.includes('>lineage>') || t.edge.includes('>trigger>') || t.edge.includes('>call>'))).toEqual(['D']);
     expect(std((t) => t.edge.endsWith('>publish>broker') || t.edge === 'broker>deliver>consumer')).toEqual(['M']);
+  });
+
+  it('the catalogue read is two legs: request, then response from pygeoapi itself', () => {
+    const ts = allTokens('drift').filter((t) => t.payload?.standard === 'O');
+    const req = ts.find((t) => t.role === 'request')!;
+    const res = ts.find((t) => t.seq === req.seq + 1)!;
+    expect(res).toMatchObject({ role: 'response', reverse: true, edge: req.edge, instance: req.instance });
   });
 });
