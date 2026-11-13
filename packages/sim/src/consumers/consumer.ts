@@ -1,4 +1,4 @@
-/** Onboard consumer: CON-1 (announcement), CON-2 (catch-up on subscribe), CON-3 (refresh on demand). */
+/** Onboard consumer: CON-1 (announcement), CON-2 (catch-up on subscribe), CON-3 (its user reconfigures the app). */
 import { TIMING } from '../config.ts';
 import type { Announcement } from '../contracts.ts';
 import { forecastDigest } from '../contracts.ts';
@@ -14,9 +14,11 @@ export interface ConsumerResult {
   readonly digestOk: boolean;
   readonly countOk: boolean;
   readonly featureCount: number;
-  /** What made the consumer query: an announcement, subscribing late, or its Refresh button. */
-  readonly trigger: 'announcement' | 'catch-up' | 'refresh';
+  /** What made the consumer query: an announcement, subscribing late, or its user reconfiguring the app. */
+  readonly trigger: 'announcement' | 'catch-up' | 'reconfigure';
 }
+
+const SUFFIX: Record<ConsumerResult['trigger'], string> = { announcement: '', 'catch-up': ' (catch-up)', reconfigure: ' (reconfigured)' };
 
 export class Consumer {
   readonly results: ConsumerResult[] = [];
@@ -65,12 +67,13 @@ export class Consumer {
 
   /**
    * Query straight away for the latest complete forecast (one whose features exist) and verify it.
-   * CON-2 on subscribing late ('catch-up'); CON-3 when its Refresh button is pressed ('refresh').
+   * CON-2 on subscribing late ('catch-up'); CON-3 when its user reconfigures the app ('reconfigure').
+   * No new data is implied: the app simply asks again because what it needs has changed.
    */
-  query(t: number, trigger: 'catch-up' | 'refresh'): void {
+  query(t: number, trigger: 'catch-up' | 'reconfigure'): void {
     const id = this.api.latestFeatureForecastId(this.caller);
     if (!id) {
-      this.log.append(t, 'consumer', trigger === 'catch-up' ? `${this.id} subscribed; no forecast yet` : `${this.id} refresh: no forecast yet`);
+      this.log.append(t, 'consumer', trigger === 'catch-up' ? `${this.id} subscribed; no forecast yet` : `${this.id} reconfigured; no forecast yet`);
       return;
     }
     const f = this.api.forecast(this.caller, id);
@@ -84,6 +87,6 @@ export class Consumer {
     this.results.push(r);
     const mark = r.ok ? '✓' : '✗';
     const detail = r.ok ? `digest ok, ${r.featureCount} features` : `${r.digestOk ? '' : 'digest mismatch '}${r.countOk ? '' : 'feature count mismatch'}`.trim();
-    this.log.append(r.tick, 'consumer', `${this.id} ${mark} ${r.forecastId}${r.trigger === 'announcement' ? '' : ` (${r.trigger})`}: ${detail}`);
+    this.log.append(r.tick, 'consumer', `${this.id} ${mark} ${r.forecastId}${SUFFIX[r.trigger]}: ${detail}`);
   }
 }

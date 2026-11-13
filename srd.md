@@ -62,7 +62,7 @@ The screen and the simulation share one model, in three regions separated by two
 **Onboard consumers**
 - Subscribe to the broker. On an announcement, they query pygeoapi for the forecast and its features and verify the digest and the feature count.
 - A consumer added mid-run queries pygeoapi straight away, without waiting for the next announcement.
-- A consumer's Refresh button makes it query pygeoapi on demand.
+- When a consumer app's user reconfigures it, the app queries pygeoapi again (no new data is implied).
 
 ---
 
@@ -126,7 +126,7 @@ The screen and the simulation share one model, in three regions separated by two
 |---|---|
 | CON-1 | On an announcement, after a short delay, query pygeoapi for the forecast and its features, then verify the digest and feature count (✓/✗). |
 | CON-2 | The presenter can add consumers at any time. A new consumer subscribes from that moment and immediately queries for the current forecast. The publisher is unchanged. |
-| CON-3 | Each consumer has a Refresh button. Pressing it makes that consumer query pygeoapi straight away for the latest complete forecast and verify it, without waiting for an announcement. The result is labelled "refresh". |
+| CON-3 | Each consumer has a Reconfigure button, standing for the consumer app's user changing what it shows. That makes the consumer query pygeoapi again for the latest complete forecast and verify it, without waiting for an announcement. No new data is implied. The result is labelled "reconfigured". |
 
 ---
 
