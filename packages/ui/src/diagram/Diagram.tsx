@@ -3,7 +3,6 @@ import { useMemo, type ReactNode } from 'react';
 import type { Runner } from '../runner.ts';
 import { CONSUMER_AREA, RECTS, REGIONS, VIEW, consumerRect, forecastLoop, midpoint, pathD, pointAt, routeAll, type Rect, type Route } from './layout.ts';
 
-export type Motion = 'tokens' | 'reduced';
 
 const MATERIALISING_TICKS = 3;
 
@@ -77,7 +76,7 @@ export interface Picked {
   readonly y: number;
 }
 
-export function Diagram({ snap, runner, motion, onPick }: { snap: Snapshot; runner: Runner; motion: Motion; onPick: (p: Picked) => void }) {
+export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void }) {
   const consumerIds = snap.consumers.map((c) => c.id);
   const routes = useMemo(() => routeAll(EDGES, consumerIds), [consumerIds.join(',')]);
   const byKey = useMemo(() => new Map(routes.map((r) => [r.key, r])), [routes]);
@@ -538,8 +537,8 @@ export function Diagram({ snap, runner, motion, onPick }: { snap: Snapshot; runn
         </T>
       )}
 
-      {/* Motion: tokens or per-edge counters (MOT-1, MOT-2) */}
-      {motion === 'tokens' ? <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} /> : <EdgeCounters snap={snap} routes={routes} />}
+      {/* Tokens: one per recorded interaction (MOT-1) */}
+      <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} />
     </svg>
   );
 }
@@ -680,27 +679,3 @@ function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<st
   );
 }
 
-/** MOT-2: "n · last time" per edge, instead of tokens. */
-function EdgeCounters({ snap, routes }: { snap: Snapshot; routes: Route[] }) {
-  const seen = new Set<string>();
-  return (
-    <g className="counters">
-      {routes.map((r) => {
-        if (seen.has(r.edge.id)) return null;
-        seen.add(r.edge.id);
-        const s = snap.edgeStats[r.edge.id];
-        if (!s) return null;
-        const m = midpoint(r.points);
-        const recent = snap.tick - s.last < 2;
-        return (
-          <g key={r.key} className={`counter ${recent ? 'recent' : ''}`}>
-            <rect x={m.x - 34} y={m.y - 8} width={68} height={14} rx={7} />
-            <text x={m.x} y={m.y + 3} textAnchor="middle" className="tiny mono">
-              {s.count} · {clockLabel(s.last).slice(2)}
-            </text>
-          </g>
-        );
-      })}
-    </g>
-  );
-}

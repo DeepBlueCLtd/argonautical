@@ -50,7 +50,6 @@ button:hover { border-color: var(--ink); }
 button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 button.on.danger { background: var(--offline); border-color: var(--offline); }
 button.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
-button.hint { border-style: dashed; color: var(--muted); }
 .seg { display: inline-flex; }
 .seg button { border-radius: 0; margin-left: -1px; }
 .seg button:first-child { border-radius: 4px 0 0 4px; }
@@ -184,8 +183,6 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .token.lineage { fill: var(--lineage); stroke-width: 2.5; }
 .token.retry { fill: var(--retry); }
 
-.counter rect { fill: #fff; stroke: var(--line); opacity: 0.92; }
-.counter.recent rect { stroke: var(--ink); }
 
 .diagram .verdict { font-size: 22px; font-weight: 700; }
 .diagram .queue-count { font-size: 22px; font-weight: 700; }
