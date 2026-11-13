@@ -24,7 +24,9 @@ export const REGIONS = {
 export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   ocean: { x: 20, y: 70, w: 190, h: 290 },
   sensors: { x: 20, y: 420, w: 190, h: 300 },
-  ingestion: { x: 258, y: 430, w: 150, h: 120 },
+  ingestion: { x: 258, y: 430, w: 150, h: 130 },
+  // Persistent queue between the DAQ gateway and ingestion (FLT-3).
+  sensorBroker: { x: 252, y: 612, w: 162, h: 104 },
   // UI-8: straddles the orchestrator's left edge (x = 470).
   observationsDb: { x: 415, y: 270, w: 110, h: 120 },
   orchestrator: REGIONS.orchestrator,
@@ -89,7 +91,8 @@ const HINTS: Record<string, { from: Side; to: Side; drop?: number }> = {
   'announcer>publish>broker': { from: 'right', to: 'left' },
   'broker>deliver>consumer': { from: 'right', to: 'left' },
   'consumer>query>pygeoapi': { from: 'left', to: 'right' },
-  'sensors>send>ingestion': { from: 'right', to: 'left' },
+  'sensors>publish>sensorBroker': { from: 'right', to: 'left' },
+  'sensorBroker>deliver>ingestion': { from: 'top', to: 'bottom' },
   'ingestion>write>observationsDb': { from: 'right', to: 'left' },
 };
 

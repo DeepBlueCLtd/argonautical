@@ -3,7 +3,7 @@
  * run queue with merge, and retry with backoff. ORC-1..6, DRF-5.
  */
 import { TIMING } from '../config.ts';
-import type { Feature, Forecast, Job } from '../contracts.ts';
+import { ServiceUnavailable, type Feature, type Forecast, type Job } from '../contracts.ts';
 import type { EventLog } from '../events.ts';
 import { clockLabel } from '../events.ts';
 import { ModuleFailure } from '../faults.ts';
@@ -143,11 +143,22 @@ export class Orchestrator {
   }
 
   private driftCheck(t: number): void {
+    const before = this.cursor.status;
     this.d.tokens.emit(edgeId('shimCheck', 'call', 'driftMonitor'), {
       payload: P.shimCall('drift_monitor.check', 'Python call inside the Dagster sensor', { ...this.params, streak: this.cursor.streak, drift_run: this.driftRunState ?? null }),
     });
-    const res = shims.check(this.d.monitor, { params: this.params, streak: this.cursor.streak, driftRun: this.driftRunState });
-    const changed = res.status !== this.cursor.status;
+    let res;
+    try {
+      res = shims.check(this.d.monitor, { params: this.params, streak: this.cursor.streak, driftRun: this.driftRunState });
+    } catch (e) {
+      if (!(e instanceof ServiceUnavailable)) throw e;
+      // The sensor tick fails; its cursor is kept for the next check.
+      const status = 'observations unavailable (DB down)';
+      Object.assign(this.cursor, { status, lastCheck: t });
+      if (status !== before) this.d.log.append(t, 'drift', `drift monitor: ${status}`);
+      return;
+    }
+    const changed = res.status !== before;
     Object.assign(this.cursor, { streak: res.streak, status: res.status, lastCheck: t, residuals: res.residuals, exceeding: res.exceeding });
     if (res.requestRun) {
       const list = res.exceeding.join(', ');
@@ -284,7 +295,8 @@ export class Orchestrator {
   }
 
   private fail(t: number, e: unknown): void {
-    if (!(e instanceof ModuleFailure)) throw e;
+    if (!(e instanceof ModuleFailure) && !(e instanceof ServiceUnavailable)) throw e;
+    const reason = e instanceof ModuleFailure ? e.reason : e.message;
     const a = this.active!;
     a.failures++;
     a.totalFailures++;
@@ -293,8 +305,8 @@ export class Orchestrator {
     const b = TIMING.retryBackoff;
     const delay = b[Math.min(a.failures - 1, b.length - 1)]!;
     a.retryAt = t + delay;
-    a.lastFailure = e.reason;
+    a.lastFailure = reason;
     const name = STEP_MODULE[a.step as 'run' | 'detect'].name;
-    this.d.log.append(t, 'fail', `${a.id}: ${name} failed (${e.reason}); retry in ${delay}s`);
+    this.d.log.append(t, 'fail', `${a.id}: ${name} failed (${reason}); retry in ${delay}s`);
   }
 }

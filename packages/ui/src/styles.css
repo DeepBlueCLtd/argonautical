@@ -188,6 +188,9 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .counter.recent rect { stroke: var(--ink); }
 
 .diagram .verdict { font-size: 22px; font-weight: 700; }
+.diagram .queue-count { font-size: 22px; font-weight: 700; }
+.diagram .queue-count.backlog { fill: var(--ink); }
+.box.stopped > rect, .store.stopped > rect { stroke: var(--offline); }
 .svg-button { cursor: pointer; }
 .svg-button rect { fill: #fff; stroke: var(--line); }
 .svg-button:hover rect, .svg-button:focus-visible rect { stroke: var(--ink); }

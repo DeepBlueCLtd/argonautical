@@ -1,9 +1,12 @@
 /** Our stores. Counts are always read from stored rows (acceptance 12). */
-import type { Feature, FeatureWriter, Forecast, ForecastWriter, Observation, ObservationWriter, Values } from '../contracts.ts';
+import { ServiceUnavailable, type Feature, type FeatureWriter, type Forecast, type ForecastWriter, type Observation, type ObservationWriter, type Values } from '../contracts.ts';
 
 export class ObservationsDb implements ObservationWriter {
   private readonly rows: Observation[] = [];
+  /** Presenter can stop and start the database (FLT-3). */
+  up = true;
   append(rows: readonly Observation[]): void {
+    if (!this.up) throw new ServiceUnavailable('Observations DB');
     this.rows.push(...rows);
   }
   get all(): readonly Observation[] {

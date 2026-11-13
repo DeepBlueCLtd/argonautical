@@ -4,7 +4,7 @@
  * mock data object filled with the simulation's actual values. Payloads never affect the event
  * log or its digest. They are plain JSON: non-finite numbers become strings.
  */
-import type { Announcement, Feature, Forecast, InputKey, Observation } from './contracts.ts';
+import type { Announcement, Feature, Forecast, InputKey, Observation, SensorMessage } from './contracts.ts';
 
 export interface Payload {
   readonly summary: string;
@@ -28,20 +28,30 @@ const p = (summary: string, format: string, data: unknown): Payload => ({ summar
 /** A SensorThings Datastream id for an input (one Thing: this ship; one Datastream per input). */
 const datastream = (input: InputKey) => `ship-1:${input}`;
 
+const sensorThingsMessage = (m: SensorMessage, units?: Record<InputKey, string>) => ({
+  topic: `v1.1/Datastreams('${datastream(m.input)}')/Observations`,
+  payload: { phenomenonTime: iso(m.tick), result: num(m.value), ...(units ? { parameters: { unitOfMeasurement: units[m.input] } } : {}) },
+});
+
 /**
  * The DAQ gateway translates raw instrument output (serial, NMEA, vendor formats) into SensorThings
- * Observation objects and sends them point to point to ingestion over its existing link: one producer,
- * one consumer, so no broker and no SensorThings server. Values are raw and not yet validated.
+ * Observation messages and publishes them to the sensor broker. No SensorThings server is involved:
+ * the schema travels in the messages. Values are raw and not yet validated.
  */
-export const sensorReadings = (tick: number, readings: Readonly<Record<InputKey, number>>, units: Record<InputKey, string>) =>
-  p(`${Object.keys(readings).length} raw SensorThings Observation(s), one per instrument, not yet validated`, 'SensorThings Observation objects (JSON), point to point from the DAQ gateway', {
-    observations: Object.entries(readings).map(([input, v]) => ({
-      Datastream: { '@iot.id': datastream(input) },
-      phenomenonTime: iso(tick),
-      result: num(v),
-      parameters: { unitOfMeasurement: units[input] },
-    })),
+export const sensorPublish = (msgs: readonly SensorMessage[], units: Record<InputKey, string>) =>
+  p(`${msgs.length} raw SensorThings Observation message(s), one per instrument, not yet validated`, 'MQTT PUBLISH to the sensor broker (QoS 1), SensorThings topics and schema', {
+    messages: msgs.map((m) => sensorThingsMessage(m, units)),
   });
+
+/** The broker delivers queued messages in order; ingestion acknowledges them only after its DB commit. */
+export const sensorDelivery = (batch: readonly SensorMessage[], stillQueued: number, now: number) => {
+  const late = batch.filter((m) => m.tick < now).length;
+  return p(
+    `${batch.length} message(s) delivered to ingestion${late ? `, ${late} from the backlog` : ''}${stillQueued ? `; ${stillQueued} still queued` : ''}`,
+    'MQTT messages, persistent session (QoS 1); acknowledged only after the database commit',
+    { delivered: batch.length, still_queued: stillQueued, messages: batch.slice(0, 6).map((m) => sensorThingsMessage(m)), ...(batch.length > 6 ? { more: batch.length - 6 } : {}) },
+  );
+};
 
 /**
  * Ingestion writes SensorThings Observation entities over SQL into the SensorThings schema that

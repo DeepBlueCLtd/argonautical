@@ -3,7 +3,7 @@
  * The only read path for our modules and for consumers. Every call emits a
  * query token from the caller and a read token from the store it touches.
  */
-import type { Feature, Forecast, InputKey, Observation, Values } from '../contracts.ts';
+import { ServiceUnavailable, type Feature, type Forecast, type InputKey, type Observation, type Values } from '../contracts.ts';
 import * as P from '../payloads.ts';
 import type { Payload } from '../payloads.ts';
 import type { FeaturesDb, NetcdfStore, ObservationsDb } from '../stores/stores.ts';
@@ -30,8 +30,16 @@ export class PygeoApi {
     return result;
   }
 
+  /** The query reaches pygeoapi, but the Observations DB is down: no read, and the caller gets an error. */
+  private requireObservations(caller: Caller, req: Payload): void {
+    if (this.obs.up) return;
+    this.tokens.emit(edgeId(caller.element, 'query', 'pygeoapi'), { ...(caller.instance ? { instance: caller.instance } : {}), payload: req });
+    throw new ServiceUnavailable('Observations DB');
+  }
+
   /** SensorThings: latest observation per input. */
   latestObservations(caller: Caller): Partial<Record<InputKey, number>> {
+    this.requireObservations(caller, P.request('Latest observation of each input', 'SensorThings', P.urls.latest));
     const latest = new Map<InputKey, Observation>();
     const rows = this.obs.all;
     for (let i = rows.length - 1; i >= 0; i--) {
@@ -44,6 +52,7 @@ export class PygeoApi {
 
   /** SensorThings: the last `n` observations per input, oldest first. */
   recentObservations(caller: Caller, n: number): Partial<Record<InputKey, number[]>> {
+    this.requireObservations(caller, P.request(`Recent observations (${n} per input)`, 'SensorThings', P.urls.recent(n)));
     const out: Partial<Record<InputKey, number[]>> = {};
     const rows = this.obs.all;
     for (let i = rows.length - 1; i >= 0; i--) {

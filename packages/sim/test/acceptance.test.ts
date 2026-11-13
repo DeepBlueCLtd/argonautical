@@ -162,6 +162,55 @@ describe('acceptance criteria', () => {
   });
 });
 
+describe('sensor broker buffering (FLT-3)', () => {
+  const s = loadScenario('buffering');
+  const queue: number[] = [];
+  const sim = runScript(s, (x) => queue.push(x.sensorBroker.queued));
+  const inputs = sim.inputs.length;
+
+  it('while ingestion is stopped, every reading queues in the sensor broker', () => {
+    // queue at the end of tick 50 (stopped for ticks 21–50)
+    expect(queue[49]).toBe(30 * inputs);
+    expect(sim.log.entries.some((e) => e.text === 'presenter: ingestion stopped')).toBe(true);
+  });
+
+  it('after a restart the backlog drains to zero, in order, and nothing is lost or duplicated', () => {
+    expect(sim.sensorBroker.queued).toBe(0);
+    const rejected = sim.ingestion.rejectedCount;
+    expect(sim.observationsDb.count + rejected).toBe(sim.sensorBroker.published);
+    // every observation keeps its measurement time, and rows per input are in time order with no gaps
+    for (const spec of sim.inputs) {
+      const ticks = sim.observationsDb.all.filter((r) => r.input === spec.key).map((r) => r.tick);
+      expect(ticks).toEqual([...ticks].sort((a, b) => a - b));
+      expect(new Set(ticks).size).toBe(ticks.length);
+    }
+    const drained = sim.log.entries.filter((e) => e.text.startsWith('sensor broker backlog drained'));
+    expect(drained).toHaveLength(2);
+  });
+
+  it('the backlog drains faster than it fills', () => {
+    const restartIdx = 50; // tick 51
+    const drainedAt = queue.findIndex((q, i) => i >= restartIdx && q === 0);
+    expect(drainedAt - restartIdx).toBeLessThan(30);
+  });
+
+  it('while the Observations DB is down, ingestion holds off and a model run fails with a retry', () => {
+    expect(queue[109]).toBeGreaterThanOrEqual(30 * inputs - inputs);
+    const fails = events(sim, 'fail').filter((e) => e.tick > 80 && e.tick <= 110);
+    expect(fails.length).toBeGreaterThan(0);
+    expect(fails.every((e) => e.text.includes('Observations DB unavailable'))).toBe(true);
+    const commit = events(sim, 'commit').find((e) => e.tick > 110);
+    expect(commit).toBeDefined();
+    expect(events(sim, 'drift').some((e) => e.text.includes('observations unavailable'))).toBe(true);
+  });
+
+  it('the stopped database rejects writes (so ingestion must acknowledge only after a commit)', () => {
+    const x = new Simulation({ seed: 'db' });
+    x.setObservationsDbUp(false);
+    expect(() => x.observationsDb.append([{ tick: 1, input: 'temp', value: 12 }])).toThrow(/unavailable/);
+  });
+});
+
 describe('robustness over a long run (FLT-2)', () => {
   const sim = runScript(loadScenario('failures'));
 

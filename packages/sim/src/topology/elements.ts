@@ -55,6 +55,7 @@ export interface ElementDecl {
 export const ELEMENT_IDS = [
   'ocean',
   'sensors',
+  'sensorBroker',
   'ingestion',
   'observationsDb',
   'orchestrator',
@@ -88,10 +89,12 @@ const r = (kind: RelationKind, to: ElementId): Relation => ({ kind, to });
 export const ELEMENTS: readonly ElementDecl[] = [
   // World
   { id: 'ocean', label: 'Ocean', kind: 'environment', provenance: 'world', region: 'world', relations: [] },
-  { id: 'sensors', label: 'Sensors', kind: 'instrument', provenance: 'world', region: 'world', relations: [r('sends', 'ingestion')] },
+  { id: 'sensors', label: 'Sensors', kind: 'instrument', provenance: 'world', region: 'world', relations: [r('publishes', 'sensorBroker')] },
+  // Persistent queue between the DAQ gateway and ingestion: survives ingestion and database restarts.
+  { id: 'sensorBroker', label: 'Sensor broker', kind: 'service', provenance: 'off-the-shelf', region: 'system', relations: [], note: 'persistent queue' },
 
   // System — ours, not orchestrated
-  { id: 'ingestion', label: 'Ingestion', kind: 'module', provenance: 'ours', region: 'system', relations: [r('writes', 'observationsDb')], note: 'not orchestrated' },
+  { id: 'ingestion', label: 'Ingestion', kind: 'module', provenance: 'ours', region: 'system', relations: [r('subscribes', 'sensorBroker'), r('writes', 'observationsDb')], note: 'not orchestrated' },
   {
     id: 'observationsDb',
     label: 'Observations DB',
