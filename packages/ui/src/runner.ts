@@ -37,6 +37,9 @@ export class Runner {
   private stepBudget = 0;
   private lastSeq = 0;
   private visuals: VisualToken[] = [];
+  /** Sequencing of pygeoapi reads made by one caller within one tick. */
+  private exchangesThisTick = new Map<string, number>();
+  private exchangeOffset = 0;
   private listeners = new Set<() => void>();
 
   constructor(
@@ -60,6 +63,7 @@ export class Runner {
     this.sim = new Simulation({ seed, inputs });
     this.visuals = [];
     this.lastSeq = 0;
+    this.exchangesThisTick.clear();
     this.frac = 0;
     this.emit();
   }
@@ -113,14 +117,23 @@ export class Runner {
 
   private ingestTokens(): void {
     const secondsPerTick = 1 / this.rate;
+    if (this.exchangesThisTick.size > 200) this.exchangesThisTick.clear();
     for (const t of this.sim.tokens.tokens) {
       if (t.seq <= this.lastSeq) continue;
       this.lastSeq = t.seq;
       const lineage = LINEAGE.has(t.edge);
-      // Round trips through pygeoapi: each leg starts when the previous one arrives.
+      // Round trips through pygeoapi: each leg starts when the previous one arrives, and several
+      // reads by the same caller in the same tick play one after another (a second request leaves
+      // once the first response is back), so separate requests never look like one fanning out.
       const leg = t.role ? LEG_ORDER[t.role] : undefined;
+      if (t.role === 'request') {
+        const key = `${t.edge}#${t.instance ?? ''}#${t.start}`;
+        const n = this.exchangesThisTick.get(key) ?? 0;
+        this.exchangesThisTick.set(key, n + 1);
+        this.exchangeOffset = n * 4 * LEG;
+      }
       const dur = leg !== undefined ? LEG : Math.max(t.duration * secondsPerTick, lineage ? MIN_WALL.lineage : MIN_WALL.other);
-      const born = this.anim + (leg ?? 0) * LEG;
+      const born = this.anim + (leg !== undefined ? this.exchangeOffset + leg * LEG : 0);
       const key = `${t.edge}#${t.instance ?? ''}#${t.role ?? ''}`;
       const same = this.visuals.filter((v) => `${v.token.edge}#${v.token.instance ?? ''}#${v.token.role ?? ''}` === key);
       if (same.length >= MAX_PER_EDGE) this.visuals.splice(this.visuals.indexOf(same[0]!), 1);
