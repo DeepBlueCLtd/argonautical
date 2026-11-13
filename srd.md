@@ -62,6 +62,7 @@ The screen and the simulation share one model, in three regions separated by two
 **Onboard consumers**
 - Subscribe to the broker. On an announcement, they query pygeoapi for the forecast and its features and verify the digest and the feature count.
 - A consumer added mid-run queries pygeoapi straight away, without waiting for the next announcement.
+- When a consumer app's user reconfigures it, the app queries pygeoapi again (no new data is implied).
 
 ---
 
@@ -125,6 +126,7 @@ The screen and the simulation share one model, in three regions separated by two
 |---|---|
 | CON-1 | On an announcement, after a short delay, query pygeoapi for the forecast and its features, then verify the digest and feature count (✓/✗). |
 | CON-2 | The presenter can add consumers at any time. A new consumer subscribes from that moment and immediately queries for the current forecast. The publisher is unchanged. |
+| CON-3 | Each consumer has a Reconfigure button, standing for the consumer app's user changing what it shows. That makes the consumer query pygeoapi again for the latest complete forecast and verify it, without waiting for an announcement. No new data is implied. The result is labelled "reconfigured". |
 
 ---
 
@@ -167,7 +169,7 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 |---|---|
 | MOT-1 | Tokens travel along edges only when the simulation records an interaction. Lineage tokens are larger and stay visible for at least about 1.2 s of wall-clock time at any speed. |
 | MOT-2 | A reduced-motion mode replaces tokens with an "n · last time" label per edge. The default follows the OS setting. When the OS asks for reduced motion, the toolbar shows a visible hint with a one-click switch to tokens, and `?motion=tokens` (or `?motion=reduced`) forces the mode for rehearsal. |
-| MOT-3 | Countdowns show what triggers things: a ring on the drift sensor (time to the next check), a "stale in m:ss" bar on forecast, an execution bar on the model runner ("replacing stale F2"), an execution bar on the feature detector, and a retry countdown on the shim. |
+| MOT-3 | Countdowns show what triggers things: a ring on the drift sensor (time to the next check), "stale in m:ss" rings on the staleness schedule and on forecast (showing "stale · replacing" once the scheduled run starts), an execution bar on the model runner ("replacing stale F2"), an execution bar on the feature detector, and a retry countdown on the shim. |
 | MOT-4 | **Retry state belongs to the orchestrator, not our code.** The retry countdown appears on the shim strip, which turns amber. A retry sends one amber token from the shim into the module. Lineage tokens are not re-sent on a retry. |
 | MOT-5 | While a module is offline it shows an offline state (a red halo) and no progress, and stops "running". |
 

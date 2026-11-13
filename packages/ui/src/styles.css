@@ -1,0 +1,197 @@
+/* One meaning per colour (SRD §5.3). */
+:root {
+  --ink: #1f2933;
+  --muted: #6b7785;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --line: #c8cfd6;
+
+  --ours: #3d6e93; /* steel accent: our software (build) */
+  --ours-pale: #e9f1f8;
+  --ots: #6b7280; /* dashed: off-the-shelf (adopt), mocked */
+  --ots-fill: #fbfbfc;
+  --world: #eef1f4;
+  --lineage: #2c3a48; /* lineage tokens and labels */
+  --lineage-track: #b7c2cd; /* heavy lineage lines: light, so dark tokens show on them */
+
+  --mat: #22a05a; /* green: materialising */
+  --mat-fill: #d6f5e1;
+  --retry: #e39a0b; /* amber: retry */
+  --retry-fill: #fde8b5;
+  --offline: #d93025; /* red halo: offline */
+
+  /* Control kinds (§5.4): who would really have it */
+  --k-scenario: #13777b;
+  --k-operator: #6a4fb3;
+  --k-presenter: #4b5563;
+
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 13px/1.35 var(--font); overflow: hidden; }
+.mono { font-family: var(--mono); }
+.muted { color: var(--muted); fill: var(--muted); }
+.small { font-size: 12px; }
+
+.app { display: grid; grid-template-rows: auto auto 1fr auto; height: 100vh; }
+
+/* ---- bars & controls ---- */
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 8px; margin-right: 6px; font-size: 14px; }
+.brand .home { text-decoration: none; color: var(--muted); font-size: 16px; }
+.clock { font-size: 18px; font-weight: 600; min-width: 74px; }
+.sep { width: 1px; height: 22px; background: var(--line); margin: 0 2px; }
+button, select, input { font: inherit; color: inherit; }
+button { border: 1px solid var(--line); background: #fff; border-radius: 4px; padding: 3px 9px; cursor: pointer; }
+button:hover { border-color: var(--ink); }
+button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+button.on.danger { background: var(--offline); border-color: var(--offline); }
+button.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+button.hint { border-style: dashed; color: var(--muted); }
+.seg { display: inline-flex; }
+.seg button { border-radius: 0; margin-left: -1px; }
+.seg button:first-child { border-radius: 4px 0 0 4px; }
+.seg button:last-child { border-radius: 0 4px 4px 0; }
+input[type='text'], input:not([type]) { border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
+.kind-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #fff; padding: 2px 7px; border-radius: 3px; }
+.kind-tag.presenter { background: var(--k-presenter); }
+.kind-tag.scenario { background: var(--k-scenario); }
+.kind-tag.operator { background: var(--k-operator); }
+.presenter { border-top: 3px solid var(--k-presenter); }
+
+.banner { display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 4px 12px; font-size: 12px; background: #fffbe8; border-bottom: 1px solid #eadfa6; }
+.banner .boundary.ok { color: var(--mat); font-weight: 600; }
+.banner .boundary.bad { color: var(--offline); font-weight: 700; }
+
+.stage { position: relative; min-height: 0; padding: 4px 8px; }
+.diagram { width: 100%; height: 100%; display: block; }
+.legend { position: absolute; left: 14px; bottom: 6px; display: flex; gap: 14px; font-size: 11px; color: var(--muted); background: rgba(246, 247, 249, 0.9); padding: 2px 6px; border-radius: 4px; }
+.legend .sw { display: inline-block; width: 14px; height: 10px; vertical-align: -1px; margin-right: 4px; border-radius: 2px; }
+.sw.ours { background: var(--ours-pale); border: 2px solid var(--ours); }
+.sw.ots { background: var(--ots-fill); border: 1.5px dashed var(--ots); }
+.sw.store { background: #fff; border: 3px double var(--ours); }
+.sw.mat { background: var(--mat-fill); border: 1.5px solid var(--mat); }
+.sw.retry { background: var(--retry-fill); border: 1.5px solid var(--retry); }
+.sw.offline { background: #fff; box-shadow: 0 0 0 2px var(--offline), 0 0 6px var(--offline); }
+
+.controls { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 6px 12px 8px; background: var(--panel); border-top: 1px solid var(--line); }
+.panel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 10px; border-radius: 6px; }
+.panel .who { margin-right: 6px; }
+.panel.scenario { background: #eef7f7; border: 1px solid #b9dcdc; border-left: 4px solid var(--k-scenario); }
+.panel.operator { background: #f3f0fa; border: 1px solid #d4caee; border-left: 4px solid var(--k-operator); }
+.panel label { display: inline-flex; align-items: center; gap: 6px; }
+.panel input[type='range'] { width: 90px; }
+.inputs { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.input { display: inline-flex; align-items: center; gap: 6px; }
+.input .name { font-weight: 600; min-width: 74px; }
+
+/* Sidebar layout (tablets, 1280×720): controls stacked on the left, the diagram gets the full height. */
+.app.side { grid-template-columns: 270px 1fr; grid-template-rows: auto auto 1fr; }
+.app.side > .bar, .app.side > .banner { grid-column: 1 / -1; }
+.app.side > .controls { grid-column: 1; grid-row: 3; grid-template-columns: 1fr; align-content: start; gap: 8px; padding: 8px; border-top: 0; border-right: 1px solid var(--line); overflow: auto; min-height: 0; }
+.app.side > .stage { grid-column: 2; grid-row: 3; }
+.app.side .panel { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 10px; }
+.app.side .panel .who { margin: 0; }
+.app.side .panel .kind-tag { align-self: flex-start; }
+.app.side .inputs { flex-direction: column; gap: 8px; }
+.app.side .input { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }
+.app.side .input label { grid-column: 1 / -1; justify-content: space-between; }
+.app.side .panel label { justify-content: space-between; }
+.app.side .panel input[type='range'] { width: 120px; }
+.app.side .legend { flex-wrap: wrap; gap: 4px 12px; }
+.app.side .panel .who { font-size: 11px; line-height: 1.25; }
+.app.side .inputs { gap: 4px; }
+.app.side .input { row-gap: 0; }
+.app.side .panel button { padding: 1px 8px; }
+.app.side .panel label { min-height: 22px; }
+
+.eventlog { position: fixed; right: 16px; top: 90px; bottom: 120px; width: 520px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18); display: flex; flex-direction: column; z-index: 10; }
+.eventlog header { display: flex; gap: 8px; align-items: baseline; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.eventlog header button { margin-left: auto; }
+.eventlog ol { list-style: none; margin: 0; padding: 4px 0; overflow: auto; font-size: 12px; }
+.eventlog li { display: grid; grid-template-columns: 62px 78px 1fr; gap: 6px; padding: 2px 12px; }
+.eventlog li .k { color: var(--muted); }
+.eventlog li.fail .k, .eventlog li.defect .k { color: var(--offline); font-weight: 600; }
+.eventlog li.retry .k { color: var(--retry); font-weight: 600; }
+.eventlog li.commit .k, .eventlog li.announce .k { color: var(--mat); font-weight: 600; }
+
+/* ---- SVG ---- */
+.diagram text { font-family: var(--font); font-size: 13px; fill: var(--ink); }
+.diagram .title { font-weight: 600; font-size: 14px; }
+.diagram .small-title { font-size: 13px; }
+.diagram .title-sm { font-weight: 600; }
+.diagram .small { font-size: 12px; }
+.diagram .tiny { font-size: 11px; }
+.diagram .mono { font-family: var(--mono); }
+.diagram .muted { fill: var(--muted); }
+.diagram .tag { font-size: 11px; font-style: italic; fill: var(--muted); }
+.diagram .region { fill: var(--world); opacity: 0.55; }
+.diagram .region.consumers { fill: #f1f0f6; }
+.diagram .boundary { stroke: var(--ink); stroke-width: 2; stroke-dasharray: 2 6; stroke-linecap: round; opacity: 0.55; }
+.diagram .region-label { font-size: 12px; font-weight: 700; letter-spacing: 0.14em; fill: var(--muted); }
+.diagram .frame-title { font-size: 15px; font-weight: 700; }
+
+/* Only the box's own outline: nested bars and rings keep their own styles. */
+.box > rect { stroke-width: 1.5; }
+.box.ours > rect { fill: var(--ours-pale); stroke: var(--ours); stroke-width: 2; }
+.box.ots > rect { fill: var(--ots-fill); stroke: var(--ots); stroke-dasharray: 6 4; }
+.box.world > rect { fill: #fff; stroke: #9aa5b1; }
+.box.asset > rect { fill: #fff; stroke: var(--ots); stroke-dasharray: 6 4; stroke-width: 2; }
+.box.asset.materialising > rect { fill: var(--mat-fill); stroke: var(--mat); }
+.diagram .asset-title { font-family: var(--mono); font-size: 15px; font-weight: 700; }
+.orchestrator-frame rect { fill: rgba(255, 255, 255, 0.55); stroke-width: 2; }
+
+.store > rect { fill: #fff; stroke: var(--ours); stroke-width: 1.5; }
+.store.ots > rect { stroke: var(--ots); stroke-dasharray: 5 3; fill: var(--ots-fill); }
+
+.shim rect { fill: var(--ours-pale); stroke: var(--ours); stroke-width: 1; }
+.shim .shim-label { font-size: 11px; font-family: var(--mono); fill: var(--ours); }
+.shim.retry rect { fill: var(--retry-fill); stroke: var(--retry); stroke-width: 2; }
+.shim.retry .shim-label, .shim .shim-retry { fill: #8a5a00; font-size: 11px; font-weight: 700; }
+
+.module.offline > rect { stroke: var(--offline); }
+.diagram .offline-label { fill: var(--offline); font-weight: 700; }
+.diagram .status.alert { fill: var(--offline); font-weight: 600; }
+
+.bar .track { fill: #e3e7eb; }
+.bar .fill { fill: var(--ours); }
+.bar.stale .fill { fill: var(--muted); }
+.ring .track { fill: none; stroke: #e3e7eb; stroke-width: 4; }
+.ring .fill { fill: none; stroke: var(--ink); stroke-width: 4; }
+.diagram .strong { font-weight: 700; }
+
+.residuals .axis, .diagram .axis { stroke: #b8c0c8; stroke-width: 1; }
+.residuals .threshold { stroke: var(--muted); stroke-dasharray: 3 3; stroke-width: 1; }
+.residuals .resid { fill: #9fb3c4; }
+.residuals .resid.over { fill: var(--ink); }
+.diagram .zbar { fill: #7d93a6; }
+.diagram .axis.zero { stroke: var(--ink); }
+
+.edge { fill: none; stroke: #9aa5b1; stroke-width: 1.4; }
+.edge.lineage { stroke: var(--lineage-track); stroke-width: 7; stroke-linejoin: round; }
+.edge.trigger { stroke: var(--lineage); stroke-dasharray: 2 4; stroke-width: 1.6; }
+.edge.query, .edge.read { stroke: #b4bec8; }
+.edge.call { stroke: var(--ours); }
+.arrowhead { fill: #8995a1; }
+.arrowhead.heavy { fill: var(--lineage-track); }
+.diagram .edge-label { fill: var(--muted); font-style: italic; }
+.diagram .loop-label { fill: var(--lineage); font-style: italic; }
+
+.token { fill: var(--ink); stroke: #fff; stroke-width: 1.5; }
+.token.lineage { fill: var(--lineage); stroke-width: 2.5; }
+.token.retry { fill: var(--retry); }
+
+.counter rect { fill: #fff; stroke: var(--line); opacity: 0.92; }
+.counter.recent rect { stroke: var(--ink); }
+
+.diagram .verdict { font-size: 22px; font-weight: 700; }
+.svg-button { cursor: pointer; }
+.svg-button rect { fill: #fff; stroke: var(--line); }
+.svg-button:hover rect, .svg-button:focus-visible rect { stroke: var(--ink); }
+.svg-button:active rect { fill: var(--world); }
+.svg-button:focus { outline: none; }
+.diagram .verdict.ok { fill: var(--mat); }
+.diagram .verdict.bad { fill: var(--offline); }

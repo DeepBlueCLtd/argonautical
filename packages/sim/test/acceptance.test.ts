@@ -124,7 +124,23 @@ describe('acceptance criteria', () => {
     const sim = runScript(loadScenario('late-consumer'));
     const c3 = sim.consumers.find((c) => c.id === 'C3')!;
     expect(c3.subscribedAt).toBe(40);
-    expect(c3.results[0]).toMatchObject({ tick: 40, catchUp: true, ok: true, forecastId: sim.netcdf.latest!.id });
+    expect(c3.results[0]).toMatchObject({ tick: 40, trigger: 'catch-up', ok: true, forecastId: sim.netcdf.latest!.id });
+  });
+
+  it('CON-3: reconfiguring a consumer makes it query pygeoapi again and verify the latest forecast', () => {
+    const sim = new Simulation({ seed: 'reconfigure' });
+    sim.reconfigureConsumer('C1');
+    expect(sim.log.entries.at(-1)!.text).toBe('C1 reconfigured; no forecast yet');
+    sim.step(20); // F1 committed, detected and announced; C1 verified it
+    const before = sim.consumers[0]!.results.length;
+    const queries = sim.tokens.edgeStats.get('consumer>query>pygeoapi')!.count;
+    sim.reconfigureConsumer('C1');
+    const r = sim.consumers[0]!.results;
+    expect(r).toHaveLength(before + 1);
+    expect(r.at(-1)).toMatchObject({ tick: 20, trigger: 'reconfigure', ok: true, forecastId: 'F1' });
+    expect(sim.tokens.edgeStats.get('consumer>query>pygeoapi')!.count).toBeGreaterThan(queries);
+    expect(sim.consumers[1]!.results.some((x) => x.trigger === 'reconfigure')).toBe(false);
+    expect(() => sim.reconfigureConsumer('C9')).toThrow(RangeError);
   });
 
   it('10. nothing changes without a step; step advances exactly one tick', () => {

@@ -42,7 +42,8 @@ export type ControlAction =
   | { readonly type: 'requestRun' }
   | { readonly type: 'offline'; readonly module: FaultTarget; readonly offline: boolean }
   | { readonly type: 'failNextRun' }
-  | { readonly type: 'addConsumer' };
+  | { readonly type: 'addConsumer' }
+  | { readonly type: 'reconfigureConsumer'; readonly consumer: string };
 
 export class Simulation {
   readonly seed: string;
@@ -183,6 +184,8 @@ export class Simulation {
         return this.failNextRun();
       case 'addConsumer':
         return void this.addConsumer();
+      case 'reconfigureConsumer':
+        return this.reconfigureConsumer(a.consumer);
     }
   }
 
@@ -254,8 +257,19 @@ export class Simulation {
   addConsumer(): Consumer {
     this.control(`presenter: add consumer C${this.consumers.length + 1}`);
     const c = this.newConsumer();
-    c.catchUp(this.t);
+    c.query(this.t, 'catch-up');
     return c;
+  }
+
+  /**
+   * Consumer: CON-3. The consumer app's user changes what it shows, so it queries pygeoapi again
+   * for the latest forecast. No new data is implied.
+   */
+  reconfigureConsumer(id: string): void {
+    const c = this.consumers.find((x) => x.id === id);
+    if (!c) throw new RangeError(`unknown consumer ${id}`);
+    this.log.append(this.t, 'control', `consumer: ${id} reconfigured by its user`);
+    c.query(this.t, 'reconfigure');
   }
 
   private newConsumer(): Consumer {
