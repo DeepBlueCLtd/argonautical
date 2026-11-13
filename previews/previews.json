@@ -1,5 +1,16 @@
 [
   {
+    "number": 24,
+    "title": "Stop a token backlog building at high rates",
+    "summary": "Measured after 20 s at 60×, then ½× (tokens on screen, every 2 s): before (live site): 29 → 18 → 14 → 13 → 12 → 12 after: 21 → 3 → 3 → 4 → 5 → 5",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/24",
+    "branch": "claude/rate-backlog",
+    "sha": "fe89c7c8a152a1f81a41c424564278d7e9997636",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-13T20:06:48.782Z"
+  },
+  {
     "number": 23,
     "title": "Capabilities, catalogue discovery and topic subscriptions (CAT-1..5)",
     "summary": "Capabilities (CAT-1, CAT-2) Two switches in the Control panel: Feature detector and 48 h. Each takes effect from the next run. The demo opens with both off; scenarios and tests default to the classic pipeline. Without a detector, runs…",
