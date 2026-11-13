@@ -2,7 +2,7 @@
  * Owns the wall clock: run/pause, step, rate, and token animation timing.
  * It drives the simulation only through its control API and step() (ARC-4).
  */
-import { EDGES, Simulation, type ControlAction, type Token } from '@argonautical/sim';
+import { EDGES, Simulation, type ControlAction, type InputSlot, type Token } from '@argonautical/sim';
 
 export type Rate = 0.5 | 1 | 10 | 60;
 /** Default speed: half real time, so a live audience can follow each step. */
@@ -14,6 +14,15 @@ export interface VisualToken {
   readonly dur: number;
   readonly lineage: boolean;
 }
+
+/** One gathering of a reader's inputs: begins with its first request of a tick (MOT-7). */
+interface Gathering {
+  readonly tick: number;
+  readonly start: number;
+  readonly fills: Map<InputSlot, { at: number; token: Token }>;
+}
+
+export type SlotState = { state: 'awaiting' } | { state: 'filled'; token: Token };
 
 const LINEAGE = new Set(EDGES.filter((e) => e.kind === 'lineage').map((e) => e.id));
 /** MOT-1: minimum on-screen time, in wall-clock seconds, at any speed. */
@@ -41,6 +50,8 @@ export class Runner {
   private exchangesThisTick = new Map<string, number>();
   private exchangeOffset = 0;
   private listeners = new Set<() => void>();
+  /** Per reader (element#instance): the latest gathering and the one before it. */
+  private gatherings = new Map<string, Gathering[]>();
 
   constructor(
     public seed: string,
@@ -64,6 +75,7 @@ export class Runner {
     this.visuals = [];
     this.lastSeq = 0;
     this.exchangesThisTick.clear();
+    this.gatherings.clear();
     this.frac = 0;
     this.emit();
   }
@@ -138,7 +150,37 @@ export class Runner {
       const same = this.visuals.filter((v) => `${v.token.edge}#${v.token.instance ?? ''}#${v.token.role ?? ''}` === key);
       if (same.length >= MAX_PER_EDGE) this.visuals.splice(this.visuals.indexOf(same[0]!), 1);
       this.visuals.push({ token: t, born, dur, lineage });
+      if (t.role === 'request' || t.slot) this.gather(t, born, dur);
     }
+  }
+
+  /** A reader's first request in a tick empties its input slots; each response that fills one lands when it arrives. */
+  private gather(t: Token, born: number, dur: number): void {
+    const reader = `${t.edge.split('>')[0]}#${t.instance ?? ''}`;
+    const list = this.gatherings.get(reader) ?? [];
+    let g = list[list.length - 1];
+    if (t.role === 'request' && (!g || g.tick !== t.start)) {
+      g = { tick: t.start, start: born, fills: new Map() };
+      list.push(g);
+      if (list.length > 3) list.shift();
+      this.gatherings.set(reader, list);
+    }
+    if (t.slot && g) g.fills.set(t.slot, { at: born + dur, token: t });
+  }
+
+  /** What a reader's input slot shows now: the document it last received, or pale while it waits for one. */
+  slot(element: string, slot: InputSlot, instance?: string): SlotState {
+    const list = this.gatherings.get(`${element}#${instance ?? ''}`) ?? [];
+    // The newest gathering under way (one whose first request has not yet left does not count).
+    const g = [...list].reverse().find((x) => this.anim >= x.start);
+    // The newest document that has landed in this slot. It shows if it landed after that gathering
+    // began: when reads overlap (faster rates) a slot fills late rather than never.
+    let f: { at: number; token: Token } | undefined;
+    for (const x of list) {
+      const y = x.fills.get(slot);
+      if (y && this.anim >= y.at && (!f || y.at > f.at)) f = y;
+    }
+    return g && f && f.at >= g.start ? { state: 'filled', token: f.token } : { state: 'awaiting' };
   }
 
   /** Paused with nothing left to animate: tokens are frozen and can be clicked. */

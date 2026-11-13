@@ -263,3 +263,12 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .token-popup .std-badge.std-H { color: var(--std-H); border-color: var(--std-H); }
 .token-popup .std-badge { display: inline-block; min-width: 16px; text-align: center; font: 800 11px var(--mono); font-style: normal; color: var(--ink); border: 1px solid var(--ink); border-radius: 3px; padding: 0 3px; }
 .token-popup .note { margin: 6px 10px 8px; color: var(--muted); font-size: 11px; }
+
+/* MOT-7: input slots — pale while the reader waits, filled when the document lands */
+.input-slots .token.slot { transition: opacity 0.25s; }
+.input-slots .token.slot.awaiting { opacity: 0.25; }
+.input-slots .token.slot.awaiting .page { stroke-dasharray: 2 1.5; }
+.input-slots .hit { fill: transparent; }
+.input-slots .pickable { cursor: pointer; }
+.input-slots .pickable:hover .page, .input-slots .pickable:focus-visible .page { stroke-width: 2.6; }
+.input-slots .pickable:focus { outline: none; }

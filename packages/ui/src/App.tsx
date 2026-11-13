@@ -109,7 +109,7 @@ export function App() {
         <OperatorPanel snap={snap} act={act} />
       </footer>
       {logOpen && <EventLogPanel runner={runner} onClose={() => setLogOpen(false)} />}
-      {picked && runner.frozen && <TokenPopup token={picked.token} x={picked.x} y={picked.y} onClose={() => setPicked(null)} />}
+      {picked && (runner.frozen || picked.fromSlot) && <TokenPopup token={picked.token} x={picked.x} y={picked.y} onClose={() => setPicked(null)} />}
     </div>
   );
 }

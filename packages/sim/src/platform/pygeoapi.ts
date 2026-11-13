@@ -8,6 +8,7 @@ import * as P from '../payloads.ts';
 import type { Payload } from '../payloads.ts';
 import type { FeaturesDb, NetcdfStore, ObservationsDb } from '../stores/stores.ts';
 import type { TokenRecorder } from '../tokens.ts';
+import type { InputSlot } from '../topology/inputs.ts';
 import { edgeId, type ElementId } from '../topology/elements.ts';
 
 export interface Caller {
@@ -29,14 +30,14 @@ export class PygeoApi {
    * One read, as four tokens: the request (caller → pygeoapi), the provider's query (pygeoapi → store),
    * the raw rows (store → pygeoapi) and the formatted response (pygeoapi → caller).
    */
-  private exchange<T>(caller: Caller, store: Store, req: Payload, query: Payload, rows: Payload, result: T, res: Payload): T {
+  private exchange<T>(caller: Caller, store: Store, req: Payload, query: Payload, rows: Payload, result: T, res: Payload, slot?: InputSlot): T {
     const inst = caller.instance ? { instance: caller.instance } : {};
     const q = edgeId(caller.element, 'query', 'pygeoapi');
     const r = edgeId(store, 'read', 'pygeoapi');
     this.tokens.emit(q, { ...inst, payload: req, role: 'request' });
     this.tokens.emit(r, { ...inst, payload: query, role: 'db-query', reverse: true });
     this.tokens.emit(r, { ...inst, payload: rows, role: 'db-rows' });
-    this.tokens.emit(q, { ...inst, payload: res, role: 'response', reverse: true });
+    this.tokens.emit(q, { ...inst, payload: res, role: 'response', reverse: true, ...(slot ? { slot } : {}) });
     return result;
   }
 
@@ -67,7 +68,7 @@ export class PygeoApi {
     this.requireObservations(caller, req);
     const latest = this.latestRows();
     const out: Partial<Record<InputKey, number>> = Object.fromEntries(latest.map((o) => [o.input, o.value]));
-    return this.exchange(caller, 'observationsDb', req, P.dbQuery('Observations DB', P.sql.latest), P.obsRows(latest), out, P.sensorThingsLatest(latest));
+    return this.exchange(caller, 'observationsDb', req, P.dbQuery('Observations DB', P.sql.latest), P.obsRows(latest), out, P.sensorThingsLatest(latest), 'observations');
   }
 
   /** SensorThings: the last `n` observations per input, oldest first. */
@@ -85,14 +86,14 @@ export class PygeoApi {
         picked.push(r);
       }
     }
-    return this.exchange(caller, 'observationsDb', req, P.dbQuery('Observations DB', P.sql.recent(n)), P.obsRows(picked), out, P.sensorThingsRecent(n, out));
+    return this.exchange(caller, 'observationsDb', req, P.dbQuery('Observations DB', P.sql.recent(n)), P.obsRows(picked), out, P.sensorThingsRecent(n, out), 'observations');
   }
 
   /** EDR: climatology coverage. */
   climatology(caller: Caller): Values {
     const v = this.netcdf.climatology;
     const keys = Object.keys(v);
-    return this.exchange(caller, 'netcdfStore', P.request('Climatology at the ship', 'EDR', P.urls.climatology()), P.netcdfRead('climatology.nc', keys), P.netcdfValues('climatology.nc', v), v, P.coverage('Climatology at the ship', v));
+    return this.exchange(caller, 'netcdfStore', P.request('Climatology at the ship', 'EDR', P.urls.climatology()), P.netcdfRead('climatology.nc', keys), P.netcdfValues('climatology.nc', v), v, P.coverage('Climatology at the ship', v), 'climatology');
   }
 
   /** EDR: a forecast coverage by id, or the latest. */
@@ -107,13 +108,15 @@ export class PygeoApi {
       P.netcdfValues(file, f?.values),
       f,
       P.forecastCoverage(f),
+      // No forecast yet (a 404): the slot stays empty.
+      f ? 'forecast' : undefined,
     );
   }
 
   /** Features: all features of a forecast. */
   features(caller: Caller, forecastId: string): Feature[] {
     const feats = this.featuresDb.byForecast(forecastId);
-    return this.exchange(caller, 'featuresDb', P.request(`Features of ${forecastId}`, 'Features', P.urls.features(forecastId)), P.dbQuery('Features DB', P.sql.features(forecastId)), P.featureRows(feats), feats, P.featureCollection(forecastId, feats));
+    return this.exchange(caller, 'featuresDb', P.request(`Features of ${forecastId}`, 'Features', P.urls.features(forecastId)), P.dbQuery('Features DB', P.sql.features(forecastId)), P.featureRows(feats), feats, P.featureCollection(forecastId, feats), 'features');
   }
 
   /** Features: id of the latest forecast with features (used for catch-up). */

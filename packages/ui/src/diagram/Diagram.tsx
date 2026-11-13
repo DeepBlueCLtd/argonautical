@@ -1,4 +1,4 @@
-import { EDGES, STANDARDS, clockLabel, type Snapshot, type Token } from '@argonautical/sim';
+import { EDGES, INPUTS, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, type ReactNode } from 'react';
 import type { Runner } from '../runner.ts';
 import { CONSUMER_AREA, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, midpoint, pathD, pointAt, routeAll, type Rect, type Route } from './layout.ts';
@@ -74,6 +74,8 @@ export interface Picked {
   readonly token: Token;
   readonly x: number;
   readonly y: number;
+  /** Picked from an input slot: open while running too (the document stays put). */
+  readonly fromSlot?: boolean;
 }
 
 export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void }) {
@@ -277,6 +279,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
         </T>
         <Ring cx={R.driftSensor.x + R.driftSensor.w - 22} cy={R.driftSensor.y + 22} frac={1 - (snap.drift.nextCheckIn - runner.frac) / snap.drift.interval} label={`${snap.drift.nextCheckIn}s`} />
       </Box>
+      <InputSlots x={R.driftSensor.x + 150} y={R.driftSensor.y + 22} reader="driftMonitor" who="Drift monitor" inputs={INPUTS.driftMonitor} runner={runner} onPick={onPick} />
       <Shim r={R.shimCheck} name="check" />
       <g filter={snap.offline.driftMonitor ? 'url(#offline-halo)' : undefined}>
       <Box r={R.driftMonitor} style="ours" cls={snap.offline.driftMonitor ? 'stopped' : ''}>
@@ -388,6 +391,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           {snap.assets.forecast !== undefined ? `materialised ${clockLabel(snap.assets.forecast)}` : ''}
         </T>
       </Box>
+      <InputSlots x={R.forecast.x + 140} y={R.forecast.y + 66} reader="modelRunner" who="Model runner" inputs={INPUTS.modelRunner} runner={runner} onPick={onPick} />
       <PlayPause at={{ x: R.forecast.x + 20, y: R.forecast.y + 19 }} running={!snap.offline.modelRunner} what="the model runner (every run fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })} />
       <Shim r={R.shimRun} name="run" retryIn={retryOn('run')} />
       <Module r={R.modelRunner} name="Model runner" offline={snap.offline.modelRunner}>
@@ -413,6 +417,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           {snap.assets.features !== undefined ? `materialised ${clockLabel(snap.assets.features)}` : ''}
         </T>
       </Box>
+      <InputSlots x={R.features.x + 96} y={R.features.y + 66} reader="featureDetector" who="Feature detector" inputs={INPUTS.featureDetector} runner={runner} onPick={onPick} />
       <PlayPause at={{ x: R.features.x + 20, y: R.features.y + 19 }} running={!snap.offline.featureDetector} what="the feature detector (detection fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })} />
       <Shim r={R.shimDetect} name="detect" retryIn={retryOn('detect')} />
       <Module r={R.featureDetector} name="Feature detector" offline={snap.offline.featureDetector}>
@@ -506,6 +511,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
             <T x={r.x + 10} y={r.y + 22} cls="title">
               {c.id}
             </T>
+            <InputSlots x={r.x + 40} y={r.y + 17} reader="consumer" instance={c.id} who={c.id} inputs={INPUTS.consumer[c.needs]} runner={runner} onPick={onPick} label={false} />
             <T x={r.x + r.w - 10} y={r.y + 24} cls={`verdict ${l ? (l.ok ? 'ok' : 'bad') : ''}`} anchor="end">
               {l ? (l.ok ? '✓' : '✗') : '·'}
             </T>
@@ -513,7 +519,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
               {l ? `${l.forecastId}${{ announcement: '', 'catch-up': ' (catch-up)', reconfigure: ' (reconfigured)' }[l.trigger]}` : 'waiting'}
             </T>
             <T x={r.x + 10} y={r.y + 58} cls="tiny muted">
-              {l ? `${l.featureCount} features${c.waiting ? ' · querying…' : ''}` : clockLabel(c.subscribedAt)}
+              {l ? `${l.featureCount === undefined ? "coverage" : `${l.featureCount} features`}${c.waiting ? ' · querying…' : ''}` : clockLabel(c.subscribedAt)}
             </T>
             {/* CON-3: the app's user reconfigures it, so it queries pygeoapi again (no new data implied) */}
             <g
@@ -594,6 +600,57 @@ export function DocToken({ x, y, size, cls, letter }: { x: number; y: number; si
  * A tab sitting on a component's top edge: square where it meets the component, rounded on its
  * outer corners. Shows how many items are queued on that side, only while they are.
  */
+/**
+ * MOT-7: a reader's declared inputs as document slots. Pale while it waits for a document
+ * (from its first request of a run), filled in when the response lands. Click a filled one to read it.
+ */
+function InputSlots(props: { x: number; y: number; reader: string; instance?: string; who: string; inputs: readonly InputDecl[]; runner: Runner; onPick: (p: Picked) => void; label?: boolean }) {
+  const { x, y, reader, instance, who, inputs, runner, onPick, label = true } = props;
+  const step = 20;
+  return (
+    <g className="input-slots" aria-label={`${who} needs`}>
+      {label && (
+        <T x={x - 4} y={y + 4} cls="tiny muted" anchor="end">
+          needs
+        </T>
+      )}
+      {inputs.map((d, i) => {
+        const s = runner.slot(reader, d.slot, instance);
+        const cx = x + 8 + i * step;
+        const doc = <DocToken x={cx} y={y} size={1.45} letter={d.standard} cls={`token slot ${s.state}`} />;
+        if (s.state !== 'filled') {
+          return (
+            <g key={d.slot}>
+              <title>{`${who} needs the ${d.label} — waiting for it`}</title>
+              {doc}
+            </g>
+          );
+        }
+        const pick = (px: number, py: number) => onPick({ token: s.token, x: px, y: py, fromSlot: true });
+        return (
+          <g
+            key={d.slot}
+            className="pickable"
+            role="button"
+            tabIndex={0}
+            aria-label={`${who}: ${d.label}`}
+            onClick={(e) => pick(e.clientX, e.clientY)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              const b = (e.currentTarget as SVGGElement).getBoundingClientRect();
+              pick(b.x + b.width / 2, b.y + b.height / 2);
+            }}
+          >
+            <title>{`${who}'s ${d.label}: click to read it`}</title>
+            <rect className="hit" x={cx - 10} y={y - 12} width={20} height={24} />
+            {doc}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: number; w: number; label: string; h?: number; r?: number }) {
   const top = edgeY - h;
   const d = `M${x},${edgeY} L${x},${top + r} Q${x},${top} ${x + r},${top} L${x + w - r},${top} Q${x + w},${top} ${x + w},${top + r} L${x + w},${edgeY} Z`;

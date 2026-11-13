@@ -7,3 +7,4 @@ export { ELEMENTS, EDGES, EDGE_IDS, edgeId, element, deriveEdges, type ElementDe
 export type { Token, EdgeStat, ExchangeRole } from './tokens.ts';
 export { STANDARDS, type Payload, type StandardCode } from './payloads.ts';
 export type { FaultTarget } from './faults.ts';
+export { INPUTS, consumerNeeds, type InputDecl, type InputSlot, type ConsumerNeeds } from './topology/inputs.ts';
