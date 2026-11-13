@@ -18,8 +18,8 @@ export interface VisualToken {
 const LINEAGE = new Set(EDGES.filter((e) => e.kind === 'lineage').map((e) => e.id));
 /** MOT-1: minimum on-screen time, in wall-clock seconds, at any speed. */
 const MIN_WALL = { lineage: 1.2, other: 0.6 };
-/** The four legs of a pygeoapi read play one after another, each this long (wall seconds), so a round trip takes ~4.8 s at any speed. */
-const LEG = 1.2;
+/** The four legs of a pygeoapi read play one after another, each this long (wall seconds), so a round trip takes ~8 s at any speed. */
+const LEG = 2.0;
 const LEG_ORDER: Record<string, number> = { request: 0, 'db-query': 1, 'db-rows': 2, response: 3 };
 /** Cap concurrent tokens per edge instance so 60× stays readable. */
 const MAX_PER_EDGE = 4;
