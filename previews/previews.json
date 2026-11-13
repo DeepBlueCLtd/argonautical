@@ -1,5 +1,16 @@
 [
   {
+    "number": 16,
+    "title": "Draft C4 model of the production candidate (physical view)",
+    "summary": "Adds docs/c4-model.md, a C4 model of the eventual production system. It is kept separate from docs/system-architecture.md so the two can be compared before one is chosen.",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/16",
+    "branch": "claude/eloquent-archimedes-0zerkv",
+    "sha": "91d082414898f1b4366dc839c618c18c82ec262c",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-13T11:05:44.089Z"
+  },
+  {
     "number": 15,
     "title": "One staleness countdown; separate crowded arrows",
     "summary": "Arrow spacing Sensors → sensor broker crosses the World | System line straight, not along it. Ingestion → Observations DB leaves ingestion's top rather than squeezing between the boxes; the DB's read line is clear of the orchestrator…",
