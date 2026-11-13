@@ -1,8 +1,8 @@
 [
   {
     "number": 11,
-    "title": "Drill down into tokens: click a paused dot to see what it carries",
-    "summary": "Pause the demonstrator, click a dot, and a popup shows what is moving along that arrow: a short description, the real-world format it stands for in production, and a mock data object built from the simulation's actual values.",
+    "title": "Token drill-down, SensorThings observation path, and sensor-broker buffering",
+    "summary": "Three related changes. All payloads and new behaviour are driven by the simulation.",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/11",
     "branch": "claude/sweet-newton-m24x65",
     "sha": "a47a133a44661a27dac2d20e76c7732d2d260288",
