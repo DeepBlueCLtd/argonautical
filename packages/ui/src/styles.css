@@ -185,8 +185,8 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 
 
 .diagram .verdict { font-size: 22px; font-weight: 700; }
-.diagram .queue-count { font-size: 22px; font-weight: 700; }
-.diagram .queue-count.backlog { fill: var(--ink); }
+.queue-tab path { fill: var(--ink); }
+.diagram .queue-tab text { fill: #fff; font: 700 12px var(--mono); }
 .box.stopped > rect, .store.stopped > rect { stroke: var(--offline); }
 .svg-button { cursor: pointer; }
 .svg-button rect { fill: #fff; stroke: var(--line); }

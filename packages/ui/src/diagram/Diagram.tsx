@@ -243,16 +243,17 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
         <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 38} cls="muted tiny">
           persistent queue · QoS 1
         </T>
-        <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 66} cls={`queue-count mono ${snap.sensorBroker.queued > snap.inputs.length ? 'backlog' : ''}`}>
-          {snap.sensorBroker.queued}
+        <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 62} cls="tiny muted">
+          acked after DB commit
         </T>
-        <T x={R.sensorBroker.x + 60} y={R.sensorBroker.y + 66} cls="small">
-          queued
-        </T>
-        <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 90} cls="tiny muted">
-          {snap.sensorBroker.queued > snap.inputs.length ? `oldest ${snap.sensorBroker.oldestAge}s ago` : 'acked after DB commit'}
+        <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 84} cls="tiny muted">
+          {snap.sensorBroker.queued > snap.inputs.length ? `oldest waiting ${snap.sensorBroker.oldestAge}s` : ''}
         </T>
       </Box>
+      {/* Queue tab on the exit edge (towards ingestion), only while a backlog builds */}
+      {snap.sensorBroker.queued > snap.inputs.length && (
+        <QueueTab x={R.sensorBroker.x + R.sensorBroker.w - 100} edgeY={R.sensorBroker.y} w={92} label={`${snap.sensorBroker.queued} queued`} />
+      )}
 
       {/* Observations DB = the observations source asset (UI-8); presenter can stop/start it (FLT-3) */}
       <g filter={snap.stores.observationsUp ? undefined : 'url(#offline-halo)'}>
@@ -540,6 +541,23 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
       {/* Tokens: one per recorded interaction (MOT-1) */}
       <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} />
     </svg>
+  );
+}
+
+/**
+ * A tab sitting on a component's top edge: square where it meets the component, rounded on its
+ * outer corners. Shows how many items are queued on that side, only while they are.
+ */
+function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: number; w: number; label: string; h?: number; r?: number }) {
+  const top = edgeY - h;
+  const d = `M${x},${edgeY} L${x},${top + r} Q${x},${top} ${x + r},${top} L${x + w - r},${top} Q${x + w},${top} ${x + w},${top + r} L${x + w},${edgeY} Z`;
+  return (
+    <g className="queue-tab" aria-label={label}>
+      <path d={d} />
+      <text x={x + w / 2} y={edgeY - 6} textAnchor="middle">
+        {label}
+      </text>
+    </g>
   );
 }
 

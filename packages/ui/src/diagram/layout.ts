@@ -120,6 +120,11 @@ const horizontal = (s: Side) => s === 'left' || s === 'right';
 
 /** Hand-routed edges: a corridor the generic router would not find. */
 const CUSTOM: Record<string, (a: Rect, b: Rect) => Pt[]> = {
+  // Sensor broker → ingestion: straight up from the broker's left third, leaving room for its queue tab.
+  'sensorBroker>deliver>ingestion': (a, b) => {
+    const x = a.x + 44;
+    return [{ x, y: a.y }, { x, y: b.y + b.h }];
+  },
   // Drift monitor → pygeoapi: out between the schedule and manual-request cards, down the gap between features and announcement.
   'driftMonitor>query>pygeoapi': (a, b) => {
     const y = 162;
