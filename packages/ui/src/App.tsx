@@ -4,8 +4,7 @@ import { Diagram, type Picked, type SlotTip, type TokenTip } from './diagram/Dia
 import { SlotTipPanel, TokenTipPanel } from './SlotTip.tsx';
 import { TokenPopup } from './TokenPopup.tsx';
 import { VIEW } from './diagram/layout.ts';
-import boundary from './generated/boundary.json';
-import { Runner, type Rate } from './runner.ts';
+import { Runner } from './runner.ts';
 import { WalkCard } from './Walkthrough.tsx';
 import { WALKTHROUGH } from './walkthrough.ts';
 
@@ -39,7 +38,7 @@ const SIDEBAR = 270;
 function sideWins(): boolean {
   const w = innerWidth;
   const h = innerHeight;
-  const top = (document.querySelector<HTMLElement>('.bar')?.offsetHeight ?? 52) + (document.querySelector<HTMLElement>('.banner')?.offsetHeight ?? 26);
+  const top = 0; // no toolbar: the presenter controls live in the diagram (§5.4)
   const strip = document.querySelector<HTMLElement>('.controls')?.offsetHeight ?? 120;
   const side = Math.min((w - SIDEBAR - 16) / VIEW.w, (h - top - 8) / VIEW.h);
   const bottom = Math.min((w - 16) / VIEW.w, (h - top - strip - 8) / VIEW.h);
@@ -107,6 +106,18 @@ export function App() {
     setPicked(null);
     setWalk(0);
   };
+  // Space: run / pause (not while typing, and not while the walkthrough is open).
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== ' ' || walk !== null) return;
+      const t = e.target as HTMLElement;
+      if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLButtonElement || t.getAttribute('role')) return;
+      e.preventDefault();
+      runner.setRunning(!runner.running);
+    };
+    addEventListener('keydown', key);
+    return () => removeEventListener('keydown', key);
+  }, [runner, walk]);
   const endWalk = (start: boolean) => {
     setWalk(null);
     if (start) runner.setRunning(true);
@@ -117,10 +128,8 @@ export function App() {
 
   return (
     <div className={`app ${layout}`}>
-      <PresenterBar runner={runner} snap={snap} logOpen={logOpen} setLogOpen={setLogOpen} onWalkthrough={startWalk} />
-      <Banner snap={snap} />
       <main className="stage">
-        <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} spotlight={spotlight} />
+        <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} spotlight={spotlight} controls={{ logOpen, onLog: () => setLogOpen(!logOpen), onWalkthrough: startWalk }} />
         {runner.frozen && !picked && walk === null && (
           <div className="inspect-hint">{runner.tokens.length ? 'Paused · click a dot to see what it carries' : 'Paused · press Step to send one tick of tokens, then click a dot'}</div>
         )}
@@ -136,76 +145,6 @@ export function App() {
       {/* A token's panel goes when the token arrives (it is no longer on screen). */}
       {tokenTip && !picked && !tip && runner.tokens.some(({ v }) => v.token.seq === tokenTip.token.seq) && <TokenTipPanel tip={tokenTip} frozen={runner.frozen} />}
       {picked && (runner.frozen || picked.fromSlot) && <TokenPopup token={picked.token} x={picked.x} y={picked.y} onClose={() => setPicked(null)} />}
-    </div>
-  );
-}
-
-function PresenterBar(props: { runner: Runner; snap: Snapshot; logOpen: boolean; setLogOpen: (b: boolean) => void; onWalkthrough: () => void }) {
-  const { runner, snap } = props;
-  const [seed, setSeed] = useState(runner.seed);
-  const [inputs, setInputs] = useState(runner.inputs);
-  return (
-    <header className="bar presenter" aria-label="Presenter controls">
-      <div className="brand">
-        <a href="../" className="home" title="Back to the explanation">
-          ←
-        </a>
-        <strong>Forecast Pipeline Demonstrator</strong>
-      </div>
-      <div className="clock mono" aria-live="off">
-        {snap.clock}
-      </div>
-      <span className="kind-tag presenter">Presenter</span>
-      <label>
-        seed <input value={seed} onChange={(e) => setSeed(e.target.value)} size={8} />
-      </label>
-      <label>
-        inputs{' '}
-        <select value={inputs} onChange={(e) => setInputs(Number(e.target.value))}>
-          {[3, 4, 5, 6].map((n) => (
-            <option key={n}>{n}</option>
-          ))}
-        </select>
-      </label>
-      <button onClick={() => runner.restart(seed || 'demo', inputs)}>Restart</button>
-      <span className="sep" />
-      <button onClick={() => runner.setRunning(!runner.running)} className={runner.running ? '' : 'primary'}>
-        {runner.running ? 'Pause' : 'Run'}
-      </button>
-      <button onClick={() => runner.step()}>Step</button>
-      <div className="seg" role="group" aria-label="Rate">
-        {([0.5, 1, 10, 60] as Rate[]).map((r) => (
-          <button key={r} className={runner.rate === r ? 'on' : ''} onClick={() => runner.setRate(r)}>
-            {r === 0.5 ? '½' : r}×
-          </button>
-        ))}
-      </div>
-      <span className="sep" />
-      <button onClick={() => runner.apply({ type: 'addConsumer' })}>Add consumer</button>
-      <span className="sep" />
-      <button onClick={props.onWalkthrough} title="Introduce each region and component in turn">
-        Walkthrough
-      </button>
-      <button className={props.logOpen ? 'on' : ''} onClick={() => props.setLogOpen(!props.logOpen)}>
-        Event log ({snap.events.count})
-      </button>
-    </header>
-  );
-}
-
-/** §5.5: permanent honesty banner, boundary-check result and event-log digest. */
-function Banner({ snap }: { snap: Snapshot }) {
-  const ok = boundary.ok;
-  return (
-    <div className="banner" role="note">
-      <span>Synthetic data · illustrative numerics · the engines are mocks · no Dagster, Postgres or pygeoapi runs here.</span>
-      <span className={`boundary ${ok ? 'ok' : 'bad'}`} title={ok ? `${boundary.checkedFiles} module files checked` : JSON.stringify(boundary.violations)}>
-        Module boundary check: {ok ? 'passed' : 'FAILED'}
-      </span>
-      <span className="mono">
-        seed {snap.seed} · digest {snap.events.digest}
-      </span>
-      {snap.defects.length > 0 && <span className="boundary bad">{snap.defects.length} undeclared-edge defect(s)</span>}
     </div>
   );
 }
@@ -294,7 +233,7 @@ function EventLogPanel({ runner, onClose }: { runner: Runner; onClose: () => voi
   return (
     <aside className="eventlog" role="dialog" aria-label="Event log">
       <header>
-        <strong>Event log</strong> <span className="muted">{entries.length} events, newest first</span>
+        <strong>Event log</strong> <span className="muted">{entries.length} events, newest first · seed {runner.sim.seed} · digest <span className="mono">{runner.sim.log.digest}</span></span>
         <button onClick={onClose} aria-label="Close">
           ×
         </button>
