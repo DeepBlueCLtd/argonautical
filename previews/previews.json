@@ -1,5 +1,16 @@
 [
   {
+    "number": 15,
+    "title": "One staleness countdown: schedule keeps the ring, forecast shows \"valid until\"",
+    "summary": "",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/15",
+    "branch": "claude/forecast-valid-until",
+    "sha": "0e199b605f858e482ebc0b7fc5b1ff0ba32211ec",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-13T10:51:47.859Z"
+  },
+  {
     "number": 14,
     "title": "Release pulses also turn the dependency line green",
     "summary": "When a dependency releases the next step (MOT-8), the whole lineage line and its arrowhead now turn green as the pulse sweeps, hold through the arrowhead flash, then fade back. Checks are unchanged. SRD MOT-8 updated.",
