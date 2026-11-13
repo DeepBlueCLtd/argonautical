@@ -160,7 +160,7 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 | UI-4 | Ingestion sits outside the orchestrator and is marked "not orchestrated". |
 | UI-5 | The stores and pygeoapi sit below the orchestrator, except the Observations DB (UI-8). Read lines are labelled "read only", and their arrows show the direction the data moves. |
 | UI-6 | **The whole diagram fits the viewport with no scrolling** and scales with the window. It must stay legible at 1920×1080. |
-| UI-7 | The event log is a popup panel opened from the toolbar, showing the event count, newest first. It is not a permanent column. |
+| UI-7 | The event log is a popup panel opened from the Control panel, showing the event count, newest first. It is not a permanent column. |
 | UI-8 | **The Observations DB is the `observations` source asset; it is drawn once.** It is a store (double border, our data) straddling the orchestrator frame's left edge, as the broker straddles the consumer boundary. Ingestion writes into its outer half; the lineage flow to `forecast` leaves its inner half. It has one name: "Observations DB", with the subtitle "source asset". |
 | UI-9 | The orchestrator's private store is drawn as a small off-the-shelf store (dashed border) inside the orchestrator frame, labelled "run history · schedule · sensor state", with its run count read from stored rows. It is internal to the orchestrator, so it has no external edges and no tokens. It must not compete with the asset graph (UI-2) or break UI-6. |
 | UI-10 | `background` is drawn as a loop arrow on `forecast`, labelled "background = previous forecast", not as a separate node. When a forecast commits (MOD-2), one lineage token runs round the loop. |
@@ -200,11 +200,11 @@ Controls fall into three kinds, and each kind looks different so the audience ca
 |---|---|---|
 | **Scenario** | Nobody (the sea, the sensors) | Per-input shift (+5σ over 20 s, toggle); per-input sensor noise (0–3σ) |
 | **Operator** | The ship's operator | Drift threshold, quorum, persistence; Request a run (a violet button on the Manual request card) |
-| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate ½×/1×/10×/60× (default ½×), number of inputs, play/pause buttons inline before the titles of fragile components (forecast, features, drift sensor, Ingestion, Observations DB), add consumer, view (information flow / system), tour, event log |
+| **Presenter** | The person giving the demo | In a **Control panel** occupying the top fifth of the World column (there is no toolbar): a large run/pause button (also Space), the clock, step, rate ½×/1×/10×/60× as a radio group (default ½×), add consumer, walkthrough and event log (with the event count). Elsewhere: play/pause buttons inline before the titles of fragile components (forecast, features, drift sensor, Ingestion, Observations DB) and view (information flow / system). Seed and number of inputs are URL parameters only (`?seed=`, `?inputs=`); F5 restarts. |
 
 ### 5.5 Banner
 
-A permanent line states: synthetic data, illustrative numerics, the engines are mocks, no Dagster runs. It also shows the boundary-check result and the event-log digest. In the system-architecture view it adds: the deployment is a candidate design, not a commitment, and timings are compressed.
+~~A permanent banner line~~ **Withdrawn (Nov 13, 2026).** The banner was removed to give the diagram the height. The honesty statement (synthetic data, illustrative numerics, mocked engines) opens the walkthrough instead; the module-boundary check still runs in CI and at build time, and the event-log digest is in the event log and replay tests.
 
 ### 5.6 System-architecture view (optional)
 
@@ -223,7 +223,7 @@ The standard view is information flow (§5.1). A second, optional view shows the
 
 | ID | Requirement |
 |---|---|
-| TOUR-1 | A tour mode walks through the acceptance scenarios (§6, 3–9) with no presenter. It is started from the presenter toolbar or `?tour=<name>`. |
+| TOUR-1 | A tour mode walks through the acceptance scenarios (§6, 3–9) with no presenter. It is started from the Control panel or `?tour=<name>`. |
 | TOUR-2 | A tour is a replay script in the ARC-5 format (seed + timed control actions) with a caption per step. Tours and replay tests share the same script files; no tour-only control path exists. |
 | TOUR-3 | Captions appear in one fixed caption strip that does not cover the diagram (UI-6 still holds). They say what is about to happen and what to watch. |
 | TOUR-4 | The viewer can pause, step, and leave the tour at any time. Leaving hands control to the presenter with the simulation state unchanged. |
@@ -232,8 +232,8 @@ The standard view is information flow (§5.1). A second, optional view shows the
 
 | ID | Requirement |
 |---|---|
-| WALK-1 | The app opens paused at T+00:00 with a walkthrough running, unless `?walkthrough=off`. A Walkthrough button in the presenter toolbar restarts it (and pauses the simulation). |
-| WALK-2 | The walkthrough introduces the three regions (World, System, Onboard consumers) one at a time, then each component one at a time in the order data flows, then the token key. Each step dims the rest of the diagram and spotlights its region or component. |
+| WALK-1 | The app opens paused at T+00:00 with a walkthrough running, unless `?walkthrough=off`. A Walkthrough (?) button in the Control panel restarts it (and pauses the simulation). |
+| WALK-2 | The walkthrough introduces the three regions (World, System, Onboard consumers) one at a time, then each component one at a time in the order data flows, then the token key. A step after the introduction presents the Control panel. Each step dims the rest of the diagram and spotlights its region or component. |
 | WALK-3 | A caption card beside the spotlight gives the step's kind (region, component), title and a short explanation, with its position (n / total) and a progress bar. |
 | WALK-4 | Next, Back and Skip buttons; → or Enter for next, ← for back, Esc to leave. Leaving keeps the simulation paused. |
 | WALK-5 | The last step offers "Start the simulation" (runs it) or "Stay paused". The steps' text and spotlight areas are declared in one list (`packages/ui/src/walkthrough.ts`). |

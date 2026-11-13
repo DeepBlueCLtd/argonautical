@@ -2,7 +2,7 @@
  * WALK-1..5: the opening walkthrough. One region ("world") at a time, then one component at a time,
  * in the order data flows. Each step spotlights a rectangle of the diagram (viewBox coordinates).
  */
-import { CONSUMER_AREA, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, type Rect } from './diagram/layout.ts';
+import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, type Rect } from './diagram/layout.ts';
 
 export interface WalkStep {
   readonly id: string;
@@ -22,7 +22,14 @@ export const WALKTHROUGH: readonly WalkStep[] = [
     id: 'intro',
     kind: 'Overview',
     title: 'An ocean forecast, end to end',
-    body: 'Readings from a ship’s sensors flow through a pipeline that produces a forecast, finds features in it and tells the apps on board. The simulation is paused. This walkthrough introduces the three regions, then each component in the order data flows.',
+    body: 'Readings from a ship’s sensors flow through a pipeline that produces a forecast, finds features in it and tells the apps on board. Everything here is simulated: synthetic data, illustrative numbers, mocked engines. The simulation is paused. This walkthrough introduces the controls and the three regions, then each component in the order data flows.',
+  },
+  {
+    id: 'control',
+    kind: 'Overview',
+    title: 'Control',
+    body: 'Run or pause (also Space), the simulated clock, and the speed: ½× is the default so each step can be followed. Step advances one second and leaves its tokens part-way so you can click them. + Consumer adds an onboard app; ? reopens this walkthrough; the list icon opens the event log.',
+    rect: () => pad(CONTROL, 4),
   },
   // ---- regions ----
   {
@@ -30,7 +37,7 @@ export const WALKTHROUGH: readonly WalkStep[] = [
     kind: 'Region',
     title: 'World',
     body: 'The sea and the ship’s instruments. Nobody in the project builds these. In the demo, the Scenario controls play the sea: shift an input or add noise to make the ocean drift away from the forecast.',
-    rect: () => ({ x: 0, y: 0, w: REGIONS.worldRight, h: VIEW.h }),
+    rect: () => ({ x: 0, y: CONTROL.y + CONTROL.h + 6, w: REGIONS.worldRight, h: VIEW.h - CONTROL.y - CONTROL.h - 6 }),
   },
   {
     id: 'system',

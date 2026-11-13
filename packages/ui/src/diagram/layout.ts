@@ -22,8 +22,9 @@ export const REGIONS = {
 } as const;
 
 export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
-  ocean: { x: 20, y: 70, w: 190, h: 290 },
-  sensors: { x: 20, y: 420, w: 190, h: 300 },
+  // The top fifth of the World column is the presenter's Control panel (CONTROL below).
+  ocean: { x: 20, y: 196, w: 190, h: 236 },
+  sensors: { x: 20, y: 446, w: 190, h: 280 },
   ingestion: { x: 248, y: 430, w: 150, h: 130 },
   // Persistent queue between the DAQ gateway and ingestion (FLT-3).
   sensorBroker: { x: 252, y: 612, w: 162, h: 104 },
@@ -53,6 +54,9 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   // and the consumers' pygeoapi queries run along visibly different paths.
   broker: { x: 1308, y: 72, w: 104, h: 100 },
 };
+
+/** Presenter controls (§5.4): the top fifth of the World column. */
+export const CONTROL: Rect = { x: 10, y: 8, w: 210, h: 160 };
 
 export const CONSUMER_AREA = { x: 1430, y: 196, w: 160, cardH: 66, gap: 10, max: 4 } as const;
 
