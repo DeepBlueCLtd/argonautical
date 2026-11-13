@@ -459,11 +459,26 @@ export function Diagram({ snap, runner, motion }: { snap: Snapshot; runner: Runn
               {l ? (l.ok ? '✓' : '✗') : '·'}
             </T>
             <T x={r.x + 10} y={r.y + 42} cls="small">
-              {l ? `${l.forecastId}${l.catchUp ? ' (catch-up)' : ''}` : 'waiting'}
+              {l ? `${l.forecastId}${l.trigger === 'announcement' ? '' : ` (${l.trigger})`}` : 'waiting'}
             </T>
             <T x={r.x + 10} y={r.y + 58} cls="tiny muted">
               {l ? `${l.featureCount} features${c.waiting ? ' · querying…' : ''}` : `since ${clockLabel(c.subscribedAt)}`}
             </T>
+            {/* CON-3: query pygeoapi now, without waiting for an announcement */}
+            <g
+              className="svg-button"
+              role="button"
+              tabIndex={0}
+              aria-label={`Refresh ${c.id}`}
+              onClick={() => runner.apply({ type: 'refreshConsumer', consumer: c.id })}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && runner.apply({ type: 'refreshConsumer', consumer: c.id })}
+            >
+              <title>Query pygeoapi now for the latest forecast</title>
+              <rect x={r.x + r.w - 66} y={r.y + 44} width={58} height={18} rx={4} />
+              <text x={r.x + r.w - 37} y={r.y + 57} textAnchor="middle" className="tiny">
+                ↻ Refresh
+              </text>
+            </g>
           </Box>
         );
       })}

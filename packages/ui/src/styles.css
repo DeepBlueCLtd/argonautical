@@ -188,5 +188,10 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .counter.recent rect { stroke: var(--ink); }
 
 .diagram .verdict { font-size: 22px; font-weight: 700; }
+.svg-button { cursor: pointer; }
+.svg-button rect { fill: #fff; stroke: var(--line); }
+.svg-button:hover rect, .svg-button:focus-visible rect { stroke: var(--ink); }
+.svg-button:active rect { fill: var(--world); }
+.svg-button:focus { outline: none; }
 .diagram .verdict.ok { fill: var(--mat); }
 .diagram .verdict.bad { fill: var(--offline); }

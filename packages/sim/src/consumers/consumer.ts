@@ -1,4 +1,4 @@
-/** Onboard consumer: CON-1, CON-2. */
+/** Onboard consumer: CON-1 (announcement), CON-2 (catch-up on subscribe), CON-3 (refresh on demand). */
 import { TIMING } from '../config.ts';
 import type { Announcement } from '../contracts.ts';
 import { forecastDigest } from '../contracts.ts';
@@ -14,7 +14,8 @@ export interface ConsumerResult {
   readonly digestOk: boolean;
   readonly countOk: boolean;
   readonly featureCount: number;
-  readonly catchUp: boolean;
+  /** What made the consumer query: an announcement, subscribing late, or its Refresh button. */
+  readonly trigger: 'announcement' | 'catch-up' | 'refresh';
 }
 
 export class Consumer {
@@ -59,27 +60,30 @@ export class Consumer {
     const feats = this.api.features(this.caller, msg.forecastId);
     const digestOk = !!f && f.digest === msg.digest && forecastDigest(f) === msg.digest;
     const countOk = feats.length === msg.featureCount;
-    this.record({ tick: t, forecastId: msg.forecastId, ok: digestOk && countOk, digestOk, countOk, featureCount: feats.length, catchUp: false });
+    this.record({ tick: t, forecastId: msg.forecastId, ok: digestOk && countOk, digestOk, countOk, featureCount: feats.length, trigger: 'announcement' });
   }
 
-  /** CON-2: query straight away for the latest complete forecast (one whose features exist). */
-  catchUp(t: number): void {
+  /**
+   * Query straight away for the latest complete forecast (one whose features exist) and verify it.
+   * CON-2 on subscribing late ('catch-up'); CON-3 when its Refresh button is pressed ('refresh').
+   */
+  query(t: number, trigger: 'catch-up' | 'refresh'): void {
     const id = this.api.latestFeatureForecastId(this.caller);
     if (!id) {
-      this.log.append(t, 'consumer', `${this.id} subscribed; no forecast yet`);
+      this.log.append(t, 'consumer', trigger === 'catch-up' ? `${this.id} subscribed; no forecast yet` : `${this.id} refresh: no forecast yet`);
       return;
     }
     const f = this.api.forecast(this.caller, id);
     const feats = this.api.features(this.caller, id);
     const digestOk = !!f && forecastDigest(f) === f.digest;
     const countOk = feats.length > 0 && feats.every((x) => x.forecastId === id);
-    this.record({ tick: t, forecastId: id, ok: digestOk && countOk, digestOk, countOk, featureCount: feats.length, catchUp: true });
+    this.record({ tick: t, forecastId: id, ok: digestOk && countOk, digestOk, countOk, featureCount: feats.length, trigger });
   }
 
   private record(r: ConsumerResult): void {
     this.results.push(r);
     const mark = r.ok ? '✓' : '✗';
     const detail = r.ok ? `digest ok, ${r.featureCount} features` : `${r.digestOk ? '' : 'digest mismatch '}${r.countOk ? '' : 'feature count mismatch'}`.trim();
-    this.log.append(r.tick, 'consumer', `${this.id} ${mark} ${r.forecastId}${r.catchUp ? ' (catch-up)' : ''}: ${detail}`);
+    this.log.append(r.tick, 'consumer', `${this.id} ${mark} ${r.forecastId}${r.trigger === 'announcement' ? '' : ` (${r.trigger})`}: ${detail}`);
   }
 }
