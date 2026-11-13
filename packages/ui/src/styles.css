@@ -272,3 +272,37 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .input-slots .pickable { cursor: pointer; }
 .input-slots .pickable:hover .page, .input-slots .pickable:focus-visible .page { stroke-width: 2.6; }
 .input-slots .pickable:focus { outline: none; }
+
+/* MOT-7: hover panel for an input slot, drawn as a page with a folded corner */
+.input-slots .slot-hit { cursor: help; }
+.input-slots .slot-hit.pickable { cursor: pointer; }
+.input-slots .slot-hit:hover .page, .input-slots .slot-hit:focus-visible .page { stroke-width: 2.6; }
+.input-slots .slot-hit:focus { outline: none; }
+.slot-tip {
+  --tc: var(--ink);
+  position: fixed; z-index: 21; width: min(300px, calc(100vw - 16px)); pointer-events: none;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.2)); font-size: 12.5px; line-height: 1.4;
+  animation: slot-tip-in 0.12s ease-out;
+}
+.slot-tip .sheet {
+  position: relative; background: #fff; border: 1.5px solid var(--tc); border-top-width: 5px; border-radius: 3px 0 3px 3px;
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
+}
+.slot-tip .fold { position: absolute; top: -5px; right: 0; width: 20px; height: 20px; background: linear-gradient(225deg, transparent 50%, color-mix(in srgb, var(--tc) 30%, #fff) 50%); }
+.slot-tip header { display: flex; gap: 8px; align-items: center; padding: 8px 24px 6px 10px; border-bottom: 1px dashed var(--line); }
+.slot-tip header span { display: flex; flex-direction: column; }
+.slot-tip header strong { font-size: 13.5px; }
+.slot-tip header small { color: var(--muted); font-size: 11px; }
+.slot-tip .std-badge { font: 800 13px var(--mono); color: var(--tc); border: 1.5px solid var(--tc); border-radius: 3px; padding: 1px 5px; }
+.slot-tip dl { margin: 0; padding: 6px 10px 2px; background: repeating-linear-gradient(#fff 0 19px, #f1f4f7 19px 20px); }
+.slot-tip dt { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--tc); }
+.slot-tip dd { margin: 0 0 6px; }
+.slot-tip footer { padding: 6px 10px 8px; font-size: 11.5px; border-top: 1px dashed var(--line); }
+.slot-tip footer.waiting { color: var(--muted); font-style: italic; }
+.slot-tip footer.ok em { color: var(--tc); font-style: normal; font-weight: 600; }
+.slot-tip.std-S { --tc: var(--std-S); }
+.slot-tip.std-C { --tc: var(--std-C); }
+.slot-tip.std-G { --tc: var(--std-G); }
+.slot-tip.std-E { --tc: var(--std-E); }
+@keyframes slot-tip-in { from { opacity: 0; transform: translateY(3px); } }
+@media (prefers-reduced-motion: reduce) { .slot-tip { animation: none; } }

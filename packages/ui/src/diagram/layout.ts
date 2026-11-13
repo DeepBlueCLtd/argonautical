@@ -35,7 +35,7 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   driftMonitor: { x: 574, y: 138, w: 222, h: 96 },
   stalenessSchedule: { x: 830, y: 72, w: 180, h: 84 },
   manualRequest: { x: 830, y: 168, w: 180, h: 80 },
-  privateStore: { x: 1160, y: 72, w: 165, h: 92 },
+  privateStore: { x: 1160, y: 72, w: 138, h: 92 },
   climatology: { x: 548, y: 470, w: 140, h: 76 },
   forecast: { x: 720, y: 290, w: 215, h: 282 },
   shimRun: { x: 732, y: 368, w: 191, h: 20 },
@@ -49,14 +49,15 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   netcdfStore: { x: 640, y: 668, w: 170, h: 88 },
   featuresDb: { x: 850, y: 668, w: 170, h: 88 },
   pygeoapi: { x: 1075, y: 652, w: 220, h: 120 },
-  // Straddles the System | Consumers boundary (UI-1).
-  broker: { x: 1308, y: 330, w: 104, h: 110 },
+  // Straddles the System | Consumers boundary (UI-1). Sits above the consumers so its deliveries
+  // and the consumers' pygeoapi queries run along visibly different paths.
+  broker: { x: 1308, y: 72, w: 104, h: 100 },
 };
 
-export const CONSUMER_AREA = { x: 1430, y: 110, w: 160, cardH: 66, gap: 10, max: 5 } as const;
+export const CONSUMER_AREA = { x: 1430, y: 196, w: 160, cardH: 66, gap: 10, max: 4 } as const;
 
 /** Token key, at the foot of the Onboard consumers column. */
-export const TOKEN_KEY: Rect = { x: 1374, y: 528, w: 216, h: 302 };
+export const TOKEN_KEY: Rect = { x: 1374, y: 540, w: 216, h: 292 };
 
 export function consumerRect(index: number): Rect {
   const c = CONSUMER_AREA;
@@ -91,7 +92,6 @@ const HINTS: Record<string, { from: Side; to: Side; drop?: number }> = {
   'driftSensor>trigger>forecast': { from: 'bottom', to: 'top' },
   'stalenessSchedule>trigger>forecast': { from: 'bottom', to: 'top' },
   'manualRequest>trigger>forecast': { from: 'bottom', to: 'top' },
-  'announcer>publish>broker': { from: 'right', to: 'left' },
   'broker>deliver>consumer': { from: 'right', to: 'left' },
   'consumer>query>pygeoapi': { from: 'left', to: 'right' },
   'sensors>publish>sensorBroker': { from: 'right', to: 'left' },
@@ -127,6 +127,12 @@ const CUSTOM: Record<string, (a: Rect, b: Rect) => Pt[]> = {
   'sensorBroker>deliver>ingestion': (a, b) => {
     const x = a.x + 44;
     return [{ x, y: a.y }, { x, y: b.y + b.h }];
+  },
+  // Announcer → broker: out of the announcer's right side, then up into the broker from below.
+  'announcer>publish>broker': (a, b) => {
+    const x = b.x + 26;
+    const y = a.y + a.h / 2;
+    return [{ x: a.x + a.w, y }, { x, y }, { x, y: b.y + b.h }];
   },
   // Drift monitor → pygeoapi: out between the schedule and manual-request cards, down the gap between features and announcement.
   'driftMonitor>query>pygeoapi': (a, b) => {
@@ -248,6 +254,12 @@ export function pointAt(pts: readonly Pt[], frac: number): Pt {
     target -= d;
   }
   return pts[pts.length - 1]!;
+}
+
+export function lengthOf(pts: readonly Pt[]): number {
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y);
+  return total;
 }
 
 export function midpoint(pts: readonly Pt[]): Pt {

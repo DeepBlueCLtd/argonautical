@@ -13,6 +13,8 @@ export interface VisualToken {
   readonly born: number;
   readonly dur: number;
   readonly lineage: boolean;
+  /** Second, third… read a caller sent in the same tick: drawn just behind the first, alongside it. */
+  readonly abreast?: number;
 }
 
 /** One gathering of a reader's inputs: begins with its first request of a tick (MOT-7). */
@@ -29,7 +31,8 @@ const LINEAGE = new Set(EDGES.filter((e) => e.kind === 'lineage').map((e) => e.i
 const MIN_WALL = { lineage: 1.2, other: 0.6 };
 /** The four legs of a pygeoapi read play one after another, each this long (wall seconds), so a round trip takes ~8 s at any speed. */
 const LEG = 2.0;
-const LEG_ORDER: Record<string, number> = { request: 0, 'db-query': 1, 'db-rows': 2, response: 3 };
+/** Reading a NetCDF file (xarray) is slower than a SQL query, so its store legs take longer and its reply comes back later. */
+const NETCDF_LEG = 3.5;
 /** Cap concurrent tokens per edge instance so 60× stays readable. */
 const MAX_PER_EDGE = 4;
 /** Longest wall-clock gap we will catch up on (e.g. after a background tab). */
@@ -48,7 +51,10 @@ export class Runner {
   private visuals: VisualToken[] = [];
   /** Sequencing of pygeoapi reads made by one caller within one tick. */
   private exchangesThisTick = new Map<string, number>();
-  private exchangeOffset = 0;
+  /** Where the current round trip has got to: when its next leg leaves (wall seconds). */
+  private legCursor = 0;
+  /** Which of the caller's same-tick reads the current round trip is (0 = the first). */
+  private abreast = 0;
   private listeners = new Set<() => void>();
   /** Per reader (element#instance): the latest gathering and the one before it. */
   private gatherings = new Map<string, Gathering[]>();
@@ -134,22 +140,32 @@ export class Runner {
       if (t.seq <= this.lastSeq) continue;
       this.lastSeq = t.seq;
       const lineage = LINEAGE.has(t.edge);
-      // Round trips through pygeoapi: each leg starts when the previous one arrives, and several
-      // reads by the same caller in the same tick play one after another (a second request leaves
-      // once the first response is back), so separate requests never look like one fanning out.
-      const leg = t.role ? LEG_ORDER[t.role] : undefined;
-      if (t.role === 'request') {
-        const key = `${t.edge}#${t.instance ?? ''}#${t.start}`;
-        const n = this.exchangesThisTick.get(key) ?? 0;
-        this.exchangesThisTick.set(key, n + 1);
-        this.exchangeOffset = n * 4 * LEG;
+      // Round trips through pygeoapi: each leg leaves when the previous one arrives. Several reads by
+      // the same caller in the same tick leave together, side by side, and the slower NetCDF reads
+      // come back later than SQL ones, so the replies arrive staggered.
+      let dur: number;
+      let born = this.anim;
+      let abreast = 0;
+      if (t.role) {
+        if (t.role === 'request') {
+          const key = `${t.edge}#${t.instance ?? ''}#${t.start}`;
+          const n = this.exchangesThisTick.get(key) ?? 0;
+          this.exchangesThisTick.set(key, n + 1);
+          // All leave together; the diagram draws the nth a few pixels behind the first.
+          this.legCursor = this.anim;
+          this.abreast = n;
+        }
+        dur = (t.role === 'db-query' || t.role === 'db-rows') && t.edge.startsWith('netcdfStore>') ? NETCDF_LEG : LEG;
+        born = this.legCursor;
+        this.legCursor += dur;
+        abreast = this.abreast;
+      } else {
+        dur = Math.max(t.duration * secondsPerTick, lineage ? MIN_WALL.lineage : MIN_WALL.other);
       }
-      const dur = leg !== undefined ? LEG : Math.max(t.duration * secondsPerTick, lineage ? MIN_WALL.lineage : MIN_WALL.other);
-      const born = this.anim + (leg !== undefined ? this.exchangeOffset + leg * LEG : 0);
       const key = `${t.edge}#${t.instance ?? ''}#${t.role ?? ''}`;
       const same = this.visuals.filter((v) => `${v.token.edge}#${v.token.instance ?? ''}#${v.token.role ?? ''}` === key);
       if (same.length >= MAX_PER_EDGE) this.visuals.splice(this.visuals.indexOf(same[0]!), 1);
-      this.visuals.push({ token: t, born, dur, lineage });
+      this.visuals.push({ token: t, born, dur, lineage, ...(abreast ? { abreast } : {}) });
       if (t.role === 'request' || t.slot) this.gather(t, born, dur);
     }
   }

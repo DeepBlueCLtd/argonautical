@@ -1,10 +1,12 @@
 import { EDGES, INPUTS, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, type ReactNode } from 'react';
 import type { Runner } from '../runner.ts';
-import { CONSUMER_AREA, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, midpoint, pathD, pointAt, routeAll, type Rect, type Route } from './layout.ts';
+import { CONSUMER_AREA, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Rect, type Route } from './layout.ts';
 
 
 const MATERIALISING_TICKS = 3;
+/** Gap, in diagram pixels, between reads a caller sends together (a token is ~12 px long). */
+const ABREAST_GAP = 18;
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
 const fmt = (v: number | undefined, d = 2) => (v === undefined ? '—' : Number.isFinite(v) ? v.toFixed(d) : String(v));
@@ -78,7 +80,17 @@ export interface Picked {
   readonly fromSlot?: boolean;
 }
 
-export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void }) {
+/** Hovering (or focusing) an input slot: what the document is and what its reader uses it for. */
+export interface SlotTip {
+  readonly decl: InputDecl;
+  readonly who: string;
+  readonly reader: string;
+  readonly instance?: string;
+  /** Screen box of the slot icon. */
+  readonly box: { left: number; top: number; right: number; bottom: number };
+}
+
+export function Diagram({ snap, runner, onPick, onTip }: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void }) {
   const consumerIds = snap.consumers.map((c) => c.id);
   const routes = useMemo(() => routeAll(EDGES, consumerIds), [consumerIds.join(',')]);
   const byKey = useMemo(() => new Map(routes.map((r) => [r.key, r])), [routes]);
@@ -279,7 +291,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
         </T>
         <Ring cx={R.driftSensor.x + R.driftSensor.w - 22} cy={R.driftSensor.y + 22} frac={1 - (snap.drift.nextCheckIn - runner.frac) / snap.drift.interval} label={`${snap.drift.nextCheckIn}s`} />
       </Box>
-      <InputSlots x={R.driftSensor.x + 150} y={R.driftSensor.y + 22} reader="driftMonitor" who="Drift monitor" inputs={INPUTS.driftMonitor} runner={runner} onPick={onPick} />
+      <InputSlots x={R.driftSensor.x + 150} y={R.driftSensor.y + 22} reader="driftMonitor" who="Drift monitor" inputs={INPUTS.driftMonitor} runner={runner} onPick={onPick} onTip={onTip} />
       <Shim r={R.shimCheck} name="check" />
       <g filter={snap.offline.driftMonitor ? 'url(#offline-halo)' : undefined}>
       <Box r={R.driftMonitor} style="ours" cls={snap.offline.driftMonitor ? 'stopped' : ''}>
@@ -391,7 +403,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           {snap.assets.forecast !== undefined ? `materialised ${clockLabel(snap.assets.forecast)}` : ''}
         </T>
       </Box>
-      <InputSlots x={R.forecast.x + 140} y={R.forecast.y + 66} reader="modelRunner" who="Model runner" inputs={INPUTS.modelRunner} runner={runner} onPick={onPick} />
+      <InputSlots x={R.forecast.x + 140} y={R.forecast.y + 66} reader="modelRunner" who="Model runner" inputs={INPUTS.modelRunner} runner={runner} onPick={onPick} onTip={onTip} />
       <PlayPause at={{ x: R.forecast.x + 20, y: R.forecast.y + 19 }} running={!snap.offline.modelRunner} what="the model runner (every run fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })} />
       <Shim r={R.shimRun} name="run" retryIn={retryOn('run')} />
       <Module r={R.modelRunner} name="Model runner" offline={snap.offline.modelRunner}>
@@ -417,7 +429,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           {snap.assets.features !== undefined ? `materialised ${clockLabel(snap.assets.features)}` : ''}
         </T>
       </Box>
-      <InputSlots x={R.features.x + 96} y={R.features.y + 66} reader="featureDetector" who="Feature detector" inputs={INPUTS.featureDetector} runner={runner} onPick={onPick} />
+      <InputSlots x={R.features.x + 96} y={R.features.y + 66} reader="featureDetector" who="Feature detector" inputs={INPUTS.featureDetector} runner={runner} onPick={onPick} onTip={onTip} />
       <PlayPause at={{ x: R.features.x + 20, y: R.features.y + 19 }} running={!snap.offline.featureDetector} what="the feature detector (detection fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })} />
       <Shim r={R.shimDetect} name="detect" retryIn={retryOn('detect')} />
       <Module r={R.featureDetector} name="Feature detector" offline={snap.offline.featureDetector}>
@@ -511,7 +523,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
             <T x={r.x + 10} y={r.y + 22} cls="title">
               {c.id}
             </T>
-            <InputSlots x={r.x + 40} y={r.y + 17} reader="consumer" instance={c.id} who={c.id} inputs={INPUTS.consumer[c.needs]} runner={runner} onPick={onPick} label={false} />
+            <InputSlots x={r.x + 40} y={r.y + 17} reader="consumer" instance={c.id} who={c.id} inputs={INPUTS.consumer[c.needs]} runner={runner} onPick={onPick} onTip={onTip} label={false} />
             <T x={r.x + r.w - 10} y={r.y + 24} cls={`verdict ${l ? (l.ok ? 'ok' : 'bad') : ''}`} anchor="end">
               {l ? (l.ok ? '✓' : '✗') : '·'}
             </T>
@@ -556,8 +568,8 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
         </T>
         {Object.entries(STANDARDS).map(([code, name], i) => (
           <g key={code}>
-            <DocToken x={TOKEN_KEY.x + 22} y={TOKEN_KEY.y + 60 + i * 24} size={1.4} letter={code} cls="token" />
-            <T x={TOKEN_KEY.x + 40} y={TOKEN_KEY.y + 65 + i * 24} cls="small">
+            <DocToken x={TOKEN_KEY.x + 22} y={TOKEN_KEY.y + 58 + i * 23} size={1.4} letter={code} cls="token" />
+            <T x={TOKEN_KEY.x + 40} y={TOKEN_KEY.y + 63 + i * 23} cls="small">
               {name}
             </T>
           </g>
@@ -604,8 +616,8 @@ export function DocToken({ x, y, size, cls, letter }: { x: number; y: number; si
  * MOT-7: a reader's declared inputs as document slots. Pale while it waits for a document
  * (from its first request of a run), filled in when the response lands. Click a filled one to read it.
  */
-function InputSlots(props: { x: number; y: number; reader: string; instance?: string; who: string; inputs: readonly InputDecl[]; runner: Runner; onPick: (p: Picked) => void; label?: boolean }) {
-  const { x, y, reader, instance, who, inputs, runner, onPick, label = true } = props;
+function InputSlots(props: { x: number; y: number; reader: string; instance?: string; who: string; inputs: readonly InputDecl[]; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; label?: boolean }) {
+  const { x, y, reader, instance, who, inputs, runner, onPick, onTip, label = true } = props;
   const step = 20;
   return (
     <g className="input-slots" aria-label={`${who} needs`}>
@@ -616,34 +628,34 @@ function InputSlots(props: { x: number; y: number; reader: string; instance?: st
       )}
       {inputs.map((d, i) => {
         const s = runner.slot(reader, d.slot, instance);
+        const filled = s.state === 'filled' ? s.token : undefined;
         const cx = x + 8 + i * step;
-        const doc = <DocToken x={cx} y={y} size={1.45} letter={d.standard} cls={`token slot ${s.state}`} />;
-        if (s.state !== 'filled') {
-          return (
-            <g key={d.slot}>
-              <title>{`${who} needs the ${d.label} — waiting for it`}</title>
-              {doc}
-            </g>
-          );
-        }
-        const pick = (px: number, py: number) => onPick({ token: s.token, x: px, y: py, fromSlot: true });
+        const tip = (el: Element) => {
+          const b = el.getBoundingClientRect();
+          onTip({ decl: d, who, reader, ...(instance ? { instance } : {}), box: { left: b.left, top: b.top, right: b.right, bottom: b.bottom } });
+        };
+        const open = (el: Element) => {
+          if (!filled) return tip(el); // an empty slot has nothing to open: show what it is waiting for
+          const b = el.getBoundingClientRect();
+          onTip(null);
+          onPick({ token: filled, x: b.left + b.width / 2, y: b.top + b.height / 2, fromSlot: true });
+        };
         return (
           <g
             key={d.slot}
-            className="pickable"
+            className={`slot-hit ${filled ? 'pickable' : ''}`}
             role="button"
             tabIndex={0}
-            aria-label={`${who}: ${d.label}`}
-            onClick={(e) => pick(e.clientX, e.clientY)}
-            onKeyDown={(e) => {
-              if (e.key !== 'Enter' && e.key !== ' ') return;
-              const b = (e.currentTarget as SVGGElement).getBoundingClientRect();
-              pick(b.x + b.width / 2, b.y + b.height / 2);
-            }}
+            aria-label={`${who}: ${d.label}${filled ? '' : ' (waiting)'}`}
+            onMouseEnter={(e) => tip(e.currentTarget)}
+            onMouseLeave={() => onTip(null)}
+            onFocus={(e) => tip(e.currentTarget)}
+            onBlur={() => onTip(null)}
+            onClick={(e) => open(e.currentTarget)}
+            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && open(e.currentTarget)}
           >
-            <title>{`${who}'s ${d.label}: click to read it`}</title>
             <rect className="hit" x={cx - 10} y={y - 12} width={20} height={24} />
-            {doc}
+            <DocToken x={cx} y={y} size={1.45} letter={d.standard} cls={`token slot ${s.state}`} />
           </g>
         );
       })}
@@ -794,8 +806,12 @@ function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<st
         const tk = v.token;
         const pts = tk.edge === 'forecast>lineage>forecast' ? loop : byKey.get(tk.instance ? `${tk.edge}#${tk.instance}` : tk.edge)?.points;
         if (!pts) return null;
+        // Reads sent together travel side by side: the nth sits ABREAST_GAP·n pixels behind the first,
+        // closing up as they leave and arrive.
+        const lag = v.abreast ? (v.abreast * ABREAST_GAP) / Math.max(1, lengthOf(pts)) : 0;
+        const q = Math.max(0, Math.min(1, p * (1 + lag) - lag));
         // Replies travel back along the line, against its arrow.
-        const pt = pointAt(pts, tk.reverse ? 1 - p : p);
+        const pt = pointAt(pts, tk.reverse ? 1 - q : q);
         const dot = <DocToken x={pt.x} y={pt.y} size={v.lineage ? 1.5 : 1.25} letter={tk.payload?.standard} cls={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} />;
         if (!frozen) return <g key={tk.seq}>{dot}</g>;
         const pick = (e: { clientX: number; clientY: number }) => onPick({ token: tk, x: e.clientX, y: e.clientY });
