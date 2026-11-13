@@ -1,5 +1,16 @@
 [
   {
+    "number": 10,
+    "title": "Move PR-preview tab to bottom centre and make it dismissible",
+    "summary": "Small fix to DeepBlueCLtd/argonautical#9.",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/10",
+    "branch": "claude/pr-previews",
+    "sha": "00c459039a609d16ed6623c854bd4496e7030c46",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-13T07:07:57.365Z"
+  },
+  {
     "number": 9,
     "title": "Publish persistent PR previews to GitHub Pages, with a previews list",
     "summary": "Each pull request gets a persistent preview on GitHub Pages, linked from a PR comment and listed on a previews page.",
