@@ -3,7 +3,6 @@ import { useMemo, type ReactNode } from 'react';
 import type { Runner } from '../runner.ts';
 import { CONSUMER_AREA, RECTS, REGIONS, VIEW, consumerRect, forecastLoop, midpoint, pathD, pointAt, routeAll, type Rect, type Route } from './layout.ts';
 
-export type Motion = 'tokens' | 'reduced';
 
 const MATERIALISING_TICKS = 3;
 
@@ -77,7 +76,7 @@ export interface Picked {
   readonly y: number;
 }
 
-export function Diagram({ snap, runner, motion, onPick }: { snap: Snapshot; runner: Runner; motion: Motion; onPick: (p: Picked) => void }) {
+export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void }) {
   const consumerIds = snap.consumers.map((c) => c.id);
   const routes = useMemo(() => routeAll(EDGES, consumerIds), [consumerIds.join(',')]);
   const byKey = useMemo(() => new Map(routes.map((r) => [r.key, r])), [routes]);
@@ -108,7 +107,7 @@ export function Diagram({ snap, runner, motion, onPick }: { snap: Snapshot; runn
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" className="arrowhead" />
         </marker>
-        <marker id="arrow-heavy" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
+        <marker id="arrow-heavy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" className="arrowhead heavy" />
         </marker>
         <filter id="offline-halo" x="-30%" y="-30%" width="160%" height="160%">
@@ -244,16 +243,17 @@ export function Diagram({ snap, runner, motion, onPick }: { snap: Snapshot; runn
         <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 38} cls="muted tiny">
           persistent queue · QoS 1
         </T>
-        <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 66} cls={`queue-count mono ${snap.sensorBroker.queued > snap.inputs.length ? 'backlog' : ''}`}>
-          {snap.sensorBroker.queued}
+        <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 62} cls="tiny muted">
+          acked after DB commit
         </T>
-        <T x={R.sensorBroker.x + 60} y={R.sensorBroker.y + 66} cls="small">
-          queued
-        </T>
-        <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 90} cls="tiny muted">
-          {snap.sensorBroker.queued > snap.inputs.length ? `oldest ${snap.sensorBroker.oldestAge}s ago` : 'acked after DB commit'}
+        <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 84} cls="tiny muted">
+          {snap.sensorBroker.queued > snap.inputs.length ? `oldest waiting ${snap.sensorBroker.oldestAge}s` : ''}
         </T>
       </Box>
+      {/* Queue tab on the exit edge (towards ingestion), only while a backlog builds */}
+      {snap.sensorBroker.queued > snap.inputs.length && (
+        <QueueTab x={R.sensorBroker.x + R.sensorBroker.w - 100} edgeY={R.sensorBroker.y} w={92} label={`${snap.sensorBroker.queued} queued`} />
+      )}
 
       {/* Observations DB = the observations source asset (UI-8); presenter can stop/start it (FLT-3) */}
       <g filter={snap.stores.observationsUp ? undefined : 'url(#offline-halo)'}>
@@ -330,9 +330,19 @@ export function Diagram({ snap, runner, motion, onPick }: { snap: Snapshot; runn
         <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 22} cls="title">
           Manual request
         </T>
-        <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 44} cls="small">
+        <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 42} cls="small">
           {snap.queued ? `queued: ${snap.queued}` : 'nothing queued'}
         </T>
+        {/* Operator control (violet, §5.4): the operator asks for a run from here */}
+        <SvgButton
+          x={R.manualRequest.x + 10}
+          y={R.manualRequest.y + 52}
+          w={104}
+          label="Request a run"
+          title="Operator: request a forecast run"
+          cls="operator"
+          onClick={() => runner.apply({ type: 'requestRun' })}
+        />
       </Box>
       {/* Private store (UI-9): internal, no edges */}
       <Store r={R.privateStore} ours={false}>
@@ -538,8 +548,8 @@ export function Diagram({ snap, runner, motion, onPick }: { snap: Snapshot; runn
         </T>
       )}
 
-      {/* Motion: tokens or per-edge counters (MOT-1, MOT-2) */}
-      {motion === 'tokens' ? <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} /> : <EdgeCounters snap={snap} routes={routes} />}
+      {/* Tokens: one per recorded interaction (MOT-1) */}
+      <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} />
     </svg>
   );
 }
@@ -559,10 +569,27 @@ function DocToken({ x, y, size, cls }: { x: number; y: number; size: number; cls
   );
 }
 
-/** A small clickable control drawn inside the diagram (keyboard accessible). */
-function SvgButton({ x, y, w, label, title, onClick }: { x: number; y: number; w: number; label: string; title: string; onClick: () => void }) {
+/**
+ * A tab sitting on a component's top edge: square where it meets the component, rounded on its
+ * outer corners. Shows how many items are queued on that side, only while they are.
+ */
+function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: number; w: number; label: string; h?: number; r?: number }) {
+  const top = edgeY - h;
+  const d = `M${x},${edgeY} L${x},${top + r} Q${x},${top} ${x + r},${top} L${x + w - r},${top} Q${x + w},${top} ${x + w},${top + r} L${x + w},${edgeY} Z`;
   return (
-    <g className="svg-button" role="button" tabIndex={0} aria-label={title} onClick={onClick} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick()}>
+    <g className="queue-tab" aria-label={label}>
+      <path d={d} />
+      <text x={x + w / 2} y={edgeY - 6} textAnchor="middle">
+        {label}
+      </text>
+    </g>
+  );
+}
+
+/** A small clickable control drawn inside the diagram (keyboard accessible). */
+function SvgButton({ x, y, w, label, title, onClick, cls = '' }: { x: number; y: number; w: number; label: string; title: string; onClick: () => void; cls?: string }) {
+  return (
+    <g className={`svg-button ${cls}`} role="button" tabIndex={0} aria-label={title} onClick={onClick} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick()}>
       <title>{title}</title>
       <rect x={x} y={y} width={w} height={18} rx={4} />
       <text x={x + w / 2} y={y + 13} textAnchor="middle" className="tiny">
@@ -696,27 +723,3 @@ function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<st
   );
 }
 
-/** MOT-2: "n · last time" per edge, instead of tokens. */
-function EdgeCounters({ snap, routes }: { snap: Snapshot; routes: Route[] }) {
-  const seen = new Set<string>();
-  return (
-    <g className="counters">
-      {routes.map((r) => {
-        if (seen.has(r.edge.id)) return null;
-        seen.add(r.edge.id);
-        const s = snap.edgeStats[r.edge.id];
-        if (!s) return null;
-        const m = midpoint(r.points);
-        const recent = snap.tick - s.last < 2;
-        return (
-          <g key={r.key} className={`counter ${recent ? 'recent' : ''}`}>
-            <rect x={m.x - 34} y={m.y - 8} width={68} height={14} rx={7} />
-            <text x={m.x} y={m.y + 3} textAnchor="middle" className="tiny mono">
-              {s.count} · {clockLabel(s.last).slice(2)}
-            </text>
-          </g>
-        );
-      })}
-    </g>
-  );
-}

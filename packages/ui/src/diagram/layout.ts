@@ -34,7 +34,7 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   shimCheck: { x: 574, y: 112, w: 222, h: 20 },
   driftMonitor: { x: 574, y: 138, w: 222, h: 96 },
   stalenessSchedule: { x: 830, y: 72, w: 180, h: 84 },
-  manualRequest: { x: 830, y: 168, w: 180, h: 64 },
+  manualRequest: { x: 830, y: 168, w: 180, h: 80 },
   privateStore: { x: 1160, y: 72, w: 165, h: 92 },
   climatology: { x: 548, y: 470, w: 140, h: 76 },
   forecast: { x: 720, y: 290, w: 215, h: 282 },
@@ -120,6 +120,11 @@ const horizontal = (s: Side) => s === 'left' || s === 'right';
 
 /** Hand-routed edges: a corridor the generic router would not find. */
 const CUSTOM: Record<string, (a: Rect, b: Rect) => Pt[]> = {
+  // Sensor broker → ingestion: straight up from the broker's left third, leaving room for its queue tab.
+  'sensorBroker>deliver>ingestion': (a, b) => {
+    const x = a.x + 44;
+    return [{ x, y: a.y }, { x, y: b.y + b.h }];
+  },
   // Drift monitor → pygeoapi: out between the schedule and manual-request cards, down the gap between features and announcement.
   'driftMonitor>query>pygeoapi': (a, b) => {
     const y = 162;
