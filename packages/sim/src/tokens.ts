@@ -13,7 +13,14 @@ export interface Token {
   readonly instance?: string;
   /** What was passed, for drill-down (never part of the event log). */
   readonly payload?: Payload;
+  /** Travels against the edge's arrow (e.g. a response coming back along a query edge). */
+  readonly reverse?: boolean;
+  /** Step within a request/response exchange; the UI staggers the steps so the round trip is visible. */
+  readonly role?: ExchangeRole;
 }
+
+/** The four legs of a read through pygeoapi. */
+export type ExchangeRole = 'request' | 'db-query' | 'db-rows' | 'response';
 
 export interface EdgeStat {
   readonly count: number;
@@ -25,6 +32,8 @@ export interface EmitOptions {
   retry?: boolean;
   instance?: string;
   payload?: Payload;
+  reverse?: boolean;
+  role?: ExchangeRole;
 }
 
 const KEEP_TICKS = 60;
@@ -48,7 +57,7 @@ export class TokenRecorder {
       this.log.append(tick, 'defect', msg);
       return;
     }
-    const t: Token = { seq: ++this.seq, edge, start: tick, duration: opts.duration ?? 1, ...(opts.retry ? { retry: true } : {}), ...(opts.instance ? { instance: opts.instance } : {}), ...(opts.payload ? { payload: opts.payload } : {}) };
+    const t: Token = { seq: ++this.seq, edge, start: tick, duration: opts.duration ?? 1, ...(opts.retry ? { retry: true } : {}), ...(opts.instance ? { instance: opts.instance } : {}), ...(opts.payload ? { payload: opts.payload } : {}), ...(opts.reverse ? { reverse: true } : {}), ...(opts.role ? { role: opts.role } : {}) };
     this.recent.push(t);
     const s = this.stats.get(edge);
     this.stats.set(edge, { count: (s?.count ?? 0) + 1, last: tick });

@@ -72,6 +72,46 @@ export const observationInsert = (rows: readonly Observation[], rejected: number
 export const request = (summary: string, api: 'SensorThings' | 'EDR' | 'Features', url: string) =>
   p(summary, `OGC API ${api === 'SensorThings' ? 'SensorThings' : api === 'EDR' ? '– EDR' : '– Features'} request`, { method: 'GET', url });
 
+// ---- pygeoapi ↔ store: the provider's query and the raw result ----
+
+const OBS_SQL_COLS = 'datastream_id, phenomenon_time_start, result_number';
+export const sql = {
+  latest: `SELECT DISTINCT ON (datastream_id) ${OBS_SQL_COLS} FROM observations ORDER BY datastream_id, phenomenon_time_start DESC`,
+  recent: (n: number) =>
+    `SELECT ${OBS_SQL_COLS} FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY datastream_id ORDER BY phenomenon_time_start DESC) AS rn FROM observations) o WHERE rn <= ${n}`,
+  features: (id: string) => `SELECT id, forecast_id, kind, input, ST_AsGeoJSON(geom) FROM features WHERE forecast_id = '${id}'`,
+  latestFeatures: 'SELECT forecast_id FROM features ORDER BY written_at DESC LIMIT 1',
+};
+
+export const dbQuery = (store: 'Observations DB' | 'Features DB', statement: string) =>
+  p(`Query to the ${store}`, `SQL from pygeoapi's ${store === 'Features DB' ? 'PostGIS' : 'PostgreSQL'} provider`, { sql: statement });
+
+export const netcdfRead = (file: string | undefined, variables: readonly string[]) =>
+  p(file ? `Read ${file} at the ship` : 'Read the latest forecast file', "NetCDF read (pygeoapi's xarray provider)", { file: file ?? 'no forecast file yet', variables, select: { lon: SHIP.lon, lat: SHIP.lat, method: 'nearest' } });
+
+export const obsRows = (rows: readonly Observation[]) =>
+  p(`${rows.length} row(s) from the Observations DB`, 'SQL result set (TimescaleDB)', {
+    rows: rows.map((o) => ({ datastream_id: datastream(o.input), phenomenon_time_start: iso(o.tick), result_number: num(o.value) })),
+  });
+
+export const netcdfValues = (file: string | undefined, values: Readonly<Record<InputKey, number>> | undefined) =>
+  values
+    ? p(`Values read from ${file}`, 'NetCDF variables (values at the nearest grid point)', { file, values: Object.fromEntries(Object.entries(values).map(([k, v]) => [k, num(v)])) })
+    : p('No such file', 'NetCDF read error', { error: 'FileNotFoundError', file: file ?? null });
+
+export const featureRows = (feats: readonly Feature[]) =>
+  p(`${feats.length} row(s) from the Features DB`, 'SQL result set (PostGIS)', {
+    rows: feats.map((f) => ({ id: f.id, forecast_id: f.forecastId, kind: f.kind, input: f.input ?? null, geom: { type: 'Point', coordinates: lonlat(f.x, f.y) } })),
+  });
+
+export const latestFeatureRow = (id: string | undefined) =>
+  p(id ? `1 row: ${id}` : 'No rows', 'SQL result set (PostGIS)', { rows: id ? [{ forecast_id: id }] : [] });
+
+export const connectionRefused = (store: string) => p(`Query attempt: ${store} not accepting connections`, 'Database connection attempt (refused)', { error: 'connection refused', store });
+
+export const serviceUnavailable = (service: string) =>
+  p(`503: ${service} unavailable`, 'HTTP 503 response', { status: 503, title: 'Service Unavailable', detail: `${service} is not accepting connections; retry later` });
+
 export const sensorThingsLatest = (latest: readonly Observation[]) =>
   p(`Latest observation of ${latest.length} datastream(s)`, 'SensorThings Observations (JSON)', {
     value: latest.map((o) => ({ 'Datastream@iot.id': datastream(o.input), phenomenonTime: iso(o.tick), result: num(o.value) })),

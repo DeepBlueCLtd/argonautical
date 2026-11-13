@@ -16,6 +16,9 @@ export interface VisualToken {
 const LINEAGE = new Set(EDGES.filter((e) => e.kind === 'lineage').map((e) => e.id));
 /** MOT-1: minimum on-screen time, in wall-clock seconds, at any speed. */
 const MIN_WALL = { lineage: 1.2, other: 0.6 };
+/** The four legs of a pygeoapi read play one after another, each this long (wall seconds). */
+const LEG = 0.6;
+const LEG_ORDER: Record<string, number> = { request: 0, 'db-query': 1, 'db-rows': 2, response: 3 };
 /** Cap concurrent tokens per edge instance so 60× stays readable. */
 const MAX_PER_EDGE = 4;
 /** Longest wall-clock gap we will catch up on (e.g. after a background tab). */
@@ -112,11 +115,14 @@ export class Runner {
       if (t.seq <= this.lastSeq) continue;
       this.lastSeq = t.seq;
       const lineage = LINEAGE.has(t.edge);
-      const dur = Math.max(t.duration * secondsPerTick, lineage ? MIN_WALL.lineage : MIN_WALL.other);
-      const key = `${t.edge}#${t.instance ?? ''}`;
-      const same = this.visuals.filter((v) => `${v.token.edge}#${v.token.instance ?? ''}` === key);
+      // Round trips through pygeoapi: each leg starts when the previous one arrives.
+      const leg = t.role ? LEG_ORDER[t.role] : undefined;
+      const dur = leg !== undefined ? LEG : Math.max(t.duration * secondsPerTick, lineage ? MIN_WALL.lineage : MIN_WALL.other);
+      const born = this.anim + (leg ?? 0) * LEG;
+      const key = `${t.edge}#${t.instance ?? ''}#${t.role ?? ''}`;
+      const same = this.visuals.filter((v) => `${v.token.edge}#${v.token.instance ?? ''}#${v.token.role ?? ''}` === key);
       if (same.length >= MAX_PER_EDGE) this.visuals.splice(this.visuals.indexOf(same[0]!), 1);
-      this.visuals.push({ token: t, born: this.anim, dur, lineage });
+      this.visuals.push({ token: t, born, dur, lineage });
     }
   }
 
@@ -127,6 +133,7 @@ export class Runner {
 
   /** Tokens in flight with their progress 0–1. */
   get tokens(): { v: VisualToken; p: number }[] {
-    return this.visuals.map((v) => ({ v, p: Math.min(1, (this.anim - v.born) / v.dur) }));
+    // Legs not yet started (born in the future) are not shown.
+    return this.visuals.filter((v) => this.anim >= v.born).map((v) => ({ v, p: Math.min(1, (this.anim - v.born) / v.dur) }));
   }
 }

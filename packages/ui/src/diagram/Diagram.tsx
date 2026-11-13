@@ -653,7 +653,8 @@ function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<st
         const tk = v.token;
         const pts = tk.edge === 'forecast>lineage>forecast' ? loop : byKey.get(tk.instance ? `${tk.edge}#${tk.instance}` : tk.edge)?.points;
         if (!pts) return null;
-        const pt = pointAt(pts, p);
+        // Replies travel back along the line, against its arrow.
+        const pt = pointAt(pts, tk.reverse ? 1 - p : p);
         const dot = <circle className={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} cx={pt.x} cy={pt.y} r={v.lineage ? 8 : 4.5} />;
         if (!frozen) return <g key={tk.seq}>{dot}</g>;
         const pick = (e: { clientX: number; clientY: number }) => onPick({ token: tk, x: e.clientX, y: e.clientY });

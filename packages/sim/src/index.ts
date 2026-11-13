@@ -4,6 +4,6 @@ export { EventLog, clockLabel, type LogEvent, type EventKind } from './events.ts
 export { Simulation, type SimOptions, type ControlAction, type Snapshot } from './simulation.ts';
 export { runScript, type Script, type ScriptStep } from './scenario.ts';
 export { ELEMENTS, EDGES, EDGE_IDS, edgeId, element, deriveEdges, type ElementDecl, type ElementId, type Edge, type EdgeKind } from './topology/elements.ts';
-export type { Token, EdgeStat } from './tokens.ts';
+export type { Token, EdgeStat, ExchangeRole } from './tokens.ts';
 export type { Payload } from './payloads.ts';
 export type { FaultTarget } from './faults.ts';
