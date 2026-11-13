@@ -1,6 +1,6 @@
 import { DRIFT_BOUNDS, EDGES, INPUTS, NOISE_BOUNDS, PROFILES, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, useRef, type ReactNode } from 'react';
-import type { Rate, Runner } from '../runner.ts';
+import { topicTag, type Rate, type Runner } from '../runner.ts';
 import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
 
 
@@ -129,6 +129,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
   const retrieving = (step: 'run' | 'detect') => reading(step) || (!!executing(step) && runner.readsPending(READER[step]));
   const execLabel = (step: 'run' | 'detect') => (retrieving(step) ? 'retrieving data' : (executing(step)?.label ?? (retryOn(step) !== undefined ? 'waiting for retry' : '')));
   const dataIn = useRef(new Map<string, number>());
+  const shown = useRef(new Map<string, { status: string; line: string; ok: boolean | undefined }>());
   const shownProgress = (step: 'run' | 'detect', dur: number) => {
     const r = executing(step);
     if (!r || retrieving(step)) return 0;
@@ -587,7 +588,13 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
       {snap.consumers.slice(0, CONSUMER_AREA.max).map((c, i) => {
         const r = consumerRect(i);
         const l = c.latest;
-        const tone = STATUS_TONE[c.status] ?? 'neutral';
+        // The card follows the animation, not the clock: while the consumer is still hearing about or
+        // fetching new data on screen, it keeps showing what it showed before.
+        const busy = !!runner.notice(c.id) || runner.readsPending('consumer', c.id);
+        const prev = shown.current.get(c.id);
+        const view = busy && prev ? prev : { status: c.status, line: l ? `${l.forecastId}` : 'no data', ok: l?.ok };
+        if (!busy) shown.current.set(c.id, view);
+        const tone = STATUS_TONE[view.status] ?? 'neutral';
         return (
           <Box key={c.id} r={r} style="world">
             <T x={r.x + 10} y={r.y + 20} cls="title">
@@ -596,21 +603,28 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
             <T x={r.x + 34} y={r.y + 19} cls="tiny muted">
               {PROFILES[c.profile].title}
             </T>
-            <T x={r.x + r.w - 10} y={r.y + 21} cls={`verdict ${l ? (l.ok ? 'ok' : 'bad') : ''}`} anchor="end">
-              {l ? (l.ok ? '✓' : '✗') : '·'}
+            <T x={r.x + r.w - 10} y={r.y + 21} cls={`verdict ${view.ok === undefined ? '' : view.ok ? 'ok' : 'bad'}`} anchor="end">
+              {view.ok === undefined ? '·' : view.ok ? '✓' : '✗'}
             </T>
             {/* CAT-5: the level of service it can give with what is offered */}
             <g className={`status-badge ${tone}`}>
               <title>{PROFILES[c.profile].about}</title>
-              <rect x={r.x + 10} y={r.y + 28} width={c.status.length * 6.4 + 14} height={17} rx={8.5} />
+              <rect x={r.x + 10} y={r.y + 28} width={view.status.length * 6.4 + 14} height={17} rx={8.5} />
               <text x={r.x + 17} y={r.y + 40.5} className="tiny">
-                {c.status}
+                {view.status}
               </text>
             </g>
             <InputSlots x={r.x + r.w - 52} y={r.y + 37} reader="consumer" instance={c.id} who={c.id} inputs={INPUTS.consumer[c.profile]} runner={runner} onPick={onPick} onTip={onTip} label={false} />
-            <T x={r.x + 10} y={r.y + 62} cls="small">
-              {l ? `${l.forecastId}${c.waiting ? ' …' : ''}` : 'no data'}
-            </T>
+            {/* CAT-4: what it has just heard from the broker, until the fetch it triggered is back */}
+            {runner.notice(c.id) ? (
+              <T x={r.x + 10} y={r.y + 62} cls="small notice">
+                {runner.notice(c.id)!}
+              </T>
+            ) : (
+              <T x={r.x + 10} y={r.y + 62} cls="small">
+                {view.line}
+              </T>
+            )}
             <T x={r.x + 10} y={r.y + 82} cls="tiny muted">
               {`subs: ${c.topics.filter((t) => t !== 'catalogue/changed').map((t) => t.split('/')[0]).join(', ') || '—'}`}
             </T>
@@ -1157,7 +1171,18 @@ function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; b
         if (q < 0) return null;
         // Replies travel back along the line, against its arrow.
         const pt = pointAt(pts, tk.reverse || sub ? 1 - q : q);
-        const dot = <DocToken x={pt.x} y={pt.y} size={v.lineage ? 1.5 : 1.25} letter={tk.payload?.standard} cls={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} />;
+        const tag = topicTag(tk);
+        const dot = (
+          <>
+            <DocToken x={pt.x} y={pt.y} size={v.lineage ? 1.5 : 1.25} letter={tk.payload?.standard} cls={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} />
+            {/* CAT-4: which topic a broker message is on, without hovering */}
+            {tag && (
+              <text x={pt.x} y={pt.y - 11} textAnchor="middle" className="topic-tag">
+                {tag}
+              </text>
+            )}
+          </>
+        );
         // Hover (any time) shows what the token carries; paused, a click opens the full data.
         const tip = (el: Element) => {
           const b = el.getBoundingClientRect();
