@@ -12,7 +12,7 @@
   },
   {
     "number": 8,
-    "title": "Add browser UI and explanatory site shell; publish to gh-pages",
+    "title": "Add browser UI and explanatory site shell",
     "summary": "First version of the UI: a React + SVG app built with Vite, published as a static site.",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/8",
     "branch": "claude/sweet-newton-m24x65",
