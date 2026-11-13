@@ -74,4 +74,19 @@ describe('token payloads (drill-down)', () => {
     const refused = allTokens('buffering').filter((t) => t.start > 80 && t.start <= 110 && t.role === 'response' && t.payload!.format === 'HTTP 503 response');
     expect(refused.length).toBeGreaterThan(0);
   });
+
+  it('each token is lettered by the standard of its content', () => {
+    const ts = [...allTokens('drift'), ...allTokens('buffering')];
+    const std = (pred: (t: Token) => boolean) => [...new Set(ts.filter(pred).map((t) => t.payload!.standard))].sort();
+    expect(std((t) => t.edge === 'sensors>publish>sensorBroker' || t.edge === 'sensorBroker>deliver>ingestion')).toEqual(['S']);
+    expect(std((t) => t.edge === 'ingestion>write>observationsDb')).toEqual(['Q']);
+    expect(std((t) => t.edge.endsWith('>read>pygeoapi') && t.edge.startsWith('observationsDb'))).toEqual(['Q']);
+    expect(std((t) => t.edge.startsWith('netcdfStore>read'))).toEqual(['N']);
+    expect(std((t) => t.edge === 'modelRunner>write>netcdfStore')).toEqual(['N']);
+    expect(std((t) => t.edge === 'consumer>query>pygeoapi' && t.role === 'request')).toEqual(['E', 'F']);
+    expect(std((t) => t.edge === 'consumer>query>pygeoapi' && t.role === 'response')).toEqual(['C', 'G']);
+    expect(std((t) => t.edge === 'driftMonitor>query>pygeoapi')).toEqual(['C', 'E', 'H', 'S']);
+    expect(std((t) => t.edge.includes('>lineage>') || t.edge.includes('>trigger>') || t.edge.includes('>call>'))).toEqual(['D']);
+    expect(std((t) => t.edge.endsWith('>publish>broker') || t.edge === 'broker>deliver>consumer')).toEqual(['M']);
+  });
 });

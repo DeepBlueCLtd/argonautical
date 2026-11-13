@@ -554,10 +554,14 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
   );
 }
 
-/** A token drawn as a tiny document: a page with a folded top-right corner, centred on (x, y). */
-function DocToken({ x, y, size, cls }: { x: number; y: number; size: number; cls: string }) {
-  const w = 9 * size;
-  const h = 11 * size;
+/**
+ * A token drawn as a tiny document: a white page with a folded top-right corner, centred on (x, y),
+ * lettered with the standard its content follows (S SensorThings, Q SQL, E EDR…). Unlettered
+ * tokens show ruled lines instead.
+ */
+export function DocToken({ x, y, size, cls, letter }: { x: number; y: number; size: number; cls: string; letter?: string }) {
+  const w = 10 * size;
+  const h = 12 * size;
   const f = 3 * size; // fold
   const x0 = x - w / 2;
   const y0 = y - h / 2;
@@ -565,6 +569,13 @@ function DocToken({ x, y, size, cls }: { x: number; y: number; size: number; cls
     <g className={cls}>
       <path className="page" d={`M${x0},${y0} H${x0 + w - f} L${x0 + w},${y0 + f} V${y0 + h} H${x0} Z`} />
       <path className="fold" d={`M${x0 + w - f},${y0} V${y0 + f} H${x0 + w}`} />
+      {letter ? (
+        <text className="std" x={x} y={y0 + h * 0.78} textAnchor="middle" fontSize={8 * size}>
+          {letter}
+        </text>
+      ) : (
+        <path className="rules" d={[0.45, 0.62, 0.79].map((k) => `M${x0 + 2 * size},${y0 + h * k} H${x0 + w - 2 * size}`).join(' ')} />
+      )}
     </g>
   );
 }
@@ -697,7 +708,7 @@ function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<st
         if (!pts) return null;
         // Replies travel back along the line, against its arrow.
         const pt = pointAt(pts, tk.reverse ? 1 - p : p);
-        const dot = <DocToken x={pt.x} y={pt.y} size={v.lineage ? 1.6 : 1.25} cls={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} />;
+        const dot = <DocToken x={pt.x} y={pt.y} size={v.lineage ? 1.5 : 1.25} letter={tk.payload?.standard} cls={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} />;
         if (!frozen) return <g key={tk.seq}>{dot}</g>;
         const pick = (e: { clientX: number; clientY: number }) => onPick({ token: tk, x: e.clientX, y: e.clientY });
         return (

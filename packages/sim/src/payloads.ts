@@ -6,9 +6,26 @@
  */
 import type { Announcement, Feature, Forecast, InputKey, Observation, SensorMessage } from './contracts.ts';
 
+/** The standard (or format) a token's content follows, shown as a letter on the token. */
+export const STANDARDS = {
+  S: 'OGC SensorThings',
+  Q: 'SQL',
+  E: 'OGC API – EDR',
+  C: 'CoverageJSON',
+  F: 'OGC API – Features',
+  G: 'GeoJSON',
+  N: 'NetCDF',
+  M: 'MQTT announcement',
+  D: 'Dagster',
+  H: 'HTTP status',
+} as const;
+export type StandardCode = keyof typeof STANDARDS;
+
 export interface Payload {
   readonly summary: string;
   readonly format: string;
+  /** Letter for the standard the content follows (by payload, e.g. a response body is C or G). */
+  readonly standard: StandardCode;
   readonly data: unknown;
 }
 
@@ -21,7 +38,28 @@ export const num = (v: number | undefined): number | string => (v === undefined 
 const point = () => `POINT(${SHIP.lon} ${SHIP.lat})`;
 const lonlat = (x: number, y: number) => [num(SHIP.lon - 0.5 + x), num(SHIP.lat - 0.5 + y)];
 
-const p = (summary: string, format: string, data: unknown): Payload => ({ summary, format, data });
+/** Classify by what the content is: SQL text or rows, SensorThings entities, an EDR/Features request, etc. */
+export function standardOf(format: string): StandardCode | undefined {
+  const rules: [RegExp, StandardCode][] = [
+    [/^HTTP \d{3}/, 'H'],
+    [/^SQL|SQL from|Database connection/, 'Q'],
+    [/Dagster/, 'D'],
+    [/SensorThings/, 'S'],
+    [/EDR request/, 'E'],
+    [/Features request/, 'F'],
+    [/CoverageJSON/, 'C'],
+    [/GeoJSON/, 'G'],
+    [/NetCDF/, 'N'],
+    [/^MQTT/, 'M'],
+  ];
+  return rules.find(([re]) => re.test(format))?.[1];
+}
+
+const p = (summary: string, format: string, data: unknown): Payload => {
+  const standard = standardOf(format);
+  if (!standard) throw new Error(`payload format has no standard: ${format}`);
+  return { summary, format, standard, data };
+};
 
 // ---- world → ingestion → store ----
 
@@ -48,7 +86,7 @@ export const sensorDelivery = (batch: readonly SensorMessage[], stillQueued: num
   const late = batch.filter((m) => m.tick < now).length;
   return p(
     `${batch.length} message(s) delivered to ingestion${late ? `, ${late} from the backlog` : ''}${stillQueued ? `; ${stillQueued} still queued` : ''}`,
-    'MQTT messages, persistent session (QoS 1); acknowledged only after the database commit',
+    'MQTT messages carrying SensorThings Observations, persistent session (QoS 1); acknowledged only after the database commit',
     { delivered: batch.length, still_queued: stillQueued, messages: batch.slice(0, 6).map((m) => sensorThingsMessage(m)), ...(batch.length > 6 ? { more: batch.length - 6 } : {}) },
   );
 };

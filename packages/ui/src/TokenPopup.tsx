@@ -1,4 +1,4 @@
-import { EDGES, clockLabel, element, type Token } from '@argonautical/sim';
+import { EDGES, STANDARDS, clockLabel, element, type Token } from '@argonautical/sim';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /** Legs of a pygeoapi round trip: label each by what it is, not by the edge it rides on. */
@@ -57,7 +57,9 @@ export function TokenPopup({ token, x, y, onClose }: { token: Token; x: number; 
       {p ? (
         <>
           <p className="summary">{p.summary}</p>
-          <p className="format">{p.format}</p>
+          <p className="format">
+            <b className="std-badge">{p.standard}</b> {STANDARDS[p.standard]} · {p.format}
+          </p>
           <pre className="data">{JSON.stringify(p.data, null, 2)}</pre>
           <p className="note">Mock data: the values are the simulation's, the format is illustrative.</p>
         </>

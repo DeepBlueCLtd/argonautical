@@ -169,7 +169,7 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 
 | ID | Requirement |
 |---|---|
-| MOT-1 | Tokens (drawn as small document icons) travel along edges only when the simulation records an interaction. Lineage tokens are larger and stay visible for at least about 1.2 s of wall-clock time at any speed. |
+| MOT-1 | Tokens (drawn as small white document icons, lettered with the standard their content follows: S SensorThings, Q SQL, E OGC API – EDR, C CoverageJSON, F OGC API – Features, G GeoJSON, N NetCDF, M MQTT announcement, D Dagster, H HTTP status, lettered by payload; a key sits in the legend) travel along edges only when the simulation records an interaction. Lineage tokens are larger and stay visible for at least about 1.2 s of wall-clock time at any speed. |
 | MOT-2 | *(Withdrawn, Nov 13, 2026.)* There is no reduced-motion mode: tokens are always shown, whatever the OS setting. The per-edge counters it used were judged too cluttered. |
 | MOT-3 | Countdowns show what triggers things: a ring on the drift sensor (time to the next check), "stale in m:ss" rings on the staleness schedule and on forecast (showing "stale · replacing" once the scheduled run starts), an execution bar on the model runner ("replacing stale F2"), an execution bar on the feature detector, and a retry countdown on the shim. |
 | MOT-4 | **Retry state belongs to the orchestrator, not our code.** The retry countdown appears on the shim strip, which turns amber. A retry sends one amber token from the shim into the module. Lineage tokens are not re-sent on a retry. |
