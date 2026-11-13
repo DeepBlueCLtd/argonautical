@@ -53,7 +53,10 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   broker: { x: 1308, y: 330, w: 104, h: 110 },
 };
 
-export const CONSUMER_AREA = { x: 1430, y: 110, w: 160, cardH: 66, gap: 10, max: 9 } as const;
+export const CONSUMER_AREA = { x: 1430, y: 110, w: 160, cardH: 66, gap: 10, max: 5 } as const;
+
+/** Token key, at the foot of the Onboard consumers column. */
+export const TOKEN_KEY: Rect = { x: 1374, y: 528, w: 216, h: 302 };
 
 export function consumerRect(index: number): Rect {
   const c = CONSUMER_AREA;

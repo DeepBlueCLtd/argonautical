@@ -1,7 +1,7 @@
-import { EDGES, clockLabel, type Snapshot, type Token } from '@argonautical/sim';
+import { EDGES, STANDARDS, clockLabel, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, type ReactNode } from 'react';
 import type { Runner } from '../runner.ts';
-import { CONSUMER_AREA, RECTS, REGIONS, VIEW, consumerRect, forecastLoop, midpoint, pathD, pointAt, routeAll, type Rect, type Route } from './layout.ts';
+import { CONSUMER_AREA, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, midpoint, pathD, pointAt, routeAll, type Rect, type Route } from './layout.ts';
 
 
 const MATERIALISING_TICKS = 3;
@@ -522,7 +522,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
               {l ? `${l.forecastId}${{ announcement: '', 'catch-up': ' (catch-up)', reconfigure: ' (reconfigured)' }[l.trigger]}` : 'waiting'}
             </T>
             <T x={r.x + 10} y={r.y + 58} cls="tiny muted">
-              {l ? `${l.featureCount} features${c.waiting ? ' · querying…' : ''}` : `since ${clockLabel(c.subscribedAt)}`}
+              {l ? `${l.featureCount} features${c.waiting ? ' · querying…' : ''}` : clockLabel(c.subscribedAt)}
             </T>
             {/* CON-3: the app's user reconfigures it, so it queries pygeoapi again (no new data implied) */}
             <g
@@ -547,6 +547,25 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           +{snap.consumers.length - CONSUMER_AREA.max} more
         </T>
       )}
+
+      {/* Token key: the standard each document's letter stands for */}
+      <g className="token-key" aria-label="Token key">
+        <rect x={TOKEN_KEY.x} y={TOKEN_KEY.y} width={TOKEN_KEY.w} height={TOKEN_KEY.h} rx={6} />
+        <T x={TOKEN_KEY.x + 12} y={TOKEN_KEY.y + 22} cls="title">
+          Token key
+        </T>
+        <T x={TOKEN_KEY.x + 12} y={TOKEN_KEY.y + 38} cls="tiny muted">
+          letter = standard of the content
+        </T>
+        {Object.entries(STANDARDS).map(([code, name], i) => (
+          <g key={code}>
+            <DocToken x={TOKEN_KEY.x + 22} y={TOKEN_KEY.y + 60 + i * 24} size={1.4} letter={code} cls="token" />
+            <T x={TOKEN_KEY.x + 40} y={TOKEN_KEY.y + 65 + i * 24} cls="small">
+              {name}
+            </T>
+          </g>
+        ))}
+      </g>
 
       {/* Tokens: one per recorded interaction (MOT-1) */}
       <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} />

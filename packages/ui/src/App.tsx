@@ -1,6 +1,6 @@
-import { DRIFT_BOUNDS, MAX_INPUTS, MIN_INPUTS, NOISE_BOUNDS, type ControlAction, type Snapshot, STANDARDS } from '@argonautical/sim';
+import { DRIFT_BOUNDS, MAX_INPUTS, MIN_INPUTS, NOISE_BOUNDS, type ControlAction, type Snapshot } from '@argonautical/sim';
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Diagram, DocToken, type Picked } from './diagram/Diagram.tsx';
+import { Diagram, type Picked } from './diagram/Diagram.tsx';
 import { TokenPopup } from './TokenPopup.tsx';
 import { VIEW } from './diagram/layout.ts';
 import boundary from './generated/boundary.json';
@@ -210,17 +210,6 @@ function Legend() {
       </span>
       <span>
         <i className="sw offline" /> offline
-      </span>
-      {/* Key to the letters on tokens: the standard each document's content follows */}
-      <span className="key" aria-label="Token key">
-        {Object.entries(STANDARDS).map(([code, name]) => (
-          <span key={code} className="key-item">
-            <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true">
-              <DocToken x={7} y={8} size={1.15} letter={code} cls="token" />
-            </svg>
-            {name}
-          </span>
-        ))}
       </span>
     </div>
   );
