@@ -2,7 +2,7 @@
   "name": "drift",
   "description": "Acceptance 3: a front shifts two inputs; drift is declared, a drift-caused forecast is committed, detected and announced, and every consumer verifies it.",
   "seed": "demo",
-  "until": 70,
+  "until": 90,
   "steps": [
     {
       "at": 0,
@@ -28,7 +28,7 @@
     },
     {
       "at": 47,
-      "caption": "Watch the drift sensor: quorum met for 2 consecutive checks declares drift."
+      "caption": "Watch the drift sensor: it checks every 10 s; quorum met on 2 consecutive checks declares drift."
     }
   ]
 }

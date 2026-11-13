@@ -1,5 +1,8 @@
-import { EDGES, clockLabel, element, type Token } from '@argonautical/sim';
+import { EDGES, STANDARDS, clockLabel, element, type Token } from '@argonautical/sim';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+
+/** Legs of a pygeoapi round trip: label each by what it is, not by the edge it rides on. */
+const ROLE: Record<string, string> = { request: 'Request', 'db-query': 'DB query', 'db-rows': 'DB rows', response: 'Response' };
 
 const KIND: Record<string, string> = {
   send: 'Send',
@@ -39,9 +42,9 @@ export function TokenPopup({ token, x, y, onClose }: { token: Token; x: number; 
   return (
     <div className="token-popup" ref={ref} style={pos} role="dialog" aria-label="What this token carries">
       <header>
-        <span className={`kind ${edge?.kind ?? ''}`}>{KIND[edge?.kind ?? ''] ?? edge?.kind}</span>
+        <span className={`kind ${token.role ? 'role' : (edge?.kind ?? '')}`}>{token.role ? ROLE[token.role] : (KIND[edge?.kind ?? ''] ?? edge?.kind)}</span>
         <span className="route">
-          {edge ? `${label(edge.from)} → ${label(edge.to)}` : token.edge}
+          {edge ? (token.reverse ? `${label(edge.to)} → ${label(edge.from)}` : `${label(edge.from)} → ${label(edge.to)}`) : token.edge}
         </span>
         <button onClick={onClose} aria-label="Close">
           ×
@@ -54,7 +57,9 @@ export function TokenPopup({ token, x, y, onClose }: { token: Token; x: number; 
       {p ? (
         <>
           <p className="summary">{p.summary}</p>
-          <p className="format">{p.format}</p>
+          <p className="format">
+            <b className={`std-badge std-${p.standard}`}>{p.standard}</b> {STANDARDS[p.standard]} · {p.format}
+          </p>
           <pre className="data">{JSON.stringify(p.data, null, 2)}</pre>
           <p className="note">Mock data: the values are the simulation's, the format is illustrative.</p>
         </>

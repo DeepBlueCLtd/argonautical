@@ -6,6 +6,7 @@ import type { EventLog } from '../events.ts';
 import type { Broker } from '../platform/broker.ts';
 import type { Caller, PygeoApi } from '../platform/pygeoapi.ts';
 import type { Stream } from '../rng.ts';
+import type { ConsumerNeeds } from '../topology/inputs.ts';
 
 export interface ConsumerResult {
   readonly tick: number;
@@ -13,7 +14,8 @@ export interface ConsumerResult {
   readonly ok: boolean;
   readonly digestOk: boolean;
   readonly countOk: boolean;
-  readonly featureCount: number;
+  /** Undefined for a consumer that needs the coverage only. */
+  readonly featureCount?: number;
   /** What made the consumer query: an announcement, subscribing late, or its user reconfiguring the app. */
   readonly trigger: 'announcement' | 'catch-up' | 'reconfigure';
 }
@@ -33,6 +35,8 @@ export class Consumer {
     private readonly rng: Stream,
     private readonly log: EventLog,
     private readonly now: () => number,
+    /** CoverageJSON only, or CoverageJSON and the GeoJSON features (MOT-7). */
+    readonly needs: ConsumerNeeds = 'coverage+features',
   ) {
     this.caller = { element: 'consumer', instance: id };
     broker.subscribe(id, (msg) => this.onAnnouncement(msg));
@@ -57,10 +61,18 @@ export class Consumer {
     }
   }
 
+  private get wantsFeatures(): boolean {
+    return this.needs === 'coverage+features';
+  }
+
   private verify(t: number, msg: Announcement): void {
     const f = this.api.forecast(this.caller, msg.forecastId);
-    const feats = this.api.features(this.caller, msg.forecastId);
     const digestOk = !!f && f.digest === msg.digest && forecastDigest(f) === msg.digest;
+    if (!this.wantsFeatures) {
+      this.record({ tick: t, forecastId: msg.forecastId, ok: digestOk, digestOk, countOk: true, trigger: 'announcement' });
+      return;
+    }
+    const feats = this.api.features(this.caller, msg.forecastId);
     const countOk = feats.length === msg.featureCount;
     this.record({ tick: t, forecastId: msg.forecastId, ok: digestOk && countOk, digestOk, countOk, featureCount: feats.length, trigger: 'announcement' });
   }
@@ -71,6 +83,17 @@ export class Consumer {
    * No new data is implied: the app simply asks again because what it needs has changed.
    */
   query(t: number, trigger: 'catch-up' | 'reconfigure'): void {
+    if (!this.wantsFeatures) {
+      // Coverage only: the latest forecast, whether or not its features exist yet.
+      const f = this.api.forecast(this.caller);
+      if (!f) {
+        this.log.append(t, 'consumer', trigger === 'catch-up' ? `${this.id} subscribed; no forecast yet` : `${this.id} reconfigured; no forecast yet`);
+        return;
+      }
+      const digestOk = forecastDigest(f) === f.digest;
+      this.record({ tick: t, forecastId: f.id, ok: digestOk, digestOk, countOk: true, trigger });
+      return;
+    }
     const id = this.api.latestFeatureForecastId(this.caller);
     if (!id) {
       this.log.append(t, 'consumer', trigger === 'catch-up' ? `${this.id} subscribed; no forecast yet` : `${this.id} reconfigured; no forecast yet`);
@@ -86,7 +109,7 @@ export class Consumer {
   private record(r: ConsumerResult): void {
     this.results.push(r);
     const mark = r.ok ? '✓' : '✗';
-    const detail = r.ok ? `digest ok, ${r.featureCount} features` : `${r.digestOk ? '' : 'digest mismatch '}${r.countOk ? '' : 'feature count mismatch'}`.trim();
+    const detail = r.ok ? (r.featureCount === undefined ? 'digest ok' : `digest ok, ${r.featureCount} features`) : `${r.digestOk ? '' : 'digest mismatch '}${r.countOk ? '' : 'feature count mismatch'}`.trim();
     this.log.append(r.tick, 'consumer', `${this.id} ${mark} ${r.forecastId}${SUFFIX[r.trigger]}: ${detail}`);
   }
 }

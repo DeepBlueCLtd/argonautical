@@ -47,7 +47,7 @@ The screen and the simulation share one model, in three regions separated by two
 - **Orchestrator** (off-the-shelf, mocked): the asset graph and its triggers.
   - Assets: `observations`, `climatology`, `background` (the previous forecast), `forecast`, `features`, `announcement`. `observations` is a source asset: a declaration pointing at the Observations DB, not a separate thing, so it is drawn as the Observations DB itself (UI-8). `background` is drawn as a loop on `forecast` (UI-10).
   - Lineage: observations + climatology + background → forecast → features → announcement; forecast → announcement.
-  - Triggers: the drift sensor (every 4 s), the staleness schedule (a forecast older than 180 s) and manual requests.
+  - Triggers: the drift sensor (every 10 s), the staleness schedule (a forecast older than 180 s) and manual requests.
   - Run policy: one run at a time. A request arriving during a run queues; later requests merge into the queued one. Failed steps are retried until they succeed, with backoff.
   - Its own private store (run history, schedule, sensor state). This is modelled and drawn small, inside the orchestrator (UI-9).
 - **Shims** (thin wrappers, one per crossing): check, run, detect and announce. Each one calls a single module of ours and holds no logic.
@@ -107,15 +107,15 @@ The screen and the simulation share one model, in three regions separated by two
 | MOD-2 | When a forecast is committed, the previous one becomes the background. |
 | DET-1 | Detection takes 5 s. A front is reported for each input more than 0.75σ from climatology; 1–3 eddies are reported, derived from the digest. |
 | DET-2 | Features are tagged with their forecast id, so consumers can verify the feature count. |
-| FLT-1 | The presenter can take the model runner or the feature detector **offline**. While a module is offline, every call to it fails. |
-| FLT-2 | The presenter can make the next run fail once. In addition, a seeded random failure rate of about 3% applies. |
+| FLT-1 | The presenter can take the model runner, the feature detector or the drift monitor **offline**. While a module is offline, every call to it fails: runs retry with backoff; drift checks fail and request nothing. The control is a play/pause button inline before the title of the component that hosts it (forecast, features, drift sensor). |
+| FLT-2 | A scenario script can make the next run fail once (no on-screen control). In addition, a seeded random failure rate of about 3% applies. |
 | FLT-3 | The presenter can **stop and start ingestion** and **stop and start the Observations DB**. While either is stopped, messages queue in the sensor broker, and its queued count is shown. While the DB is stopped, reads of observations fail: model runs retry with backoff and the drift monitor reports observations unavailable. On restart the backlog drains in order, with nothing lost. |
 
 ### 3.5 Orchestrator
 
 | ID | Requirement |
 |---|---|
-| ORC-1 | Drift sensor every 4 s. Staleness schedule at 180 s. Both are declared configuration that is shown on screen, not operator-tunable. The 4 s interval is demo time-compression: production keeps the Dagster sensor at ≥30 s. |
+| ORC-1 | Drift sensor every 10 s. Staleness schedule at 180 s. Both are declared configuration that is shown on screen, not operator-tunable. The 10 s interval is demo time-compression: production keeps the Dagster sensor at ≥30 s. |
 | ORC-2 | One run at a time; queue, then merge. Log the causes of merged requests (e.g. `drift + manual`). |
 | ORC-3 | Retry failed steps (run or detect) until they succeed, with exponential backoff of 2, 4, 8 s, then 10 s thereafter. |
 | ORC-4 | Each run progresses through run → detect → announce. Each asset records when it was materialised. |
@@ -126,7 +126,7 @@ The screen and the simulation share one model, in three regions separated by two
 
 | ID | Requirement |
 |---|---|
-| CON-1 | On an announcement, after a short delay, query pygeoapi for the forecast and its features, then verify the digest and feature count (✓/✗). |
+| CON-1 | On an announcement, after a short delay, query pygeoapi for what the consumer needs and verify it (✓/✗). Consumers come in two kinds, alternating as they are added: C1, C3… need the forecast coverage (CoverageJSON via EDR) **and** its features (GeoJSON via OGC API-Features), and verify the digest and feature count; C2, C4… need the coverage only and verify the digest. |
 | CON-2 | The presenter can add consumers at any time. A new consumer subscribes from that moment and immediately queries for the current forecast. The publisher is unchanged. |
 | CON-3 | Each consumer has a Reconfigure button, standing for the consumer app's user changing what it shows. That makes the consumer query pygeoapi again for the latest complete forecast and verify it, without waiting for an announcement. No new data is implied. The result is labelled "reconfigured". |
 
@@ -154,7 +154,7 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 
 | ID | Requirement |
 |---|---|
-| UI-1 | Three labelled regions (World \| System \| Onboard consumers) separated by visible boundary lines, with the broker straddling the right-hand line. |
+| UI-1 | Three labelled regions (World \| System \| Onboard consumers) separated by visible boundary lines, with the broker straddling the right-hand line, above the consumers, so its deliveries and the consumers' pygeoapi queries run along visibly different paths. Up to four consumer cards are drawn; more show as "+N more". |
 | UI-2 | **The orchestrator is the dominant element** and is drawn as its asset graph. Assets are the primary visual objects. Lineage is drawn as thin (2 px) lines in a distinct blue-grey, so the larger lineage tokens show each dependency being resolved; heavy lines were tried and hid the tokens. |
 | UI-3 | Each of our modules sits **inside** the asset or sensor it computes, with a shim strip above it. Our software is visually distinct from the off-the-shelf parts. Containment replaces arrows from the orchestrator to its shims. |
 | UI-4 | Ingestion sits outside the orchestrator and is marked "not orchestrated". |
@@ -169,12 +169,14 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 
 | ID | Requirement |
 |---|---|
-| MOT-1 | Tokens travel along edges only when the simulation records an interaction. Lineage tokens are larger and stay visible for at least about 1.2 s of wall-clock time at any speed. |
+| MOT-1 | Tokens (drawn as small white document icons, lettered with the standard their content follows: S SensorThings, Q SQL, E OGC API – EDR, C CoverageJSON, F OGC API – Features, G GeoJSON, N NetCDF, M MQTT announcement, D Dagster, H HTTP status, lettered by payload, drawn as a white page whose outline and letter take a vivid colour per standard; a token key sits at the foot of the Onboard consumers column, which shows up to five consumer cards) travel along edges only when the simulation records an interaction. Lineage tokens are larger and stay visible for at least about 1.2 s of wall-clock time at any speed. |
 | MOT-2 | *(Withdrawn, Nov 13, 2026.)* There is no reduced-motion mode: tokens are always shown, whatever the OS setting. The per-edge counters it used were judged too cluttered. |
 | MOT-3 | Countdowns show what triggers things: a ring on the drift sensor (time to the next check), "stale in m:ss" rings on the staleness schedule and on forecast (showing "stale · replacing" once the scheduled run starts), an execution bar on the model runner ("replacing stale F2"), an execution bar on the feature detector, and a retry countdown on the shim. |
 | MOT-4 | **Retry state belongs to the orchestrator, not our code.** The retry countdown appears on the shim strip, which turns amber. A retry sends one amber token from the shim into the module. Lineage tokens are not re-sent on a retry. |
 | MOT-5 | While a module is offline it shows an offline state (a red halo) and no progress, and stops "running". |
-| MOT-6 | **Drill-down.** Every token record carries what was passed: a one-line summary, the real-world format it stands for in production (e.g. a SensorThings or EDR request and response, an MQTT message, a Dagster RunRequest, a NetCDF commit) and a mock data object filled with the simulation's values. When the simulation is paused, clicking a frozen token opens a popup showing these. Step leaves the new tick's tokens part-way along their edges so they can be inspected. Payloads never affect the event log or its digest. |
+| MOT-6 | **Drill-down.** Every token record carries what was passed: a one-line summary, the real-world format it stands for in production (e.g. a SensorThings or EDR request and response, an MQTT message, a Dagster RunRequest, a NetCDF commit) and a mock data object filled with the simulation's values. When the simulation is paused, clicking a frozen token opens a popup showing these. Step leaves the new tick's tokens part-way along their edges so they can be inspected. Payloads never affect the event log or its digest. Every read through pygeoapi is a round trip of four tokens, played in sequence: the **request** (caller → pygeoapi), the provider's **DB query** (pygeoapi → store), the **DB rows** (store → pygeoapi) and the **response** (pygeoapi → caller). Replies travel back along the same line, against its arrow. When one caller makes several reads in the same tick (e.g. the drift monitor reads the forecast via EDR and the observations via SensorThings), they are separate requests (an EDR query targets a single collection and cannot also return SensorThings observations). They leave together, drawn side by side along the line a few pixels apart rather than on top of each other. Reading a NetCDF file is slower than a SQL query (its DB legs take 3.5 s on screen against 2 s), so the replies come back staggered: the observations before the forecast. If the Observations DB is stopped, the query is refused and the caller receives an HTTP 503. |
+| MOT-7 | **Declared inputs.** Each reader shows the data objects it needs as document slots, lettered and coloured like tokens: the drift monitor (forecast C, observations S) in the Drift sensor card; the model runner (climatology C, background C, observations S) in `forecast`; the feature detector (forecast C, climatology C) in `features`; each consumer its own kind (C, or C and G). The list is declared in the simulation (`topology/inputs.ts`), not the diagram. When the reader starts its reads, its slots go pale; each fills when its response token arrives. A slot that is not filled stays pale (no forecast yet, Observations DB down). Clicking a filled slot opens the document it holds, at any time, not only when paused. Hovering or focusing a slot, filled or empty, shows a small page-styled panel (not a browser tooltip): what the document is, what the reader uses it for, and either when it arrived or, if empty, why it may be. |
+| MOT-8 | **Dependency signals.** Nothing travels on a lineage (Dagster dependency) line, so it carries no document token. Instead it shows two kinds of moment. A **release**: when an upstream asset is materialised and that lets the downstream step start (`forecast` → `features`, then `features` → `announcement`), a bright green pulse sweeps along the line and the arrowhead flashes; whatever the release starts (the shim call, its reads) leaves only once the pulse lands, so cause visibly precedes effect. A **check**: at run start, the dependencies that are already available (`observations`, `climatology`, and the previous forecast as background) get a fainter sweep with no flash, and likewise `forecast` → `announcement` when features release it. Checks are dependencies, never triggers: new observations start nothing. While a run is under way, a downstream asset not yet released shows "waiting for …". Paused, a pulse can be clicked to open the event it stands for (an ASSET_MATERIALIZATION, or the satisfied dependency). |
 
 ### 5.3 Colour semantics
 
@@ -198,7 +200,7 @@ Controls fall into three kinds, and each kind looks different so the audience ca
 |---|---|---|
 | **Scenario** | Nobody (the sea, the sensors) | Per-input shift (+5σ over 20 s, toggle); per-input sensor noise (0–3σ) |
 | **Operator** | The ship's operator | Drift threshold, quorum, persistence; Request a run (a violet button on the Manual request card) |
-| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate 1×/10×/60×, number of inputs, fail next run, offline toggles, stop/start ingestion and Observations DB (on their cards), add consumer, view (information flow / system), tour, event log |
+| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate ½×/1×/10×/60× (default ½×), number of inputs, play/pause buttons inline before the titles of fragile components (forecast, features, drift sensor, Ingestion, Observations DB), add consumer, view (information flow / system), tour, event log |
 
 ### 5.5 Banner
 
@@ -274,7 +276,7 @@ None open. The six questions from v2 and three raised by the system-architecture
 - **Orchestrator private store.** Drawn in both views (UI-9, SYS-4).
 - **Tour mode.** Wanted, built from the replay scripts (§5.7).
 - **Target display.** 1920×1080 minimum (UI-6), raised from 1280×720 to give the straddling Observations DB (UI-8) room. Scales up to large monitors; below 1080p (e.g. an older 720p projector) legibility is not guaranteed.
-- **Drift monitor cadence.** It stays a Dagster sensor. The 4 s interval is demo-only; production uses ≥30 s (ORC-1).
+- **Drift monitor cadence.** It stays a Dagster sensor. The 10 s interval (4 s before Nov 13, 2026) is demo-only; production uses ≥30 s (ORC-1).
 - **Observation path.** Observations use the SensorThings schema end to end, with no SensorThings server (no FROST-Server). The DAQ gateway publishes SensorThings Observation messages to a **sensor broker** (a persistent queue), and ingestion acknowledges only after the DB commit. The broker is there for resilience: ingestion or DB restarts lose nothing. Buffering is commodity, so it is adopted rather than built into the gateway. It is a separate instance from the announcement broker, because the networks are separate.
 - **Read path.** Our modules read only through pygeoapi, as §2 states. Revisit if forecast grids grow large enough for the HTTP hop to matter.
 - **Network zones.** The instrument (OT) network and the mission network are separate, with a distribution zone between them (SYS-3).

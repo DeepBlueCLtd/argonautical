@@ -1,5 +1,6 @@
 /** SRD §6 acceptance criteria that the simulation can prove headless. */
 import { describe, expect, it } from 'vitest';
+import { TIMING } from '../src/config.ts';
 import { runScript } from '../src/scenario.ts';
 import { Simulation } from '../src/simulation.ts';
 import { events, loadScenario } from './helpers.ts';
@@ -15,8 +16,9 @@ describe('acceptance criteria', () => {
     const sim = runScript(loadScenario('drift'));
     const declared = events(sim, 'drift').find((e) => e.text.startsWith('drift declared'));
     expect(declared).toBeDefined();
-    // shift starts at 30 and needs ~12 s to pass 3σ, then quorum on 2 consecutive 4 s checks
-    expect(declared!.tick).toBeLessThanOrEqual(30 + 12 + 2 * 4 + 4);
+    // shift starts at 30 and needs ~12 s to pass 3σ, then quorum on `persistence` consecutive checks
+    const every = TIMING.driftSensorInterval;
+    expect(declared!.tick).toBeLessThanOrEqual(30 + 12 + 2 * every + every);
     const f = sim.netcdf.all.find((x) => x.cause === 'drift');
     expect(f).toBeDefined();
     expect(sim.featuresDb.byForecast(f!.id).length).toBeGreaterThan(0);
@@ -208,6 +210,22 @@ describe('sensor broker buffering (FLT-3)', () => {
     const x = new Simulation({ seed: 'db' });
     x.setObservationsDbUp(false);
     expect(() => x.observationsDb.append([{ tick: 1, input: 'temp', value: 12 }])).toThrow(/unavailable/);
+  });
+});
+
+describe('drift monitor offline (FLT-1)', () => {
+  it('while the drift monitor is offline, checks fail and no drift run is requested; it resumes afterwards', () => {
+    const sim = new Simulation({ seed: 'demo' });
+    sim.step(20);
+    sim.setShift('temp', true);
+    sim.setShift('sal', true);
+    sim.setOffline('driftMonitor', true);
+    sim.step(60);
+    expect(sim.snapshot().drift.status).toBe('drift monitor offline');
+    expect(events(sim, 'request').filter((e) => e.text.startsWith('drift request'))).toEqual([]);
+    sim.setOffline('driftMonitor', false);
+    sim.step(30);
+    expect(events(sim, 'drift').some((e) => e.text.startsWith('drift declared'))).toBe(true);
   });
 });
 

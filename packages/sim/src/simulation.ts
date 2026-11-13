@@ -7,6 +7,7 @@ import type { InputSpec } from './config.ts';
 import { DEFAULT_CONSUMERS, DRIFT_BOUNDS, NOISE_BOUNDS, NUMERICS, TIMING, inputsFor } from './config.ts';
 import type { Values } from './contracts.ts';
 import { Consumer } from './consumers/consumer.ts';
+import { consumerNeeds } from './topology/inputs.ts';
 import { EventLog, clockLabel } from './events.ts';
 import { Faults, type FaultTarget } from './faults.ts';
 import { Announcer } from './modules/announcer.ts';
@@ -129,7 +130,7 @@ export class Simulation {
       log: this.log,
       tokens: this.tokens,
       now,
-      monitor,
+      monitor: this.faults.monitor(monitor),
       runner: this.faults.runner(runner),
       detector: this.faults.detector(detector),
       announcer: new Announcer({ publish: (msg) => this.broker.publish('announcer', msg) }),
@@ -323,7 +324,7 @@ export class Simulation {
   }
 
   private newConsumer(): Consumer {
-    const c = new Consumer(`C${this.consumers.length + 1}`, this.t, this.pygeoapi, this.broker, this.streams.get('consumers'), this.log, () => this.t);
+    const c = new Consumer(`C${this.consumers.length + 1}`, this.t, this.pygeoapi, this.broker, this.streams.get('consumers'), this.log, () => this.t, consumerNeeds(this.consumers.length));
     this.consumers.push(c);
     return c;
   }
@@ -377,7 +378,7 @@ export class Simulation {
       privateStore: { runs: o.history.length, sensorStreak: o.cursor.streak },
       offline: { ...this.faults.offline },
       failNextRun: this.faults.failNextRun,
-      consumers: this.consumers.map((c) => ({ id: c.id, subscribedAt: c.subscribedAt, latest: c.latest, waiting: c.waiting })),
+      consumers: this.consumers.map((c) => ({ id: c.id, needs: c.needs, subscribedAt: c.subscribedAt, latest: c.latest, waiting: c.waiting })),
       tokens: this.tokens.tokens,
       edgeStats: Object.fromEntries(this.tokens.edgeStats),
       defects: [...this.tokens.defects],

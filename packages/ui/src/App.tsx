@@ -1,6 +1,7 @@
 import { DRIFT_BOUNDS, MAX_INPUTS, MIN_INPUTS, NOISE_BOUNDS, type ControlAction, type Snapshot } from '@argonautical/sim';
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Diagram, type Picked } from './diagram/Diagram.tsx';
+import { Diagram, type Picked, type SlotTip } from './diagram/Diagram.tsx';
+import { SlotTipPanel } from './SlotTip.tsx';
 import { TokenPopup } from './TokenPopup.tsx';
 import { VIEW } from './diagram/layout.ts';
 import boundary from './generated/boundary.json';
@@ -89,6 +90,7 @@ export function App() {
   );
   const [logOpen, setLogOpen] = useState(false);
   const [picked, setPicked] = useState<Picked | null>(null);
+  const [tip, setTip] = useState<SlotTip | null>(null);
   const layout = useLayout(runner.sim.inputs.length);
   const snap = runner.sim.snapshot();
   const act = (a: ControlAction) => runner.apply(a);
@@ -98,7 +100,7 @@ export function App() {
       <PresenterBar runner={runner} snap={snap} logOpen={logOpen} setLogOpen={setLogOpen} />
       <Banner snap={snap} />
       <main className="stage">
-        <Diagram snap={snap} runner={runner} onPick={setPicked} />
+        <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} />
         {runner.frozen && !picked && (
           <div className="inspect-hint">{runner.tokens.length ? 'Paused · click a dot to see what it carries' : 'Paused · press Step to send one tick of tokens, then click a dot'}</div>
         )}
@@ -109,7 +111,8 @@ export function App() {
         <OperatorPanel snap={snap} act={act} />
       </footer>
       {logOpen && <EventLogPanel runner={runner} onClose={() => setLogOpen(false)} />}
-      {picked && runner.frozen && <TokenPopup token={picked.token} x={picked.x} y={picked.y} onClose={() => setPicked(null)} />}
+      {tip && !picked && <SlotTipPanel tip={tip} runner={runner} />}
+      {picked && (runner.frozen || picked.fromSlot) && <TokenPopup token={picked.token} x={picked.x} y={picked.y} onClose={() => setPicked(null)} />}
     </div>
   );
 }
@@ -148,22 +151,13 @@ function PresenterBar(props: { runner: Runner; snap: Snapshot; logOpen: boolean;
       </button>
       <button onClick={() => runner.step()}>Step</button>
       <div className="seg" role="group" aria-label="Rate">
-        {([1, 10, 60] as Rate[]).map((r) => (
+        {([0.5, 1, 10, 60] as Rate[]).map((r) => (
           <button key={r} className={runner.rate === r ? 'on' : ''} onClick={() => runner.setRate(r)}>
-            {r}×
+            {r === 0.5 ? '½' : r}×
           </button>
         ))}
       </div>
       <span className="sep" />
-      <button className={snap.failNextRun ? 'on' : ''} onClick={() => runner.apply({ type: 'failNextRun' })}>
-        Fail next run
-      </button>
-      <button className={snap.offline.modelRunner ? 'on danger' : ''} onClick={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })}>
-        Runner {snap.offline.modelRunner ? 'offline' : 'online'}
-      </button>
-      <button className={snap.offline.featureDetector ? 'on danger' : ''} onClick={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })}>
-        Detector {snap.offline.featureDetector ? 'offline' : 'online'}
-      </button>
       <button onClick={() => runner.apply({ type: 'addConsumer' })}>Add consumer</button>
       <span className="sep" />
       <button className={props.logOpen ? 'on' : ''} onClick={() => props.setLogOpen(!props.logOpen)}>
@@ -210,6 +204,12 @@ function Legend() {
       </span>
       <span>
         <i className="sw offline" /> offline
+      </span>
+      <span title="An upstream asset was just materialised, which lets the next step start">
+        <i className="sw release" /> dependency releases next step
+      </span>
+      <span title="At run start: the upstream was already there (a dependency, never a trigger)">
+        <i className="sw check" /> dependency checked
       </span>
     </div>
   );

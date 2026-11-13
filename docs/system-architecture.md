@@ -93,7 +93,7 @@ flowchart LR
 These are the points a reviewer should challenge before the demonstrator presents this as "how it would work".
 
 1. **The module boundary is not a process boundary.** In Dagster, shims and our modules run in the same code-location process. "Replaceable orchestrator" (SRD §1.2) holds at the *import* level only. Using Dagster Pipes for the model runner gives a real process boundary for the one module where it matters most; the others stay in-process. The demonstrator should not imply more isolation than this.
-2. **A 4 s drift sensor is atypical for Dagster.** Sensors default to a 30 s minimum interval, and each evaluation has daemon overhead. Options: (a) accept a longer interval in production and treat 4 s as demo time-compression; (b) move drift scoring into an always-on service beside ingestion that *requests* runs via the Dagster API. Option (b) moves the drift monitor out of the orchestrator, which changes the SRD's "embedded in the sensor" picture. **Decided: (a).** Production keeps the Dagster sensor at ≥30 s; 4 s is demo time-compression.
+2. **A 10 s drift sensor (4 s originally) is atypical for Dagster.** Sensors default to a 30 s minimum interval, and each evaluation has daemon overhead. Options: (a) accept a longer interval in production and treat the demo's interval as time-compression; (b) move drift scoring into an always-on service beside ingestion that *requests* runs via the Dagster API. Option (b) moves the drift monitor out of the orchestrator, which changes the SRD's "embedded in the sensor" picture. **Decided: (a).** Production keeps the Dagster sensor at ≥30 s; the demo's 10 s is time-compression.
 3. **"Queue, then merge" is not native.** Dagster's run queue with a concurrency limit of 1 gives one-at-a-time, but merging queued requests (ORC-2) needs custom logic (a sensor that coalesces requests, or `run_key` dedupe plus cause tags). The shim is then more than a one-line pass-through (ARC-2); the extra logic belongs in orchestrator glue, not in our modules.
 4. **"Retry until success" is unsafe in production.** Dagster `RetryPolicy` supports exponential backoff but needs a `max_retries`. Production should cap retries and raise an alert; the forecast staleness schedule then becomes the recovery path. The demonstrator can keep unbounded retry but should state that it is a demo simplification.
 5. **pygeoapi as the only read path for our own modules** keeps the read path uniform but puts an HTTP hop (and EDR serialisation) in the model runner's hot path. Acceptable for small grids; for large coverages, allow direct read-only access to the NetCDF/Zarr store and keep pygeoapi for consumers. **Decided: pygeoapi only for now**; revisit if grids grow.
@@ -231,7 +231,7 @@ Acceptance criteria:
 
 Questions raised by this proposal, now decided (Nov 12, 2026):
 
-- Drift cadence: Dagster sensor; ≥30 s in production, 4 s in the demo.
+- Drift cadence: Dagster sensor; ≥30 s in production, 10 s in the demo.
 - Read path: pygeoapi only, for now.
 - OT/mission network separation: confirmed.
 

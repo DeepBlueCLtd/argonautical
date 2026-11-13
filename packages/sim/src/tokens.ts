@@ -2,6 +2,7 @@
 import type { EventLog } from './events.ts';
 import type { Payload } from './payloads.ts';
 import { EDGE_IDS } from './topology/elements.ts';
+import type { InputSlot } from './topology/inputs.ts';
 
 export interface Token {
   readonly seq: number;
@@ -13,7 +14,24 @@ export interface Token {
   readonly instance?: string;
   /** What was passed, for drill-down (never part of the event log). */
   readonly payload?: Payload;
+  /** Travels against the edge's arrow (e.g. a response coming back along a query edge). */
+  readonly reverse?: boolean;
+  /** Step within a request/response exchange; the UI staggers the steps so the round trip is visible. */
+  readonly role?: ExchangeRole;
+  /** On a response: which declared input of the caller it fills (see INPUTS). */
+  readonly slot?: InputSlot;
+  /**
+   * On a lineage edge nothing moves; the token marks a moment instead. 'release': the upstream asset
+   * was just materialised and that lets the downstream step start. 'check': the upstream was already
+   * available when the run began (a dependency, never a trigger).
+   */
+  readonly signal?: LineageSignal;
 }
+
+export type LineageSignal = 'release' | 'check';
+
+/** The four legs of a read through pygeoapi. */
+export type ExchangeRole = 'request' | 'db-query' | 'db-rows' | 'response';
 
 export interface EdgeStat {
   readonly count: number;
@@ -25,6 +43,10 @@ export interface EmitOptions {
   retry?: boolean;
   instance?: string;
   payload?: Payload;
+  reverse?: boolean;
+  role?: ExchangeRole;
+  slot?: InputSlot;
+  signal?: LineageSignal;
 }
 
 const KEEP_TICKS = 60;
@@ -48,7 +70,7 @@ export class TokenRecorder {
       this.log.append(tick, 'defect', msg);
       return;
     }
-    const t: Token = { seq: ++this.seq, edge, start: tick, duration: opts.duration ?? 1, ...(opts.retry ? { retry: true } : {}), ...(opts.instance ? { instance: opts.instance } : {}), ...(opts.payload ? { payload: opts.payload } : {}) };
+    const t: Token = { seq: ++this.seq, edge, start: tick, duration: opts.duration ?? 1, ...(opts.retry ? { retry: true } : {}), ...(opts.instance ? { instance: opts.instance } : {}), ...(opts.payload ? { payload: opts.payload } : {}), ...(opts.reverse ? { reverse: true } : {}), ...(opts.role ? { role: opts.role } : {}), ...(opts.slot ? { slot: opts.slot } : {}), ...(opts.signal ? { signal: opts.signal } : {}) };
     this.recent.push(t);
     const s = this.stats.get(edge);
     this.stats.set(edge, { count: (s?.count ?? 0) + 1, last: tick });

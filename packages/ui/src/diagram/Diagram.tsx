@@ -1,10 +1,12 @@
-import { EDGES, clockLabel, type Snapshot, type Token } from '@argonautical/sim';
+import { EDGES, INPUTS, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, type ReactNode } from 'react';
 import type { Runner } from '../runner.ts';
-import { CONSUMER_AREA, RECTS, REGIONS, VIEW, consumerRect, forecastLoop, midpoint, pathD, pointAt, routeAll, type Rect, type Route } from './layout.ts';
+import { CONSUMER_AREA, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
 
 
 const MATERIALISING_TICKS = 3;
+/** Gap, in diagram pixels, between reads a caller sends together (a token is ~12 px long). */
+const ABREAST_GAP = 18;
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
 const fmt = (v: number | undefined, d = 2) => (v === undefined ? '—' : Number.isFinite(v) ? v.toFixed(d) : String(v));
@@ -74,9 +76,21 @@ export interface Picked {
   readonly token: Token;
   readonly x: number;
   readonly y: number;
+  /** Picked from an input slot: open while running too (the document stays put). */
+  readonly fromSlot?: boolean;
 }
 
-export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void }) {
+/** Hovering (or focusing) an input slot: what the document is and what its reader uses it for. */
+export interface SlotTip {
+  readonly decl: InputDecl;
+  readonly who: string;
+  readonly reader: string;
+  readonly instance?: string;
+  /** Screen box of the slot icon. */
+  readonly box: { left: number; top: number; right: number; bottom: number };
+}
+
+export function Diagram({ snap, runner, onPick, onTip }: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void }) {
   const consumerIds = snap.consumers.map((c) => c.id);
   const routes = useMemo(() => routeAll(EDGES, consumerIds), [consumerIds.join(',')]);
   const byKey = useMemo(() => new Map(routes.map((r) => [r.key, r])), [routes]);
@@ -209,7 +223,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
       {/* Ingestion: ours, not orchestrated (UI-4); presenter can stop/start it (FLT-3) */}
       <g filter={snap.ingestion.running ? undefined : 'url(#offline-halo)'}>
         <Box r={R.ingestion} style="ours" cls={snap.ingestion.running ? '' : 'stopped'}>
-          <T x={R.ingestion.x + 10} y={R.ingestion.y + 22} cls="title">
+          <T x={R.ingestion.x + 32} y={R.ingestion.y + 22} cls="title">
             Ingestion
           </T>
           <T x={R.ingestion.x + 10} y={R.ingestion.y + 38} cls="tag">
@@ -224,16 +238,9 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           <T x={R.ingestion.x + 10} y={R.ingestion.y + 99} cls={`small ${snap.ingestion.status === 'running' ? 'muted' : 'offline-label'}`}>
             {snap.ingestion.status === 'waiting for Observations DB' ? 'waiting for DB' : snap.ingestion.status}
           </T>
-          <SvgButton
-            x={R.ingestion.x + 10}
-            y={R.ingestion.y + 106}
-            w={70}
-            label={snap.ingestion.running ? 'Stop' : 'Start'}
-            title={snap.ingestion.running ? 'Stop ingestion: readings queue in the sensor broker' : 'Start ingestion: the backlog drains'}
-            onClick={() => runner.apply({ type: 'ingestion', running: !snap.ingestion.running })}
-          />
         </Box>
       </g>
+      <PlayPause at={{ x: R.ingestion.x + 18, y: R.ingestion.y + 17 }} running={snap.ingestion.running} what="ingestion (readings queue in the sensor broker)" onToggle={() => runner.apply({ type: 'ingestion', running: !snap.ingestion.running })} />
 
       {/* Sensor broker: persistent queue between the DAQ gateway and ingestion (FLT-3) */}
       <Box r={R.sensorBroker} style="ots">
@@ -258,32 +265,25 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
       {/* Observations DB = the observations source asset (UI-8); presenter can stop/start it (FLT-3) */}
       <g filter={snap.stores.observationsUp ? undefined : 'url(#offline-halo)'}>
       <Store r={R.observationsDb} cls={snap.stores.observationsUp ? '' : 'stopped'}>
-        <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 26} cls="title">
+        <T x={R.observationsDb.x + 32} y={R.observationsDb.y + 26} cls="title">
           Observations
         </T>
-        <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 42} cls="title">
+        <T x={R.observationsDb.x + 32} y={R.observationsDb.y + 42} cls="title">
           DB
         </T>
         <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 62} cls="tag">
           source asset
         </T>
-        <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 82} cls={snap.stores.observationsUp ? 'small mono' : 'small offline-label'}>
+        <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 92} cls={snap.stores.observationsUp ? 'small mono' : 'small offline-label'}>
           {snap.stores.observationsUp ? `${snap.stores.observations} rows` : 'stopped'}
         </T>
-        <SvgButton
-          x={R.observationsDb.x + 12}
-          y={R.observationsDb.y + 92}
-          w={60}
-          label={snap.stores.observationsUp ? 'Stop' : 'Start'}
-          title={snap.stores.observationsUp ? 'Stop the Observations DB: ingestion holds off, observation reads fail' : 'Start the Observations DB'}
-          onClick={() => runner.apply({ type: 'observationsDb', up: !snap.stores.observationsUp })}
-        />
       </Store>
       </g>
+      <PlayPause at={{ x: R.observationsDb.x + 19, y: R.observationsDb.y + 21 }} running={snap.stores.observationsUp} what="the Observations DB (ingestion holds off, observation reads fail)" onToggle={() => runner.apply({ type: 'observationsDb', up: !snap.stores.observationsUp })} />
 
       {/* Triggers */}
       <Box r={R.driftSensor} style="ots">
-        <T x={R.driftSensor.x + 10} y={R.driftSensor.y + 22} cls="title">
+        <T x={R.driftSensor.x + 32} y={R.driftSensor.y + 22} cls="title">
           Drift sensor
         </T>
         <T x={R.driftSensor.x + 10} y={R.driftSensor.y + 36} cls="muted small">
@@ -291,8 +291,10 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
         </T>
         <Ring cx={R.driftSensor.x + R.driftSensor.w - 22} cy={R.driftSensor.y + 22} frac={1 - (snap.drift.nextCheckIn - runner.frac) / snap.drift.interval} label={`${snap.drift.nextCheckIn}s`} />
       </Box>
+      <InputSlots x={R.driftSensor.x + 150} y={R.driftSensor.y + 22} reader="driftMonitor" who="Drift monitor" inputs={INPUTS.driftMonitor} runner={runner} onPick={onPick} onTip={onTip} />
       <Shim r={R.shimCheck} name="check" />
-      <Box r={R.driftMonitor} style="ours">
+      <g filter={snap.offline.driftMonitor ? 'url(#offline-halo)' : undefined}>
+      <Box r={R.driftMonitor} style="ours" cls={snap.offline.driftMonitor ? 'stopped' : ''}>
         <T x={R.driftMonitor.x + 8} y={R.driftMonitor.y + 16} cls="title small-title">
           Drift monitor
         </T>
@@ -304,6 +306,8 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           {snap.drift.status}
         </T>
       </Box>
+      </g>
+      <PlayPause at={{ x: R.driftSensor.x + 18, y: R.driftSensor.y + 17 }} running={!snap.offline.driftMonitor} what="the drift monitor (checks fail, no drift runs)" onToggle={() => runner.apply({ type: 'offline', module: 'driftMonitor', offline: !snap.offline.driftMonitor })} />
       <Box r={R.stalenessSchedule} style="ots">
         <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 22} cls="title">
           Staleness schedule
@@ -371,7 +375,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
       </Box>
 
       <Box r={R.forecast} style="asset" cls={materialising('forecast')}>
-        <T x={R.forecast.x + 12} y={R.forecast.y + 24} cls="asset-title">
+        <T x={R.forecast.x + 34} y={R.forecast.y + 24} cls="asset-title">
           forecast
         </T>
         <T x={R.forecast.x + 12} y={R.forecast.y + 44} cls="small">
@@ -399,6 +403,8 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           {snap.assets.forecast !== undefined ? `materialised ${clockLabel(snap.assets.forecast)}` : ''}
         </T>
       </Box>
+      <InputSlots x={R.forecast.x + 140} y={R.forecast.y + 66} reader="modelRunner" who="Model runner" inputs={INPUTS.modelRunner} runner={runner} onPick={onPick} onTip={onTip} />
+      <PlayPause at={{ x: R.forecast.x + 20, y: R.forecast.y + 19 }} running={!snap.offline.modelRunner} what="the model runner (every run fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })} />
       <Shim r={R.shimRun} name="run" retryIn={retryOn('run')} />
       <Module r={R.modelRunner} name="Model runner" offline={snap.offline.modelRunner}>
         <ExecLine r={R.modelRunner} label={executing('run')?.label ?? (retryOn('run') !== undefined ? 'waiting for retry' : '')} frac={smoothProgress('run', 8)} active={!!executing('run')} />
@@ -413,16 +419,21 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
       </Module>
 
       <Box r={R.features} style="asset" cls={materialising('features')}>
-        <T x={R.features.x + 12} y={R.features.y + 24} cls="asset-title">
+        <T x={R.features.x + 34} y={R.features.y + 24} cls="asset-title">
           features
         </T>
         <T x={R.features.x + 12} y={R.features.y + 44} cls="small">
           {snap.stores.features} stored
         </T>
+        <T x={R.features.x + 12} y={R.features.y + R.features.h - 30} cls="tiny waiting">
+          {run && run.step === 'run' ? `waiting for forecast ${run.forecastId}` : ''}
+        </T>
         <T x={R.features.x + 12} y={R.features.y + R.features.h - 14} cls="tiny muted">
           {snap.assets.features !== undefined ? `materialised ${clockLabel(snap.assets.features)}` : ''}
         </T>
       </Box>
+      <InputSlots x={R.features.x + 96} y={R.features.y + 66} reader="featureDetector" who="Feature detector" inputs={INPUTS.featureDetector} runner={runner} onPick={onPick} onTip={onTip} />
+      <PlayPause at={{ x: R.features.x + 20, y: R.features.y + 19 }} running={!snap.offline.featureDetector} what="the feature detector (detection fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })} />
       <Shim r={R.shimDetect} name="detect" retryIn={retryOn('detect')} />
       <Module r={R.featureDetector} name="Feature detector" offline={snap.offline.featureDetector}>
         <ExecLine r={R.featureDetector} label={executing('detect')?.label ?? (retryOn('detect') !== undefined ? 'waiting for retry' : '')} frac={smoothProgress('detect', 5)} active={!!executing('detect')} />
@@ -434,6 +445,9 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
       <Box r={R.announcement} style="asset" cls={materialising('announcement')}>
         <T x={R.announcement.x + 12} y={R.announcement.y + 24} cls="asset-title">
           announcement
+        </T>
+        <T x={R.announcement.x + 12} y={R.announcement.y + R.announcement.h - 30} cls="tiny waiting">
+          {run && (run.step === 'run' || run.step === 'detect') ? 'waiting for features' : ''}
         </T>
         <T x={R.announcement.x + 12} y={R.announcement.y + R.announcement.h - 14} cls="tiny muted">
           {snap.assets.announcement !== undefined ? `materialised ${clockLabel(snap.assets.announcement)}` : ''}
@@ -515,6 +529,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
             <T x={r.x + 10} y={r.y + 22} cls="title">
               {c.id}
             </T>
+            <InputSlots x={r.x + 40} y={r.y + 17} reader="consumer" instance={c.id} who={c.id} inputs={INPUTS.consumer[c.needs]} runner={runner} onPick={onPick} onTip={onTip} label={false} />
             <T x={r.x + r.w - 10} y={r.y + 24} cls={`verdict ${l ? (l.ok ? 'ok' : 'bad') : ''}`} anchor="end">
               {l ? (l.ok ? '✓' : '✗') : '·'}
             </T>
@@ -522,7 +537,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
               {l ? `${l.forecastId}${{ announcement: '', 'catch-up': ' (catch-up)', reconfigure: ' (reconfigured)' }[l.trigger]}` : 'waiting'}
             </T>
             <T x={r.x + 10} y={r.y + 58} cls="tiny muted">
-              {l ? `${l.featureCount} features${c.waiting ? ' · querying…' : ''}` : `since ${clockLabel(c.subscribedAt)}`}
+              {l ? `${l.featureCount === undefined ? "coverage" : `${l.featureCount} features`}${c.waiting ? ' · querying…' : ''}` : clockLabel(c.subscribedAt)}
             </T>
             {/* CON-3: the app's user reconfigures it, so it queries pygeoapi again (no new data implied) */}
             <g
@@ -548,6 +563,25 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
         </T>
       )}
 
+      {/* Token key: the standard each document's letter stands for */}
+      <g className="token-key" aria-label="Token key">
+        <rect x={TOKEN_KEY.x} y={TOKEN_KEY.y} width={TOKEN_KEY.w} height={TOKEN_KEY.h} rx={6} />
+        <T x={TOKEN_KEY.x + 12} y={TOKEN_KEY.y + 22} cls="title">
+          Token key
+        </T>
+        <T x={TOKEN_KEY.x + 12} y={TOKEN_KEY.y + 38} cls="tiny muted">
+          letter = standard of the content
+        </T>
+        {Object.entries(STANDARDS).map(([code, name], i) => (
+          <g key={code}>
+            <DocToken x={TOKEN_KEY.x + 22} y={TOKEN_KEY.y + 58 + i * 23} size={1.4} letter={code} cls="token" />
+            <T x={TOKEN_KEY.x + 40} y={TOKEN_KEY.y + 63 + i * 23} cls="small">
+              {name}
+            </T>
+          </g>
+        ))}
+      </g>
+
       {/* Tokens: one per recorded interaction (MOT-1) */}
       <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} />
     </svg>
@@ -555,9 +589,86 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
 }
 
 /**
+ * A token drawn as a tiny document: a white page with a folded top-right corner, centred on (x, y),
+ * lettered with the standard its content follows (S SensorThings, Q SQL, E EDR…). Unlettered
+ * tokens show ruled lines instead.
+ */
+export function DocToken({ x, y, size, cls, letter }: { x: number; y: number; size: number; cls: string; letter?: string }) {
+  const w = 10 * size;
+  const h = 12 * size;
+  const f = 3 * size; // fold
+  const x0 = x - w / 2;
+  const y0 = y - h / 2;
+  return (
+    <g className={`${cls} ${letter ? `std-${letter}` : ''}`}>
+      <path className="page" d={`M${x0},${y0} H${x0 + w - f} L${x0 + w},${y0 + f} V${y0 + h} H${x0} Z`} />
+      <path className="fold" d={`M${x0 + w - f},${y0} V${y0 + f} H${x0 + w}`} />
+      {letter ? (
+        <text className="std" x={x} y={y0 + h * 0.78} textAnchor="middle" fontSize={8 * size}>
+          {letter}
+        </text>
+      ) : (
+        <path className="rules" d={[0.45, 0.62, 0.79].map((k) => `M${x0 + 2 * size},${y0 + h * k} H${x0 + w - 2 * size}`).join(' ')} />
+      )}
+    </g>
+  );
+}
+
+/**
  * A tab sitting on a component's top edge: square where it meets the component, rounded on its
  * outer corners. Shows how many items are queued on that side, only while they are.
  */
+/**
+ * MOT-7: a reader's declared inputs as document slots. Pale while it waits for a document
+ * (from its first request of a run), filled in when the response lands. Click a filled one to read it.
+ */
+function InputSlots(props: { x: number; y: number; reader: string; instance?: string; who: string; inputs: readonly InputDecl[]; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; label?: boolean }) {
+  const { x, y, reader, instance, who, inputs, runner, onPick, onTip, label = true } = props;
+  const step = 20;
+  return (
+    <g className="input-slots" aria-label={`${who} needs`}>
+      {label && (
+        <T x={x - 4} y={y + 4} cls="tiny muted" anchor="end">
+          needs
+        </T>
+      )}
+      {inputs.map((d, i) => {
+        const s = runner.slot(reader, d.slot, instance);
+        const filled = s.state === 'filled' ? s.token : undefined;
+        const cx = x + 8 + i * step;
+        const tip = (el: Element) => {
+          const b = el.getBoundingClientRect();
+          onTip({ decl: d, who, reader, ...(instance ? { instance } : {}), box: { left: b.left, top: b.top, right: b.right, bottom: b.bottom } });
+        };
+        const open = (el: Element) => {
+          if (!filled) return tip(el); // an empty slot has nothing to open: show what it is waiting for
+          const b = el.getBoundingClientRect();
+          onTip(null);
+          onPick({ token: filled, x: b.left + b.width / 2, y: b.top + b.height / 2, fromSlot: true });
+        };
+        return (
+          <g
+            key={d.slot}
+            className={`slot-hit ${filled ? 'pickable' : ''}`}
+            role="button"
+            tabIndex={0}
+            aria-label={`${who}: ${d.label}${filled ? '' : ' (waiting)'}`}
+            onMouseEnter={(e) => tip(e.currentTarget)}
+            onMouseLeave={() => onTip(null)}
+            onFocus={(e) => tip(e.currentTarget)}
+            onBlur={() => onTip(null)}
+            onClick={(e) => open(e.currentTarget)}
+            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && open(e.currentTarget)}
+          >
+            <rect className="hit" x={cx - 10} y={y - 12} width={20} height={24} />
+            <DocToken x={cx} y={y} size={1.45} letter={d.standard} cls={`token slot ${s.state}`} />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: number; w: number; label: string; h?: number; r?: number }) {
   const top = edgeY - h;
   const d = `M${x},${edgeY} L${x},${top + r} Q${x},${top} ${x + r},${top} L${x + w - r},${top} Q${x + w},${top} ${x + w},${top + r} L${x + w},${edgeY} Z`;
@@ -567,6 +678,27 @@ function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: num
       <text x={x + w / 2} y={edgeY - 6} textAnchor="middle">
         {label}
       </text>
+    </g>
+  );
+}
+
+/**
+ * Presenter control inline before a fragile component's title: pause takes it down (red halo),
+ * play brings it back.
+ */
+function PlayPause({ at, running, what, onToggle }: { at: { x: number; y: number }; running: boolean; what: string; onToggle: () => void }) {
+  const cx = at.x;
+  const cy = at.y;
+  const label = `${running ? 'Pause' : 'Resume'} ${what}`;
+  return (
+    <g className={`play-pause ${running ? '' : 'paused'}`} role="button" tabIndex={0} aria-label={label} onClick={onToggle} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onToggle()}>
+      <title>{label}</title>
+      <circle cx={cx} cy={cy} r={9} />
+      {running ? (
+        <path className="glyph" d={`M${cx - 3},${cy - 4} v8 M${cx + 3},${cy - 4} v8`} />
+      ) : (
+        <path className="glyph-fill" d={`M${cx - 3},${cy - 5} L${cx + 5},${cy} L${cx - 3},${cy + 5} Z`} />
+      )}
     </g>
   );
 }
@@ -671,6 +803,48 @@ function ResidualBars({ r, snap }: { r: Rect; snap: Snapshot }) {
   );
 }
 
+/**
+ * MOT-8: a moment on a lineage edge, not data. A release (upstream just materialised, so the
+ * downstream step may start) sweeps a bright pulse along the line, then flashes the arrowhead.
+ * A check (upstream already available at run start) is a fainter sweep with no flash.
+ */
+function Pulse({ pts, p, token, frozen, onPick }: { pts: Pt[]; p: number; token: Token; frozen: boolean; onPick: (p: Picked) => void }) {
+  const release = token.signal === 'release';
+  const L = lengthOf(pts);
+  const sweepEnd = release ? 0.65 : 1;
+  const s = Math.min(1, p / sweepEnd);
+  const seg = Math.min(70, L * 0.45);
+  const head = s * (L + seg * 0.4);
+  const end = pts[pts.length - 1]!;
+  const flash = release && p > sweepEnd ? (p - sweepEnd) / (1 - sweepEnd) : -1;
+  const at = pointAt(pts, Math.min(1, head / L));
+  const pick = (x: number, y: number) => onPick({ token, x, y });
+  return (
+    <g className={`pulse ${token.signal}`}>
+      {s < 1 || !release ? <path d={pathD(pts)} className="sweep" strokeDasharray={`${seg} ${L + seg * 2}`} strokeDashoffset={seg - head} opacity={release ? 1 : 1 - s * 0.6} /> : null}
+      {flash >= 0 && <circle className="flash" cx={end.x} cy={end.y} r={5 + flash * 16} opacity={1 - flash} />}
+      {flash >= 0 && <circle className="flash-core" cx={end.x} cy={end.y} r={5} opacity={1 - flash * 0.7} />}
+      {frozen && (
+        <circle
+          className="hit pulse-hit"
+          cx={flash >= 0 ? end.x : at.x}
+          cy={flash >= 0 ? end.y : at.y}
+          r={14}
+          role="button"
+          tabIndex={0}
+          aria-label={`Inspect ${token.payload?.summary ?? token.edge}`}
+          onClick={(e) => pick(e.clientX, e.clientY)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const b = (e.currentTarget as SVGCircleElement).getBoundingClientRect();
+            pick(b.x + b.width / 2, b.y + b.height / 2);
+          }}
+        />
+      )}
+    </g>
+  );
+}
+
 function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void }) {
   // Drill-down: once paused, frozen tokens get a larger hit area and open a popup on click.
   const frozen = runner.frozen;
@@ -680,8 +854,14 @@ function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<st
         const tk = v.token;
         const pts = tk.edge === 'forecast>lineage>forecast' ? loop : byKey.get(tk.instance ? `${tk.edge}#${tk.instance}` : tk.edge)?.points;
         if (!pts) return null;
-        const pt = pointAt(pts, p);
-        const dot = <circle className={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} cx={pt.x} cy={pt.y} r={v.lineage ? 8 : 4.5} />;
+        if (tk.signal) return <Pulse key={tk.seq} pts={pts} p={p} token={tk} frozen={frozen} onPick={onPick} />;
+        // Reads sent together travel side by side: the nth sits ABREAST_GAP·n pixels behind the first,
+        // closing up as they leave and arrive.
+        const lag = v.abreast ? (v.abreast * ABREAST_GAP) / Math.max(1, lengthOf(pts)) : 0;
+        const q = Math.max(0, Math.min(1, p * (1 + lag) - lag));
+        // Replies travel back along the line, against its arrow.
+        const pt = pointAt(pts, tk.reverse ? 1 - q : q);
+        const dot = <DocToken x={pt.x} y={pt.y} size={v.lineage ? 1.5 : 1.25} letter={tk.payload?.standard} cls={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} />;
         if (!frozen) return <g key={tk.seq}>{dot}</g>;
         const pick = (e: { clientX: number; clientY: number }) => onPick({ token: tk, x: e.clientX, y: e.clientY });
         return (

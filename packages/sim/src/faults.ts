@@ -4,11 +4,12 @@
  */
 import { NUMERICS } from './config.ts';
 import type { Feature, Forecast, Job } from './contracts.ts';
+import type { DriftCheckInput, DriftCheckResult, DriftMonitor } from './modules/driftMonitor.ts';
 import type { FeatureDetector } from './modules/featureDetector.ts';
 import type { ModelRunner, RunRequest } from './modules/modelRunner.ts';
 import type { Stream } from './rng.ts';
 
-export type FaultTarget = 'modelRunner' | 'featureDetector';
+export type FaultTarget = 'modelRunner' | 'featureDetector' | 'driftMonitor';
 
 export class ModuleFailure extends Error {
   constructor(
@@ -20,7 +21,7 @@ export class ModuleFailure extends Error {
 }
 
 export class Faults {
-  readonly offline: Record<FaultTarget, boolean> = { modelRunner: false, featureDetector: false };
+  readonly offline: Record<FaultTarget, boolean> = { modelRunner: false, featureDetector: false, driftMonitor: false };
   failNextRun = false;
   constructor(private readonly rng: Stream) {}
 
@@ -59,6 +60,16 @@ export class Faults {
 
   runner(inner: ModelRunner): Pick<ModelRunner, 'start'> {
     return { start: (req: RunRequest): Job<Forecast> => this.wrapJob('modelRunner', () => inner.start(req)) };
+  }
+
+  /** The drift monitor has no long job: while offline, each check fails. */
+  monitor(inner: DriftMonitor): Pick<DriftMonitor, 'check'> {
+    return {
+      check: (input: DriftCheckInput): DriftCheckResult => {
+        this.guard('driftMonitor');
+        return inner.check(input);
+      },
+    };
   }
 
   detector(inner: FeatureDetector): Pick<FeatureDetector, 'start'> {

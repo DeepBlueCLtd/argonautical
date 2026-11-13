@@ -6,9 +6,26 @@
  */
 import type { Announcement, Feature, Forecast, InputKey, Observation, SensorMessage } from './contracts.ts';
 
+/** The standard (or format) a token's content follows, shown as a letter on the token. */
+export const STANDARDS = {
+  S: 'OGC SensorThings',
+  Q: 'SQL',
+  E: 'OGC API – EDR',
+  C: 'CoverageJSON',
+  F: 'OGC API – Features',
+  G: 'GeoJSON',
+  N: 'NetCDF',
+  M: 'MQTT announcement',
+  D: 'Dagster',
+  H: 'HTTP status',
+} as const;
+export type StandardCode = keyof typeof STANDARDS;
+
 export interface Payload {
   readonly summary: string;
   readonly format: string;
+  /** Letter for the standard the content follows (by payload, e.g. a response body is C or G). */
+  readonly standard: StandardCode;
   readonly data: unknown;
 }
 
@@ -21,7 +38,28 @@ export const num = (v: number | undefined): number | string => (v === undefined 
 const point = () => `POINT(${SHIP.lon} ${SHIP.lat})`;
 const lonlat = (x: number, y: number) => [num(SHIP.lon - 0.5 + x), num(SHIP.lat - 0.5 + y)];
 
-const p = (summary: string, format: string, data: unknown): Payload => ({ summary, format, data });
+/** Classify by what the content is: SQL text or rows, SensorThings entities, an EDR/Features request, etc. */
+export function standardOf(format: string): StandardCode | undefined {
+  const rules: [RegExp, StandardCode][] = [
+    [/^HTTP \d{3}/, 'H'],
+    [/^SQL|SQL from|Database connection/, 'Q'],
+    [/Dagster/, 'D'],
+    [/SensorThings/, 'S'],
+    [/EDR request/, 'E'],
+    [/Features request/, 'F'],
+    [/CoverageJSON/, 'C'],
+    [/GeoJSON/, 'G'],
+    [/NetCDF/, 'N'],
+    [/^MQTT/, 'M'],
+  ];
+  return rules.find(([re]) => re.test(format))?.[1];
+}
+
+const p = (summary: string, format: string, data: unknown): Payload => {
+  const standard = standardOf(format);
+  if (!standard) throw new Error(`payload format has no standard: ${format}`);
+  return { summary, format, standard, data };
+};
 
 // ---- world → ingestion → store ----
 
@@ -48,7 +86,7 @@ export const sensorDelivery = (batch: readonly SensorMessage[], stillQueued: num
   const late = batch.filter((m) => m.tick < now).length;
   return p(
     `${batch.length} message(s) delivered to ingestion${late ? `, ${late} from the backlog` : ''}${stillQueued ? `; ${stillQueued} still queued` : ''}`,
-    'MQTT messages, persistent session (QoS 1); acknowledged only after the database commit',
+    'MQTT messages carrying SensorThings Observations, persistent session (QoS 1); acknowledged only after the database commit',
     { delivered: batch.length, still_queued: stillQueued, messages: batch.slice(0, 6).map((m) => sensorThingsMessage(m)), ...(batch.length > 6 ? { more: batch.length - 6 } : {}) },
   );
 };
@@ -71,6 +109,46 @@ export const observationInsert = (rows: readonly Observation[], rejected: number
 
 export const request = (summary: string, api: 'SensorThings' | 'EDR' | 'Features', url: string) =>
   p(summary, `OGC API ${api === 'SensorThings' ? 'SensorThings' : api === 'EDR' ? '– EDR' : '– Features'} request`, { method: 'GET', url });
+
+// ---- pygeoapi ↔ store: the provider's query and the raw result ----
+
+const OBS_SQL_COLS = 'datastream_id, phenomenon_time_start, result_number';
+export const sql = {
+  latest: `SELECT DISTINCT ON (datastream_id) ${OBS_SQL_COLS} FROM observations ORDER BY datastream_id, phenomenon_time_start DESC`,
+  recent: (n: number) =>
+    `SELECT ${OBS_SQL_COLS} FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY datastream_id ORDER BY phenomenon_time_start DESC) AS rn FROM observations) o WHERE rn <= ${n}`,
+  features: (id: string) => `SELECT id, forecast_id, kind, input, ST_AsGeoJSON(geom) FROM features WHERE forecast_id = '${id}'`,
+  latestFeatures: 'SELECT forecast_id FROM features ORDER BY written_at DESC LIMIT 1',
+};
+
+export const dbQuery = (store: 'Observations DB' | 'Features DB', statement: string) =>
+  p(`Query to the ${store}`, `SQL from pygeoapi's ${store === 'Features DB' ? 'PostGIS' : 'PostgreSQL'} provider`, { sql: statement });
+
+export const netcdfRead = (file: string | undefined, variables: readonly string[]) =>
+  p(file ? `Read ${file} at the ship` : 'Read the latest forecast file', "NetCDF read (pygeoapi's xarray provider)", { file: file ?? 'no forecast file yet', variables, select: { lon: SHIP.lon, lat: SHIP.lat, method: 'nearest' } });
+
+export const obsRows = (rows: readonly Observation[]) =>
+  p(`${rows.length} row(s) from the Observations DB`, 'SQL result set (TimescaleDB)', {
+    rows: rows.map((o) => ({ datastream_id: datastream(o.input), phenomenon_time_start: iso(o.tick), result_number: num(o.value) })),
+  });
+
+export const netcdfValues = (file: string | undefined, values: Readonly<Record<InputKey, number>> | undefined) =>
+  values
+    ? p(`Values read from ${file}`, 'NetCDF variables (values at the nearest grid point)', { file, values: Object.fromEntries(Object.entries(values).map(([k, v]) => [k, num(v)])) })
+    : p('No such file', 'NetCDF read error', { error: 'FileNotFoundError', file: file ?? null });
+
+export const featureRows = (feats: readonly Feature[]) =>
+  p(`${feats.length} row(s) from the Features DB`, 'SQL result set (PostGIS)', {
+    rows: feats.map((f) => ({ id: f.id, forecast_id: f.forecastId, kind: f.kind, input: f.input ?? null, geom: { type: 'Point', coordinates: lonlat(f.x, f.y) } })),
+  });
+
+export const latestFeatureRow = (id: string | undefined) =>
+  p(id ? `1 row: ${id}` : 'No rows', 'SQL result set (PostGIS)', { rows: id ? [{ forecast_id: id }] : [] });
+
+export const connectionRefused = (store: string) => p(`Query attempt: ${store} not accepting connections`, 'Database connection attempt (refused)', { error: 'connection refused', store });
+
+export const serviceUnavailable = (service: string) =>
+  p(`503: ${service} unavailable`, 'HTTP 503 response', { status: 503, title: 'Service Unavailable', detail: `${service} is not accepting connections; retry later` });
 
 export const sensorThingsLatest = (latest: readonly Observation[]) =>
   p(`Latest observation of ${latest.length} datastream(s)`, 'SensorThings Observations (JSON)', {
@@ -125,11 +203,23 @@ export const runRequest = (cause: string, from: string, note: string, tick: numb
     { run_key: `${cause}-${tick}`, asset_selection: ASSETS, tags: { cause, ...(note ? { reason: note } : {}) }, requested_at: iso(tick) },
   );
 
-export const lineage = (upstream: string, downstream: string, runId: string, extra: Record<string, unknown> = {}) =>
-  p(`${upstream} is an input of ${downstream} in ${runId}`, 'Dagster asset lineage (metadata; no data moves on this line)', { upstream, downstream, run_id: runId, ...extra });
+/** A dependency that was already satisfied when the run began: checked, never a trigger. */
+export const dependencyChecked = (upstream: string, downstream: string, runId: string, extra: Record<string, unknown> = {}) =>
+  p(`${upstream} is already available, so ${downstream} need not wait for it (${runId})`, 'Dagster run plan: upstream dependency satisfied (no data moves on this line)', { upstream, downstream, run_id: runId, status: 'satisfied', ...extra });
 
-export const backgroundLoop = (f: Forecast) =>
-  p(`${f.id} committed; it becomes the background of the next run`, 'Dagster asset materialisation event', { asset: 'forecast', partition: f.id, metadata: { digest: f.digest, valid_until: iso(f.validUntil) }, next_role: 'background' });
+/** The upstream asset has just been materialised, which releases the downstream step. */
+export const dependencyReleased = (upstream: string, downstream: string, runId: string, partition: string) =>
+  p(`${upstream} ${partition} materialised, so ${downstream} can now run (${runId})`, 'Dagster ASSET_MATERIALIZATION event releases the downstream step (no data moves on this line)', {
+    event: 'ASSET_MATERIALIZATION',
+    asset: upstream,
+    partition,
+    run_id: runId,
+    unblocks: downstream,
+  });
+
+/** UI-10: the previous forecast is the background of this run. */
+export const backgroundChecked = (prev: { id: string; digest: string }, runId: string) =>
+  p(`${prev.id} is available as the background for ${runId}`, 'Dagster run plan: upstream dependency satisfied (no data moves on this line)', { upstream: 'forecast', partition: prev.id, digest: prev.digest, downstream: 'forecast', role: 'background', run_id: runId, status: 'satisfied' });
 
 export const shimCall = (fn: string, transport: string, args: Record<string, unknown>, attempt?: number) =>
   p(`Call ${fn}${attempt && attempt > 1 ? ` (retry ${attempt - 1})` : ''}`, transport, { function: fn, args, ...(attempt ? { attempt } : {}) });
