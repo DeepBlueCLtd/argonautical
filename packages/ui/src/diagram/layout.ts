@@ -33,8 +33,8 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   driftSensor: { x: 560, y: 72, w: 250, h: 172 },
   shimCheck: { x: 574, y: 112, w: 222, h: 20 },
   driftMonitor: { x: 574, y: 138, w: 222, h: 96 },
-  stalenessSchedule: { x: 830, y: 72, w: 180, h: 84 },
-  manualRequest: { x: 830, y: 168, w: 180, h: 80 },
+  stalenessSchedule: { x: 830, y: 72, w: 180, h: 78 },
+  manualRequest: { x: 830, y: 176, w: 180, h: 78 },
   privateStore: { x: 1160, y: 72, w: 138, h: 92 },
   climatology: { x: 548, y: 470, w: 140, h: 76 },
   forecast: { x: 720, y: 290, w: 215, h: 282 },
@@ -57,7 +57,7 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
 export const CONSUMER_AREA = { x: 1430, y: 196, w: 160, cardH: 66, gap: 10, max: 4 } as const;
 
 /** Token key, at the foot of the Onboard consumers column. */
-export const TOKEN_KEY: Rect = { x: 1374, y: 540, w: 216, h: 292 };
+export const TOKEN_KEY: Rect = { x: 1404, y: 540, w: 190, h: 292 };
 
 export function consumerRect(index: number): Rect {
   const c = CONSUMER_AREA;
@@ -77,25 +77,19 @@ export interface Pt {
 /** Optional per-edge side hints where the default choice reads badly. `drop` sets the y of a bottom→bottom run. */
 const HINTS: Record<string, { from: Side; to: Side; drop?: number }> = {
   'driftMonitor>query>pygeoapi': { from: 'right', to: 'top' },
-  'modelRunner>query>pygeoapi': { from: 'bottom', to: 'top' },
-  'featureDetector>query>pygeoapi': { from: 'bottom', to: 'top' },
-  'modelRunner>write>netcdfStore': { from: 'bottom', to: 'top' },
-  'featureDetector>write>featuresDb': { from: 'bottom', to: 'top' },
-  'observationsDb>read>pygeoapi': { from: 'bottom', to: 'bottom', drop: 812 },
+  // Distinct rows below the assets (y 572) and the orchestrator frame (y 600), so the horizontals never stack.
+  'modelRunner>write>netcdfStore': { from: 'bottom', to: 'top', drop: 640 },
+  'featureDetector>write>featuresDb': { from: 'bottom', to: 'top', drop: 640 },
   'netcdfStore>read>pygeoapi': { from: 'bottom', to: 'bottom', drop: 792 },
-  'featuresDb>read>pygeoapi': { from: 'right', to: 'left' },
   'observationsDb>lineage>forecast': { from: 'right', to: 'left' },
   'climatology>lineage>forecast': { from: 'right', to: 'left' },
   'forecast>lineage>features': { from: 'right', to: 'left' },
-  'forecast>lineage>announcement': { from: 'bottom', to: 'bottom', drop: 588 },
+  'forecast>lineage>announcement': { from: 'bottom', to: 'bottom', drop: 586 },
   'features>lineage>announcement': { from: 'right', to: 'left' },
   'driftSensor>trigger>forecast': { from: 'bottom', to: 'top' },
   'manualRequest>trigger>forecast': { from: 'bottom', to: 'top' },
   'broker>deliver>consumer': { from: 'right', to: 'left' },
-  'consumer>query>pygeoapi': { from: 'left', to: 'right' },
-  'sensors>publish>sensorBroker': { from: 'right', to: 'left' },
   'sensorBroker>deliver>ingestion': { from: 'top', to: 'bottom' },
-  'ingestion>write>observationsDb': { from: 'right', to: 'left' },
 };
 
 function chooseSides(a: Rect, b: Rect): { from: Side; to: Side } {
@@ -134,11 +128,59 @@ const CUSTOM: Record<string, (a: Rect, b: Rect) => Pt[]> = {
     const y = a.y + a.h / 2;
     return [{ x: a.x, y }, { x, y }, { x, y: b.y }];
   },
-  // Announcer → broker: out of the announcer's right side, then up into the broker from below.
+  // Announcer → broker: out of the announcer's right side, then up into the broker from below,
+  // clear of the orchestrator frame (x 1340) and the announcement card (x 1300).
   'announcer>publish>broker': (a, b) => {
-    const x = b.x + 26;
+    const x = b.x + 12;
     const y = a.y + a.h / 2;
     return [{ x: a.x + a.w, y }, { x, y }, { x, y: b.y + b.h }];
+  },
+  // Sensors → sensor broker: straight across the World | System line, never along it.
+  'sensors>publish>sensorBroker': (a, b) => {
+    const y = b.y + b.h / 2;
+    return [{ x: a.x + a.w, y }, { x: b.x, y }];
+  },
+  // Ingestion → Observations DB: up from ingestion's top, then right into the DB, rather than squeezing
+  // a vertical into the 6 px gap between the two boxes.
+  'ingestion>write>observationsDb': (a, b) => {
+    const x = a.x + a.w - 22;
+    const y = b.y + b.h - 34;
+    return [{ x, y: a.y }, { x, y }, { x: b.x, y }];
+  },
+  // Observations DB → pygeoapi: down from the DB's outer half, clear of the orchestrator frame's left edge (x 470).
+  'observationsDb>read>pygeoapi': (a, b) => {
+    const x = a.x + 28;
+    const y = 812;
+    const bx = b.x + b.w / 3;
+    return [{ x, y: a.y + a.h }, { x, y }, { x: bx, y }, { x: bx, y: b.y + b.h }];
+  },
+  // Consumer → pygeoapi: a bus inside the consumers region, clear of its boundary (x 1360) and of the broker's
+  // delivery bus (x ~1421), entering pygeoapi's right side one row per consumer.
+  'consumer>query>pygeoapi': (a, b) => {
+    const i = Math.round((a.y - CONSUMER_AREA.y) / (CONSUMER_AREA.cardH + CONSUMER_AREA.gap));
+    const x = 1384;
+    const ay = a.y + a.h * 0.72;
+    const by = b.y + 28 + i * 20;
+    return [{ x: a.x, y: ay }, { x, y: ay }, { x, y: by }, { x: b.x + b.w, y: by }];
+  },
+  // Module queries into pygeoapi's top: each on its own row and its own landing point (the drift
+  // monitor lands at x 1147), so no two arrows merge.
+  'featureDetector>query>pygeoapi': (a, b) => {
+    const x = a.x + a.w * 0.62;
+    const y = 610;
+    const bx = b.x + 118;
+    return [{ x, y: a.y + a.h }, { x, y }, { x: bx, y }, { x: bx, y: b.y }];
+  },
+  'modelRunner>query>pygeoapi': (a, b) => {
+    const x = a.x + a.w * 0.68;
+    const y = 626;
+    const bx = b.x + 176;
+    return [{ x, y: a.y + a.h }, { x, y }, { x: bx, y }, { x: bx, y: b.y }];
+  },
+  // Features DB → pygeoapi: one straight line, so it stays clear of its "read only" label.
+  'featuresDb>read>pygeoapi': (a, b) => {
+    const y = a.y + a.h / 2 + 10;
+    return [{ x: a.x + a.w, y }, { x: b.x, y }];
   },
   // Drift monitor → pygeoapi: out between the schedule and manual-request cards, down the gap between features and announcement.
   'driftMonitor>query>pygeoapi': (a, b) => {
@@ -159,7 +201,7 @@ function orthogonal(a: Pt, sa: Side, b: Pt, sb: Side, drop?: number): Pt[] {
       const y = drop ?? Math.max(a.y, b.y) + 22;
       return [a, { x: a.x, y }, { x: b.x, y }, b];
     }
-    const my = (a.y + b.y) / 2;
+    const my = drop ?? (a.y + b.y) / 2;
     return [a, { x: a.x, y: my }, { x: b.x, y: my }, b];
   }
   // one horizontal, one vertical: single elbow

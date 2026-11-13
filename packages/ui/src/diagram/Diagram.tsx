@@ -315,18 +315,18 @@ export function Diagram({ snap, runner, onPick, onTip }: { snap: Snapshot; runne
         <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 22} cls="title">
           Staleness schedule
         </T>
-        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 44} cls="muted tiny">
+        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 40} cls="muted tiny">
           replaces a forecast
         </T>
-        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 58} cls="muted tiny">
+        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 54} cls="muted tiny">
           older than {snap.schedule.staleAfter} s
         </T>
-        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 76} cls="tiny">
+        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 70} cls="tiny">
           {!f ? 'no forecast yet' : staleRemaining > 0 ? 'stale in' : stale.replacing ? 'stale · replacing' : 'stale'}
         </T>
         <Ring
           cx={R.stalenessSchedule.x + R.stalenessSchedule.w - 30}
-          cy={R.stalenessSchedule.y + 52}
+          cy={R.stalenessSchedule.y + 46}
           r={21}
           frac={f ? 1 - staleRemaining / snap.schedule.staleAfter : 0}
           label={f ? mmss(snap.schedule.staleIn) : '—'}
@@ -384,20 +384,11 @@ export function Diagram({ snap, runner, onPick, onTip }: { snap: Snapshot; runne
         <T x={R.forecast.x + 12} y={R.forecast.y + 44} cls="small">
           {f ? `${f.id} · ${f.cause}` : 'none yet'}
         </T>
+        {/* The asset states when it goes out of date; the countdown ring belongs to the Staleness schedule (the trigger). */}
         {f && (
-          <>
-            <Ring
-              cx={R.forecast.x + R.forecast.w - 30}
-              cy={R.forecast.y + 32}
-              r={19}
-              frac={1 - staleRemaining / snap.schedule.staleAfter}
-              label={mmss(snap.schedule.staleIn)}
-              cls="stale-ring"
-            />
-            <T x={R.forecast.x + 12} y={R.forecast.y + 62} cls={`tiny ${staleRemaining > 0 ? 'muted' : 'strong'}`}>
-              {staleRemaining > 0 ? 'stale in' : stale.replacing ? 'stale · replacing' : 'stale'}
-            </T>
-          </>
+          <T x={R.forecast.x + 12} y={R.forecast.y + 62} cls={`tiny ${staleRemaining > 0 ? 'muted' : 'strong'}`}>
+            {staleRemaining > 0 ? `valid until ${clockLabel(f.validUntil)}` : stale.replacing ? 'stale · replacing' : 'stale'}
+          </T>
         )}
         <T x={R.forecast.x + 12} y={R.forecast.y + R.forecast.h - 30} cls="tiny muted">
           {run ? `${run.id} → ${run.forecastId} · ${run.causes}` : 'idle'}
@@ -406,7 +397,7 @@ export function Diagram({ snap, runner, onPick, onTip }: { snap: Snapshot; runne
           {snap.assets.forecast !== undefined ? `materialised ${clockLabel(snap.assets.forecast)}` : ''}
         </T>
       </Box>
-      <InputSlots x={R.forecast.x + 140} y={R.forecast.y + 66} reader="modelRunner" who="Model runner" inputs={INPUTS.modelRunner} runner={runner} onPick={onPick} onTip={onTip} />
+      <InputSlots x={R.forecast.x + 144} y={R.forecast.y + 22} reader="modelRunner" who="Model runner" inputs={INPUTS.modelRunner} runner={runner} onPick={onPick} onTip={onTip} />
       <PlayPause at={{ x: R.forecast.x + 20, y: R.forecast.y + 19 }} running={!snap.offline.modelRunner} what="the model runner (every run fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })} />
       <Shim r={R.shimRun} name="run" retryIn={retryOn('run')} />
       <Module r={R.modelRunner} name="Model runner" offline={snap.offline.modelRunner}>
