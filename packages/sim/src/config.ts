@@ -29,11 +29,12 @@ export const TIMING = {
   /** ORC-1: a forecast older than this is stale. */
   staleAfter: 180,
   /**
-   * MOD-1, DET-1: ticks for a module's inputs to arrive before its countdown starts. Both modules read
-   * NetCDF, the slowest round trip: four legs of 2 + 3.5 + 3.5 + 2 s on screen = 11 s, under 6 ticks at the
-   * default 0.5× rate, so the countdown starts once the last input slot has filled.
+   * MOD-1, DET-1: ticks for a module's inputs to arrive before its countdown starts. On screen the shim's
+   * call reaches the module first (one tick), then its reads leave; both modules read NetCDF, the slowest
+   * round trip: 2 + 3.5 + 3.5 + 2 s = 11 s. At the default 0.5× rate that is 2 + 11 = 13 s, under 7 ticks,
+   * so the countdown starts once the last input slot has filled.
    */
-  inputReadDuration: 6,
+  inputReadDuration: 7,
   /** MOD-1 */
   modelRunDuration: 8,
   /** DET-1 */

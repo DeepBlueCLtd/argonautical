@@ -32,6 +32,8 @@ const SIGNAL_WALL = { release: 2.4, check: 1.4 } as const;
 const RELEASE_LANDS = 0.65;
 
 const LINEAGE = new Set(EDGES.filter((e) => e.kind === 'lineage').map((e) => e.id));
+/** Orchestrator → module calls (via a shim): the module's reads leave only once its call has arrived. */
+const CALLS = new Set(EDGES.filter((e) => e.kind === 'call').map((e) => e.id));
 /** MOT-1: minimum on-screen time, in wall-clock seconds, at any speed. */
 const MIN_WALL = { lineage: 1.2, other: 0.6 };
 /** The four legs of a pygeoapi read play one after another, each this long (wall seconds), so a round trip takes ~8 s at any speed. */
@@ -60,7 +62,7 @@ export class Runner {
   private legCursor = 0;
   /** Which of the caller's same-tick reads the current round trip is (0 = the first). */
   private abreast = 0;
-  /** After a release, the rest of that tick's tokens wait until its pulse lands, so cause visibly precedes effect. */
+  /** After a release or a call, the rest of that tick's tokens wait until it lands, so cause visibly precedes effect. */
   private hold = { tick: -1, at: 0 };
   private listeners = new Set<() => void>();
   /** Per reader (element#instance): the latest gathering and the one before it. */
@@ -173,6 +175,8 @@ export class Runner {
         if (t.signal === 'release') this.hold = { tick: t.start, at: now + dur * RELEASE_LANDS };
       } else {
         dur = Math.max(t.duration * secondsPerTick, lineage ? MIN_WALL.lineage : MIN_WALL.other);
+        // The module starts work (and sends its reads) when the call lands, not when it leaves.
+        if (CALLS.has(t.edge)) this.hold = { tick: t.start, at: now + dur };
       }
       const key = `${t.edge}#${t.instance ?? ''}#${t.role ?? ''}`;
       const same = this.visuals.filter((v) => `${v.token.edge}#${v.token.instance ?? ''}#${v.token.role ?? ''}` === key);
