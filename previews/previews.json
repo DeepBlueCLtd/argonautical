@@ -1,8 +1,8 @@
 [
   {
     "number": 13,
-    "title": "Show the full pygeoapi round trip; draw tokens as document icons",
-    "summary": "| Leg | Direction | Drill-down shows | |---|---|---| | Request | caller → pygeoapi | OGC SensorThings / EDR / Features request (method and URL) | | DB query | pygeoapi → store | SQL from the PostgreSQL or PostGIS provider, or the NetCDF…",
+    "title": "pygeoapi round trips, lettered document tokens, and ½× default speed",
+    "summary": "| Leg | Direction | Drill-down shows | |---|---|---| | Request | caller → pygeoapi | OGC SensorThings / EDR / Features request | | DB query | pygeoapi → store | SQL from the PostgreSQL or PostGIS provider, or the NetCDF file and…",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/13",
     "branch": "claude/query-responses",
     "sha": "b88900cf200c984b63f6bf48ef88a154be7349fb",
