@@ -73,7 +73,7 @@ flowchart LR
 
 | SRD element | Production component | Node / zone | Notes |
 |---|---|---|---|
-| Sensors | Instruments + DAQ gateways | OT | Gateways translate serial/NMEA/vendor output into **SensorThings Observation messages** on the SensorThings MQTT topic pattern (`v1.1/Datastreams('<id>')/Observations`). This needs an MQTT broker on the OT network: the same product as the distribution broker, but a separate instance, because the zones are separate. |
+| Sensors | Instruments + DAQ gateways | OT | Gateways translate serial/NMEA/vendor output into **SensorThings Observation objects** and send them point to point to ingestion over the existing link. There is no broker: with one producer and one consumer it adds a component for little gain. The gateway must therefore store and forward (buffer and retry) while ingestion is down. A second consumer of raw data (e.g. a logger) would be the trigger to revisit this. |
 | Ingestion | Long-running service | OT (edge of) | Only writer to Observations DB. Not orchestrated (UI-4) — correct in production too: per-sample work does not belong in a batch orchestrator. |
 | Orchestrator | Dagster webserver + daemon + metadata Postgres | Orchestration node | The "private store" (§2) is Dagster's own Postgres. |
 | Shims | `@asset` / `@sensor` definitions | Code location process | See §1.4 — the boundary is an import boundary, not a process boundary. |

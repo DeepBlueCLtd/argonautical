@@ -29,15 +29,17 @@ const p = (summary: string, format: string, data: unknown): Payload => ({ summar
 const datastream = (input: InputKey) => `ship-1:${input}`;
 
 /**
- * The DAQ gateways translate raw instrument output (serial, NMEA, vendor formats) into SensorThings
- * Observation messages on the SensorThings MQTT topic pattern. There is no SensorThings server: the
- * schema travels in the messages. Values are raw and not yet validated.
+ * The DAQ gateway translates raw instrument output (serial, NMEA, vendor formats) into SensorThings
+ * Observation objects and sends them point to point to ingestion over its existing link: one producer,
+ * one consumer, so no broker and no SensorThings server. Values are raw and not yet validated.
  */
 export const sensorReadings = (tick: number, readings: Readonly<Record<InputKey, number>>, units: Record<InputKey, string>) =>
-  p(`${Object.keys(readings).length} raw SensorThings Observation message(s), one per instrument, not yet validated`, 'MQTT messages from the DAQ gateways, SensorThings topic and Observation schema', {
-    messages: Object.entries(readings).map(([input, v]) => ({
-      topic: `v1.1/Datastreams('${datastream(input)}')/Observations`,
-      payload: { phenomenonTime: iso(tick), result: num(v), parameters: { unitOfMeasurement: units[input] } },
+  p(`${Object.keys(readings).length} raw SensorThings Observation(s), one per instrument, not yet validated`, 'SensorThings Observation objects (JSON), point to point from the DAQ gateway', {
+    observations: Object.entries(readings).map(([input, v]) => ({
+      Datastream: { '@iot.id': datastream(input) },
+      phenomenonTime: iso(tick),
+      result: num(v),
+      parameters: { unitOfMeasurement: units[input] },
     })),
   });
 

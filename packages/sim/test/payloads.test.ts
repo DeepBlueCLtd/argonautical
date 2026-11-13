@@ -40,7 +40,7 @@ describe('token payloads (drill-down)', () => {
 
   it('a rejected NaN reading is shown as a string, not lost', () => {
     const send = allTokens('failures').filter((t) => t.edge === 'sensors>send>ingestion');
-    const values = send.flatMap((t) => (t.payload!.data as { messages: { payload: { result: unknown } }[] }).messages.map((m) => m.payload.result));
+    const values = send.flatMap((t) => (t.payload!.data as { observations: { result: unknown }[] }).observations.map((o) => o.result));
     expect(values).toContain('NaN');
   });
 });

@@ -39,7 +39,7 @@ The screen and the simulation share one model, in three regions separated by two
 
 **World** (not our system)
 - **Ocean**: the real environment. Each input has a true value that drifts slowly, and a scenario shift moves it the way a passing front would.
-- **Sensors**: onboard instruments. Each input has its own noise stream and noise level. Their DAQ gateways publish each reading as a SensorThings Observation message (SensorThings MQTT topic pattern, one Datastream per input).
+- **Sensors**: onboard instruments. Each input has its own noise stream and noise level. The DAQ gateway sends each reading to ingestion as a SensorThings Observation object (one Datastream per input), point to point over its existing link.
 
 **System**
 - **Ingestion** (ours, not orchestrated): validates every observation and is the only writer to the Observations DB. It runs on every sample, not when the orchestrator calls it.
@@ -272,7 +272,7 @@ None open. The six questions from v2 and three raised by the system-architecture
 - **Tour mode.** Wanted, built from the replay scripts (§5.7).
 - **Target display.** 1920×1080 minimum (UI-6), raised from 1280×720 to give the straddling Observations DB (UI-8) room. Scales up to large monitors; below 1080p (e.g. an older 720p projector) legibility is not guaranteed.
 - **Drift monitor cadence.** It stays a Dagster sensor. The 4 s interval is demo-only; production uses ≥30 s (ORC-1).
-- **Observation path.** Observations use the SensorThings schema end to end, carried by messaging, with no SensorThings server (no FROST-Server). DAQ gateways publish SensorThings Observation messages; ingestion consumes them, validates them, and writes the same entities over SQL into the schema pygeoapi serves.
+- **Observation path.** Observations use the SensorThings schema end to end, with no SensorThings server (no FROST-Server) and no broker. The DAQ gateway sends SensorThings Observation objects point to point to ingestion (one producer, one consumer). Ingestion validates them and writes the same entities over SQL into the schema pygeoapi serves. With no broker, the gateway must buffer and retry while ingestion is down. Revisit if a second consumer of raw observations is needed.
 - **Read path.** Our modules read only through pygeoapi, as §2 states. Revisit if forecast grids grow large enough for the HTTP hop to matter.
 - **Network zones.** The instrument (OT) network and the mission network are separate, with a distribution zone between them (SYS-3).
 - **Announce shim.** It calls a new module of ours, the announcer, which publishes to the broker, so every shim calls one of our modules (§2).
