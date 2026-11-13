@@ -1,5 +1,16 @@
 [
   {
+    "number": 14,
+    "title": "Release pulses also turn the dependency line green",
+    "summary": "When a dependency releases the next step (MOT-8), the whole lineage line and its arrowhead now turn green as the pulse sweeps, hold through the arrowhead flash, then fade back. Checks are unchanged. SRD MOT-8 updated.",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/14",
+    "branch": "claude/dependency-tint",
+    "sha": "89f292c7b588b5790a68f1b1fcd29484306d8805",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-13T10:45:17.775Z"
+  },
+  {
     "number": 13,
     "title": "pygeoapi round trips, lettered document tokens, and ½× default speed",
     "summary": "| Leg | Direction | Drill-down shows | |---|---|---| | Request | caller → pygeoapi | OGC SensorThings / EDR / Features request | | DB query | pygeoapi → store | SQL from the PostgreSQL or PostGIS provider, or the NetCDF file and…",
