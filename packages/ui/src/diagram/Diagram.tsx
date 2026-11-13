@@ -1,7 +1,7 @@
 import { EDGES, INPUTS, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, type ReactNode } from 'react';
-import type { Runner } from '../runner.ts';
-import { CONSUMER_AREA, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
+import type { Rate, Runner } from '../runner.ts';
+import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
 
 
 const MATERIALISING_TICKS = 3;
@@ -96,7 +96,15 @@ export interface SlotTip {
   readonly box: { left: number; top: number; right: number; bottom: number };
 }
 
-export function Diagram({ snap, runner, onPick, onTip, onTokenTip, spotlight }: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; onTokenTip: (t: TokenTip | null) => void; spotlight?: Rect | null }) {
+/** What the Control panel needs from the app (§5.4). */
+export interface Controls {
+  readonly logOpen: boolean;
+  readonly onLog: () => void;
+  readonly onWalkthrough: () => void;
+}
+
+export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; onTokenTip: (t: TokenTip | null) => void; spotlight?: Rect | null; controls: Controls }) {
+  const { snap, runner, onPick, onTip, onTokenTip, spotlight, controls } = props;
   const consumerIds = snap.consumers.map((c) => c.id);
   const routes = useMemo(() => routeAll(EDGES, consumerIds), [consumerIds.join(',')]);
   const byKey = useMemo(() => new Map(routes.map((r) => [r.key, r])), [routes]);
@@ -153,7 +161,7 @@ export function Diagram({ snap, runner, onPick, onTip, onTokenTip, spotlight }: 
         <rect className="region consumers" x={REGIONS.consumersLeft} y={0} width={VIEW.w - REGIONS.consumersLeft} height={VIEW.h} />
         <line className="boundary" x1={REGIONS.worldRight} y1={0} x2={REGIONS.worldRight} y2={VIEW.h} />
         <line className="boundary" x1={REGIONS.consumersLeft} y1={0} x2={REGIONS.consumersLeft} y2={VIEW.h} />
-        <T x={REGIONS.worldRight / 2} y={34} cls="region-label" anchor="middle">
+        <T x={REGIONS.worldRight / 2} y={186} cls="region-label" anchor="middle">
           WORLD
         </T>
         <T x={(REGIONS.worldRight + REGIONS.consumersLeft) / 2} y={24} cls="region-label" anchor="middle">
@@ -185,6 +193,8 @@ export function Diagram({ snap, runner, onPick, onTip, onTokenTip, spotlight }: 
         </T>
       </g>
 
+      <ControlPanel snap={snap} runner={runner} controls={controls} />
+
       {/* World */}
       <Box r={R.ocean} style="world">
         <T x={R.ocean.x + 10} y={R.ocean.y + 22} cls="title">
@@ -194,7 +204,7 @@ export function Diagram({ snap, runner, onPick, onTip, onTokenTip, spotlight }: 
           true values, σ from climatology
         </T>
         {snap.inputs.map((s, i) => {
-          const y = R.ocean.y + 62 + i * 36;
+          const y = R.ocean.y + 58 + i * 30;
           const z = (s.truth - s.base) / s.sigma;
           const cx = R.ocean.x + 95;
           return (
@@ -600,6 +610,116 @@ export function Diagram({ snap, runner, onPick, onTip, onTokenTip, spotlight }: 
         </g>
       )}
     </svg>
+  );
+}
+
+/** An SVG button: rounded rect, an icon and/or label, a tooltip; Enter/Space activate it. */
+function CtlButton(props: { x: number; y: number; w: number; h: number; title: string; onClick: () => void; cls?: string; pressed?: boolean; children: ReactNode; role?: 'button' | 'radio' }) {
+  const { x, y, w, h, title, onClick, cls = '', pressed, children, role = 'button' } = props;
+  return (
+    <g
+      className={`ctl-btn ${cls} ${pressed ? 'on' : ''}`}
+      role={role}
+      tabIndex={0}
+      aria-label={title}
+      {...(role === 'radio' ? { 'aria-checked': !!pressed } : pressed !== undefined ? { 'aria-pressed': pressed } : {})}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      <title>{title}</title>
+      <rect x={x} y={y} width={w} height={h} rx={h / 2 > 12 ? 8 : h / 2} />
+      {children}
+    </g>
+  );
+}
+
+/**
+ * §5.4 Presenter controls, in the top fifth of the World column: a large play/pause, the clock,
+ * Step, the rate (½×/1×/10×/60× as a radio group), Add consumer, Walkthrough and the event log.
+ */
+function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runner; controls: Controls }) {
+  const c = CONTROL;
+  const playing = runner.running;
+  const cx = c.x + 34;
+  const cy = c.y + 50;
+  const rates: Rate[] = [0.5, 1, 10, 60];
+  const rw = 44;
+  return (
+    <g className="control-panel" aria-label="Presenter controls">
+      <rect className="frame" x={c.x} y={c.y} width={c.w} height={c.h} rx={8} />
+      <T x={c.x + 12} y={c.y + 18} cls="region-label control-label">
+        CONTROL
+      </T>
+      {/* Play / pause */}
+      <g
+        className={`ctl-play ${playing ? 'playing' : 'paused'}`}
+        role="button"
+        tabIndex={0}
+        aria-label={playing ? 'Pause the simulation' : 'Run the simulation'}
+        onClick={() => runner.setRunning(!playing)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            runner.setRunning(!playing);
+          }
+        }}
+      >
+        <title>{playing ? 'Pause (Space)' : 'Run (Space)'}</title>
+        <circle cx={cx} cy={cy} r={24} />
+        {playing ? (
+          <path className="glyph" d={`M${cx - 8},${cy - 10} v20 h5 v-20 z M${cx + 3},${cy - 10} v20 h5 v-20 z`} />
+        ) : (
+          <path className="glyph" d={`M${cx - 6},${cy - 12} L${cx + 12},${cy} L${cx - 6},${cy + 12} z`} />
+        )}
+      </g>
+      <text x={c.x + 66} y={c.y + 58} className="ctl-clock mono">
+        {snap.clock}
+      </text>
+      {/* Rate: one of four (radio group) */}
+      <g role="radiogroup" aria-label="Rate">
+        {rates.map((r, i) => (
+          <CtlButton key={r} role="radio" x={c.x + 12 + i * (rw + 3)} y={c.y + 84} w={rw} h={24} title={`Rate ${r === 0.5 ? '½' : r}×`} pressed={runner.rate === r} onClick={() => runner.setRate(r)}>
+            <text x={c.x + 12 + i * (rw + 3) + rw / 2} y={c.y + 100.5} textAnchor="middle" className="ctl-text">
+              {r === 0.5 ? '½' : r}×
+            </text>
+          </CtlButton>
+        ))}
+      </g>
+      {/* Step, Add consumer, Walkthrough, Event log */}
+      <CtlButton x={c.x + 12} y={c.y + 120} w={52} h={28} title="Step: advance one second, then pause" onClick={() => runner.step()}>
+        <path className="glyph" d={`M${c.x + 20},${c.y + 128} l8,6 l-8,6 z M${c.x + 29},${c.y + 128} h2.5 v12 h-2.5 z`} />
+        <text x={c.x + 36} y={c.y + 138} className="ctl-text sm">
+          Step
+        </text>
+      </CtlButton>
+      <CtlButton x={c.x + 68} y={c.y + 120} w={76} h={28} title="Add a consumer: it subscribes now and catches up" onClick={() => runner.apply({ type: 'addConsumer' })}>
+        <path className="glyph-stroke" d={`M${c.x + 78},${c.y + 129} v10 M${c.x + 73},${c.y + 134} h10`} />
+        <text x={c.x + 86} y={c.y + 138} className="ctl-text sm">
+          Consumer
+        </text>
+      </CtlButton>
+      <CtlButton x={c.x + 148} y={c.y + 120} w={26} h={28} title="Walkthrough: introduce each region and component" onClick={controls.onWalkthrough}>
+        <circle className="glyph-stroke" cx={c.x + 161} cy={c.y + 134} r={7.5} />
+        <text x={c.x + 161} y={c.y + 138} textAnchor="middle" className="ctl-text sm">
+          ?
+        </text>
+      </CtlButton>
+      <CtlButton x={c.x + 178} y={c.y + 120} w={26} h={28} title={`Event log (${snap.events.count} events)`} pressed={controls.logOpen} onClick={controls.onLog}>
+        <path className="glyph-stroke" d={[0, 5, 10].map((k) => `M${c.x + 185},${c.y + 129 + k} h12`).join(' ')} />
+      </CtlButton>
+      {/* Event count, as a badge on the log icon */}
+      <g className="ctl-badge" aria-hidden>
+        <rect x={c.x + 187} y={c.y + 112} width={22} height={13} rx={6.5} />
+        <text x={c.x + 198} y={c.y + 121.5} textAnchor="middle" className="mono">
+          {snap.events.count > 999 ? '1k+' : snap.events.count}
+        </text>
+      </g>
+    </g>
   );
 }
 
