@@ -213,6 +213,22 @@ describe('sensor broker buffering (FLT-3)', () => {
   });
 });
 
+describe('drift monitor offline (FLT-1)', () => {
+  it('while the drift monitor is offline, checks fail and no drift run is requested; it resumes afterwards', () => {
+    const sim = new Simulation({ seed: 'demo' });
+    sim.step(20);
+    sim.setShift('temp', true);
+    sim.setShift('sal', true);
+    sim.setOffline('driftMonitor', true);
+    sim.step(60);
+    expect(sim.snapshot().drift.status).toBe('drift monitor offline');
+    expect(events(sim, 'request').filter((e) => e.text.startsWith('drift request'))).toEqual([]);
+    sim.setOffline('driftMonitor', false);
+    sim.step(30);
+    expect(events(sim, 'drift').some((e) => e.text.startsWith('drift declared'))).toBe(true);
+  });
+});
+
 describe('robustness over a long run (FLT-2)', () => {
   const sim = runScript(loadScenario('failures'));
 

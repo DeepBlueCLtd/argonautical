@@ -151,9 +151,9 @@ export class Orchestrator {
     try {
       res = shims.check(this.d.monitor, { params: this.params, streak: this.cursor.streak, driftRun: this.driftRunState });
     } catch (e) {
-      if (!(e instanceof ServiceUnavailable)) throw e;
+      if (!(e instanceof ServiceUnavailable) && !(e instanceof ModuleFailure)) throw e;
       // The sensor tick fails; its cursor is kept for the next check.
-      const status = 'observations unavailable (DB down)';
+      const status = e instanceof ModuleFailure ? 'drift monitor offline' : 'observations unavailable (DB down)';
       Object.assign(this.cursor, { status, lastCheck: t });
       if (status !== before) this.d.log.append(t, 'drift', `drift monitor: ${status}`);
       return;

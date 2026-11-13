@@ -220,6 +220,16 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .svg-button:hover rect, .svg-button:focus-visible rect { stroke: var(--ink); }
 .svg-button:active rect { fill: var(--world); }
 .svg-button:focus { outline: none; }
+.play-pause { cursor: pointer; }
+.play-pause circle { fill: #fff; stroke: var(--k-presenter); stroke-width: 1.5; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,0.25)); }
+.play-pause .glyph { stroke: var(--k-presenter); stroke-width: 2.6; stroke-linecap: round; }
+.play-pause .glyph-fill { fill: var(--offline); }
+.play-pause.paused circle { stroke: var(--offline); stroke-width: 2; }
+.play-pause:hover circle, .play-pause:focus-visible circle { stroke-width: 2.5; }
+.play-pause:focus { outline: none; }
+.svg-button.presenter rect { fill: #fff; stroke: var(--k-presenter); stroke-dasharray: 3 2; }
+.svg-button.presenter.armed rect { fill: var(--k-presenter); }
+.diagram .svg-button.presenter.armed text { fill: #fff; font-weight: 700; }
 .svg-button.operator rect { fill: #f3f0fa; stroke: var(--k-operator); }
 .diagram .svg-button.operator text { fill: var(--k-operator); font-weight: 700; }
 .svg-button.operator:hover rect { fill: #e6dff5; }

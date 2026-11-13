@@ -129,7 +129,7 @@ export class Simulation {
       log: this.log,
       tokens: this.tokens,
       now,
-      monitor,
+      monitor: this.faults.monitor(monitor),
       runner: this.faults.runner(runner),
       detector: this.faults.detector(detector),
       announcer: new Announcer({ publish: (msg) => this.broker.publish('announcer', msg) }),

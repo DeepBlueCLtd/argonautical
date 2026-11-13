@@ -155,15 +155,6 @@ function PresenterBar(props: { runner: Runner; snap: Snapshot; logOpen: boolean;
         ))}
       </div>
       <span className="sep" />
-      <button className={snap.failNextRun ? 'on' : ''} onClick={() => runner.apply({ type: 'failNextRun' })}>
-        Fail next run
-      </button>
-      <button className={snap.offline.modelRunner ? 'on danger' : ''} onClick={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })}>
-        Runner {snap.offline.modelRunner ? 'offline' : 'online'}
-      </button>
-      <button className={snap.offline.featureDetector ? 'on danger' : ''} onClick={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })}>
-        Detector {snap.offline.featureDetector ? 'offline' : 'online'}
-      </button>
       <button onClick={() => runner.apply({ type: 'addConsumer' })}>Add consumer</button>
       <span className="sep" />
       <button className={props.logOpen ? 'on' : ''} onClick={() => props.setLogOpen(!props.logOpen)}>

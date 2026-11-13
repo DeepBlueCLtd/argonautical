@@ -107,7 +107,7 @@ The screen and the simulation share one model, in three regions separated by two
 | MOD-2 | When a forecast is committed, the previous one becomes the background. |
 | DET-1 | Detection takes 5 s. A front is reported for each input more than 0.75σ from climatology; 1–3 eddies are reported, derived from the digest. |
 | DET-2 | Features are tagged with their forecast id, so consumers can verify the feature count. |
-| FLT-1 | The presenter can take the model runner or the feature detector **offline**. While a module is offline, every call to it fails. |
+| FLT-1 | The presenter can take the model runner, the feature detector or the drift monitor **offline**. While a module is offline, every call to it fails: runs retry with backoff; drift checks fail and request nothing. The control is a play/pause button floating at the bottom-right of the component that hosts it (forecast, features, drift sensor). |
 | FLT-2 | The presenter can make the next run fail once. In addition, a seeded random failure rate of about 3% applies. |
 | FLT-3 | The presenter can **stop and start ingestion** and **stop and start the Observations DB**. While either is stopped, messages queue in the sensor broker, and its queued count is shown. While the DB is stopped, reads of observations fail: model runs retry with backoff and the drift monitor reports observations unavailable. On restart the backlog drains in order, with nothing lost. |
 
@@ -198,7 +198,7 @@ Controls fall into three kinds, and each kind looks different so the audience ca
 |---|---|---|
 | **Scenario** | Nobody (the sea, the sensors) | Per-input shift (+5σ over 20 s, toggle); per-input sensor noise (0–3σ) |
 | **Operator** | The ship's operator | Drift threshold, quorum, persistence; Request a run (a violet button on the Manual request card) |
-| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate ½×/1×/10×/60× (default ½×), number of inputs, fail next run, offline toggles, stop/start ingestion and Observations DB (on their cards), add consumer, view (information flow / system), tour, event log |
+| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate ½×/1×/10×/60× (default ½×), number of inputs, fail next run (a 'Fail once' button on the forecast card), play/pause buttons at the bottom-right of fragile components (forecast, features, drift sensor, Ingestion, Observations DB), add consumer, view (information flow / system), tour, event log |
 
 ### 5.5 Banner
 

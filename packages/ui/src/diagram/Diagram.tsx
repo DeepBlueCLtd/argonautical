@@ -224,16 +224,9 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           <T x={R.ingestion.x + 10} y={R.ingestion.y + 99} cls={`small ${snap.ingestion.status === 'running' ? 'muted' : 'offline-label'}`}>
             {snap.ingestion.status === 'waiting for Observations DB' ? 'waiting for DB' : snap.ingestion.status}
           </T>
-          <SvgButton
-            x={R.ingestion.x + 10}
-            y={R.ingestion.y + 106}
-            w={70}
-            label={snap.ingestion.running ? 'Stop' : 'Start'}
-            title={snap.ingestion.running ? 'Stop ingestion: readings queue in the sensor broker' : 'Start ingestion: the backlog drains'}
-            onClick={() => runner.apply({ type: 'ingestion', running: !snap.ingestion.running })}
-          />
         </Box>
       </g>
+      <PlayPause r={R.ingestion} running={snap.ingestion.running} what="ingestion (readings queue in the sensor broker)" onToggle={() => runner.apply({ type: 'ingestion', running: !snap.ingestion.running })} />
 
       {/* Sensor broker: persistent queue between the DAQ gateway and ingestion (FLT-3) */}
       <Box r={R.sensorBroker} style="ots">
@@ -267,19 +260,12 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
         <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 62} cls="tag">
           source asset
         </T>
-        <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 82} cls={snap.stores.observationsUp ? 'small mono' : 'small offline-label'}>
+        <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 92} cls={snap.stores.observationsUp ? 'small mono' : 'small offline-label'}>
           {snap.stores.observationsUp ? `${snap.stores.observations} rows` : 'stopped'}
         </T>
-        <SvgButton
-          x={R.observationsDb.x + 12}
-          y={R.observationsDb.y + 92}
-          w={60}
-          label={snap.stores.observationsUp ? 'Stop' : 'Start'}
-          title={snap.stores.observationsUp ? 'Stop the Observations DB: ingestion holds off, observation reads fail' : 'Start the Observations DB'}
-          onClick={() => runner.apply({ type: 'observationsDb', up: !snap.stores.observationsUp })}
-        />
       </Store>
       </g>
+      <PlayPause r={R.observationsDb} running={snap.stores.observationsUp} what="the Observations DB (ingestion holds off, observation reads fail)" onToggle={() => runner.apply({ type: 'observationsDb', up: !snap.stores.observationsUp })} />
 
       {/* Triggers */}
       <Box r={R.driftSensor} style="ots">
@@ -292,7 +278,8 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
         <Ring cx={R.driftSensor.x + R.driftSensor.w - 22} cy={R.driftSensor.y + 22} frac={1 - (snap.drift.nextCheckIn - runner.frac) / snap.drift.interval} label={`${snap.drift.nextCheckIn}s`} />
       </Box>
       <Shim r={R.shimCheck} name="check" />
-      <Box r={R.driftMonitor} style="ours">
+      <g filter={snap.offline.driftMonitor ? 'url(#offline-halo)' : undefined}>
+      <Box r={R.driftMonitor} style="ours" cls={snap.offline.driftMonitor ? 'stopped' : ''}>
         <T x={R.driftMonitor.x + 8} y={R.driftMonitor.y + 16} cls="title small-title">
           Drift monitor
         </T>
@@ -304,6 +291,8 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           {snap.drift.status}
         </T>
       </Box>
+      </g>
+      <PlayPause r={R.driftSensor} running={!snap.offline.driftMonitor} what="the drift monitor (checks fail, no drift runs)" onToggle={() => runner.apply({ type: 'offline', module: 'driftMonitor', offline: !snap.offline.driftMonitor })} />
       <Box r={R.stalenessSchedule} style="ots">
         <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 22} cls="title">
           Staleness schedule
@@ -399,6 +388,16 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           {snap.assets.forecast !== undefined ? `materialised ${clockLabel(snap.assets.forecast)}` : ''}
         </T>
       </Box>
+      <PlayPause r={R.forecast} running={!snap.offline.modelRunner} what="the model runner (every run fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })} />
+      <SvgButton
+        x={R.forecast.x + 84}
+        y={R.forecast.y + 52}
+        w={72}
+        label={snap.failNextRun ? 'fail armed' : 'Fail once'}
+        title="Presenter: make the next model run fail once (then it retries)"
+        cls={`presenter ${snap.failNextRun ? 'armed' : ''}`}
+        onClick={() => runner.apply({ type: 'failNextRun' })}
+      />
       <Shim r={R.shimRun} name="run" retryIn={retryOn('run')} />
       <Module r={R.modelRunner} name="Model runner" offline={snap.offline.modelRunner}>
         <ExecLine r={R.modelRunner} label={executing('run')?.label ?? (retryOn('run') !== undefined ? 'waiting for retry' : '')} frac={smoothProgress('run', 8)} active={!!executing('run')} />
@@ -423,6 +422,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           {snap.assets.features !== undefined ? `materialised ${clockLabel(snap.assets.features)}` : ''}
         </T>
       </Box>
+      <PlayPause r={R.features} running={!snap.offline.featureDetector} what="the feature detector (detection fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })} />
       <Shim r={R.shimDetect} name="detect" retryIn={retryOn('detect')} />
       <Module r={R.featureDetector} name="Feature detector" offline={snap.offline.featureDetector}>
         <ExecLine r={R.featureDetector} label={executing('detect')?.label ?? (retryOn('detect') !== undefined ? 'waiting for retry' : '')} frac={smoothProgress('detect', 5)} active={!!executing('detect')} />
@@ -612,6 +612,27 @@ function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: num
       <text x={x + w / 2} y={edgeY - 6} textAnchor="middle">
         {label}
       </text>
+    </g>
+  );
+}
+
+/**
+ * Presenter control floating on a fragile component's bottom-right corner: pause takes it down
+ * (red halo), play brings it back.
+ */
+function PlayPause({ r, running, what, onToggle }: { r: Rect; running: boolean; what: string; onToggle: () => void }) {
+  const cx = r.x + r.w - 2;
+  const cy = r.y + r.h - 2;
+  const label = `${running ? 'Pause' : 'Resume'} ${what}`;
+  return (
+    <g className={`play-pause ${running ? '' : 'paused'}`} role="button" tabIndex={0} aria-label={label} onClick={onToggle} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onToggle()}>
+      <title>{label}</title>
+      <circle cx={cx} cy={cy} r={11} />
+      {running ? (
+        <path className="glyph" d={`M${cx - 4},${cy - 5} v10 M${cx + 4},${cy - 5} v10`} />
+      ) : (
+        <path className="glyph-fill" d={`M${cx - 3.5},${cy - 6} L${cx + 6},${cy} L${cx - 3.5},${cy + 6} Z`} />
+      )}
     </g>
   );
 }
