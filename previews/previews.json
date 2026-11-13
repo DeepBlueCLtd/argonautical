@@ -5,10 +5,10 @@
     "summary": "| Leg | Direction | Drill-down shows | |---|---|---| | Request | caller → pygeoapi | OGC SensorThings / EDR / Features request | | DB query | pygeoapi → store | SQL from the PostgreSQL or PostGIS provider, or the NetCDF file and…",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/13",
     "branch": "claude/query-responses",
-    "sha": "0bba4c3d27f9c7b3461db765a05ddad5c37b6db9",
+    "sha": "3922e67b335665363504e81817553ff9d0bfd170",
     "author": "IanMayo",
     "status": "open",
-    "updated": "2026-11-13T09:15:40.652Z"
+    "updated": "2026-11-13T09:19:15.357Z"
   },
   {
     "number": 12,
