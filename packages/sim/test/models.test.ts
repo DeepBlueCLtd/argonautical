@@ -17,11 +17,12 @@ describe('model runner', () => {
   it('MOD-1 stages, then commits atomically only on completion, with id, cause, valid-until and digest', () => {
     const { r, committed } = runner(undefined, { temp: [13, 13], sal: [35], snd: [1500] });
     const job = r.start({ id: 'F1', cause: 'manual', tick: 10 });
+    expect(job.readDuration).toBe(6);
     expect(job.duration).toBe(8);
     expect(committed).toHaveLength(0);
     const f = job.complete();
     expect(committed).toEqual([f]);
-    expect(f).toMatchObject({ id: 'F1', cause: 'manual', issuedAt: 18, validUntil: 198 });
+    expect(f).toMatchObject({ id: 'F1', cause: 'manual', issuedAt: 24, validUntil: 204 });
     expect(f.digest).toBe(forecastDigest(f));
   });
 

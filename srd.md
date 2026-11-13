@@ -103,9 +103,9 @@ The screen and the simulation share one model, in three regions separated by two
 
 | ID | Requirement |
 |---|---|
-| MOD-1 | A model run takes 8 s. It stages a forecast, then commits it atomically with an id (`F1`, `F2`, …), cause, values, valid-until and digest. A failed run commits nothing. |
+| MOD-1 | A model run takes 8 s, counted from when its inputs (climatology, background, observations) have arrived; their reads through pygeoapi take 6 s, so a run completes 14 s after it starts. It stages a forecast, then commits it atomically with an id (`F1`, `F2`, …), cause, values, valid-until and digest. A failed run commits nothing. |
 | MOD-2 | When a forecast is committed, the previous one becomes the background. |
-| DET-1 | Detection takes 5 s. A front is reported for each input more than 0.75σ from climatology; 1–3 eddies are reported, derived from the digest. |
+| DET-1 | Detection takes 5 s, counted from when its inputs (forecast, climatology) have arrived; their reads take 6 s. A front is reported for each input more than 0.75σ from climatology; 1–3 eddies are reported, derived from the digest. |
 | DET-2 | Features are tagged with their forecast id, so consumers can verify the feature count. |
 | FLT-1 | The presenter can take the model runner, the feature detector or the drift monitor **offline**. While a module is offline, every call to it fails: runs retry with backoff; drift checks fail and request nothing. The control is a play/pause button inline before the title of the component that hosts it (forecast, features, drift sensor). |
 | FLT-2 | A scenario script can make the next run fail once (no on-screen control). In addition, a seeded random failure rate of about 3% applies. |

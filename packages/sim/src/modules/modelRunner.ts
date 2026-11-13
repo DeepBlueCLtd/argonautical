@@ -35,12 +35,14 @@ export class ModelRunner {
     const inputs = this.inputs.map((s) => s.key);
     let staged: Forecast | undefined;
     return {
+      readDuration: TIMING.inputReadDuration,
       duration: TIMING.modelRunDuration,
       label,
       progress() {},
       complete() {
-        const validUntil = req.tick + TIMING.modelRunDuration + TIMING.staleAfter;
-        const base = { id: req.id, cause: req.cause, issuedAt: req.tick + TIMING.modelRunDuration, validUntil, inputs, values };
+        const issuedAt = req.tick + TIMING.inputReadDuration + TIMING.modelRunDuration;
+        const validUntil = issuedAt + TIMING.staleAfter;
+        const base = { id: req.id, cause: req.cause, issuedAt, validUntil, inputs, values };
         staged = { ...base, digest: forecastDigest(base) };
         writer.commit(staged);
         return staged;

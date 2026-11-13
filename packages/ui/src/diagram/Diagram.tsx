@@ -109,7 +109,10 @@ export function Diagram({ snap, runner, onPick, onTip, onTokenTip, spotlight }: 
   };
   const run = snap.run;
   const retryOn = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn !== undefined ? run.retryIn : undefined);
-  const executing = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn === undefined && run.progress > 0 ? run : undefined);
+  // While the step's reads are in flight it waits for its inputs; the countdown starts once they have arrived.
+  const reading = (step: 'run' | 'detect') => !!run && run.step === step && run.retryIn === undefined && run.reading;
+  const executing = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn === undefined && !run.reading ? run : undefined);
+  const execLabel = (step: 'run' | 'detect') => executing(step)?.label ?? (reading(step) ? 'awaiting inputs' : retryOn(step) !== undefined ? 'waiting for retry' : '');
   const smoothProgress = (step: 'run' | 'detect', dur: number) => {
     const r = executing(step);
     return r ? Math.min(1, r.progress + runner.frac / dur) : 0;
@@ -407,7 +410,7 @@ export function Diagram({ snap, runner, onPick, onTip, onTokenTip, spotlight }: 
       <PlayPause at={{ x: R.forecast.x + 20, y: R.forecast.y + 19 }} running={!snap.offline.modelRunner} what="the model runner (every run fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })} />
       <Shim r={R.shimRun} name="run" retryIn={retryOn('run')} />
       <Module r={R.modelRunner} name="Model runner" offline={snap.offline.modelRunner}>
-        <ExecLine r={R.modelRunner} label={executing('run')?.label ?? (retryOn('run') !== undefined ? 'waiting for retry' : '')} frac={smoothProgress('run', 8)} active={!!executing('run')} />
+        <ExecLine r={R.modelRunner} label={execLabel('run')} frac={smoothProgress('run', 8)} active={!!executing('run')} />
         {retryOn('run') !== undefined && run?.lastFailure && (
           <T x={R.modelRunner.x + 8} y={R.modelRunner.y + 58} cls="tiny muted">
             {run.lastFailure}
@@ -436,7 +439,7 @@ export function Diagram({ snap, runner, onPick, onTip, onTokenTip, spotlight }: 
       <PlayPause at={{ x: R.features.x + 20, y: R.features.y + 19 }} running={!snap.offline.featureDetector} what="the feature detector (detection fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })} />
       <Shim r={R.shimDetect} name="detect" retryIn={retryOn('detect')} />
       <Module r={R.featureDetector} name="Feature detector" offline={snap.offline.featureDetector}>
-        <ExecLine r={R.featureDetector} label={executing('detect')?.label ?? (retryOn('detect') !== undefined ? 'waiting for retry' : '')} frac={smoothProgress('detect', 5)} active={!!executing('detect')} />
+        <ExecLine r={R.featureDetector} label={execLabel('detect')} frac={smoothProgress('detect', 5)} active={!!executing('detect')} />
         <T x={R.featureDetector.x + 8} y={R.featureDetector.y + R.featureDetector.h - 10} cls="tiny muted">
           fronts &amp; eddies
         </T>

@@ -28,6 +28,12 @@ export const TIMING = {
   driftSensorInterval: 10,
   /** ORC-1: a forecast older than this is stale. */
   staleAfter: 180,
+  /**
+   * MOD-1, DET-1: ticks for a module's inputs to arrive before its countdown starts. Both modules read
+   * NetCDF, the slowest round trip: four legs of 2 + 3.5 + 3.5 + 2 s on screen = 11 s, under 6 ticks at the
+   * default 0.5× rate, so the countdown starts once the last input slot has filled.
+   */
+  inputReadDuration: 6,
   /** MOD-1 */
   modelRunDuration: 8,
   /** DET-1 */

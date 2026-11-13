@@ -2,14 +2,14 @@
   "name": "schedule",
   "description": "Acceptance 4: with no drift, the staleness schedule requests a run when the forecast countdown reaches 0:00.",
   "seed": "demo",
-  "until": 205,
+  "until": 215,
   "steps": [
     {
       "at": 0,
       "caption": "Nothing is drifting. F1 is valid for 180 seconds; watch its stale-in countdown."
     },
     {
-      "at": 185,
+      "at": 197,
       "caption": "At 0:00 the schedule fires and F2 replaces stale F1."
     }
   ]

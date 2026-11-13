@@ -239,7 +239,7 @@ export class Orchestrator {
     if (!job || a.attemptStart === undefined) return;
     try {
       job.progress();
-      if (t - a.attemptStart >= job.duration) {
+      if (t - a.attemptStart >= job.readDuration + job.duration) {
         const result = job.complete();
         a.job = undefined;
         this.stepComplete(t, result);

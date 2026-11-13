@@ -100,10 +100,13 @@ export interface AnnouncementPublisher {
 
 /** A long-running step (model run, detection). Pipes-style: start, report progress, complete. */
 export interface Job<R> {
+  /** Ticks for the job's inputs to arrive (its pygeoapi reads); the countdown starts only then. */
+  readonly readDuration: number;
+  /** Ticks of work once the inputs have arrived. */
   readonly duration: number;
   readonly label: string;
   /** Called each tick while running (a heartbeat). */
   progress(): void;
-  /** Called once `duration` ticks have elapsed. Performs the atomic write. */
+  /** Called once `readDuration + duration` ticks have elapsed. Performs the atomic write. */
   complete(): R;
 }
