@@ -7,6 +7,21 @@ import { hash53 } from './digest.ts';
 export type InputKey = string;
 export type Values = Readonly<Record<InputKey, number>>;
 
+/** One raw reading as published by the DAQ gateway (a SensorThings Observation message). */
+export interface SensorMessage {
+  /** Measurement time (phenomenonTime), not the time it is processed. */
+  readonly tick: number;
+  readonly input: InputKey;
+  readonly value: number;
+}
+
+/** A dependency (e.g. the Observations DB) is not available. Callers treat it as a retryable failure. */
+export class ServiceUnavailable extends Error {
+  constructor(readonly service: string) {
+    super(`${service} unavailable`);
+  }
+}
+
 export interface Observation {
   readonly tick: number;
   readonly input: InputKey;

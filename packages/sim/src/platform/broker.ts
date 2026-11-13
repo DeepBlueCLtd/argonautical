@@ -1,5 +1,6 @@
 /** Broker (off-the-shelf, mocked): delivers only to subscribers. */
 import type { Announcement } from '../contracts.ts';
+import { mqtt } from '../payloads.ts';
 import type { TokenRecorder } from '../tokens.ts';
 import { edgeId, type ElementId } from '../topology/elements.ts';
 
@@ -20,10 +21,10 @@ export class Broker {
   }
 
   publish(from: ElementId, msg: Announcement): void {
-    this.tokens.emit(edgeId(from, 'publish', 'broker'));
+    this.tokens.emit(edgeId(from, 'publish', 'broker'), { payload: mqtt(msg) });
     this.published++;
     for (const [instance, handler] of this.subs) {
-      this.tokens.emit(edgeId('broker', 'deliver', 'consumer'), { instance });
+      this.tokens.emit(edgeId('broker', 'deliver', 'consumer'), { instance, payload: mqtt(msg, instance) });
       handler(msg);
     }
   }

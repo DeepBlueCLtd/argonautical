@@ -1,0 +1,13 @@
+{
+  "name": "buffering",
+  "description": "FLT-3: the sensor broker buffers observations while ingestion, then the Observations DB, is stopped; nothing is lost and the backlog drains in order. While the DB is down a model run fails and retries.",
+  "seed": "demo",
+  "until": 150,
+  "steps": [
+    { "at": 20, "action": { "type": "ingestion", "running": false }, "caption": "Ingestion stops. The DAQ gateway keeps publishing; watch the sensor broker's queue grow by one message per instrument per second." },
+    { "at": 50, "action": { "type": "ingestion", "running": true }, "caption": "Ingestion restarts and drains the backlog in order, faster than new messages arrive. Nothing is lost." },
+    { "at": 80, "action": { "type": "observationsDb", "up": false }, "caption": "The Observations DB stops. Ingestion holds off (it acknowledges only after a commit), so messages queue again." },
+    { "at": 82, "action": { "type": "requestRun" }, "caption": "A run is requested while the DB is down: the model runner cannot read observations and retries with backoff." },
+    { "at": 110, "action": { "type": "observationsDb", "up": true }, "caption": "The DB is back: the backlog drains, the next retry reads observations and commits the forecast." }
+  ]
+}

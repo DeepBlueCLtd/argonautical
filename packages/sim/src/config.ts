@@ -58,6 +58,8 @@ export const NUMERICS = {
   nanGlitchRate: 0.002,
   wildGlitchRate: 0.001,
   wildGlitchSigma: 50,
+  /** Ingestion drains the sensor broker at up to this many ticks' worth of messages per tick. */
+  ingestCatchUp: 5,
   /** Default sensor noise, in σ. */
   defaultNoiseSigma: 0.3,
   /** Ocean natural drift (mean-reverting random walk, in σ). */

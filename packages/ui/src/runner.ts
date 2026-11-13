@@ -75,13 +75,14 @@ export class Runner {
     this.emit();
   }
 
-  /** Advance exactly one tick and let its tokens animate, then stay paused. */
+  /** Advance exactly one tick and let its tokens fly part-way, then stay paused so they can be inspected. */
   step(): void {
     this.running = false;
     this.sim.step();
     this.frac = 0;
     this.ingestTokens();
-    this.stepBudget = Math.max(1 / this.rate, MIN_WALL.lineage);
+    // Stop tokens mid-flight (25–50% along) rather than letting them finish and vanish.
+    this.stepBudget = MIN_WALL.other / 2;
     this.emit();
   }
 
@@ -117,6 +118,11 @@ export class Runner {
       if (same.length >= MAX_PER_EDGE) this.visuals.splice(this.visuals.indexOf(same[0]!), 1);
       this.visuals.push({ token: t, born: this.anim, dur, lineage });
     }
+  }
+
+  /** Paused with nothing left to animate: tokens are frozen and can be clicked. */
+  get frozen(): boolean {
+    return !this.running && this.stepBudget <= 0;
   }
 
   /** Tokens in flight with their progress 0–1. */

@@ -1,4 +1,4 @@
-import { EDGES, clockLabel, type Snapshot } from '@argonautical/sim';
+import { EDGES, clockLabel, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, type ReactNode } from 'react';
 import type { Runner } from '../runner.ts';
 import { CONSUMER_AREA, RECTS, REGIONS, VIEW, consumerRect, forecastLoop, midpoint, pathD, pointAt, routeAll, type Rect, type Route } from './layout.ts';
@@ -71,7 +71,13 @@ function Shim({ r, name, retryIn }: { r: Rect; name: string; retryIn?: number })
 
 // ---- diagram ----
 
-export function Diagram({ snap, runner, motion }: { snap: Snapshot; runner: Runner; motion: Motion }) {
+export interface Picked {
+  readonly token: Token;
+  readonly x: number;
+  readonly y: number;
+}
+
+export function Diagram({ snap, runner, motion, onPick }: { snap: Snapshot; runner: Runner; motion: Motion; onPick: (p: Picked) => void }) {
   const consumerIds = snap.consumers.map((c) => c.id);
   const routes = useMemo(() => routeAll(EDGES, consumerIds), [consumerIds.join(',')]);
   const byKey = useMemo(() => new Map(routes.map((r) => [r.key, r])), [routes]);
@@ -201,27 +207,57 @@ export function Diagram({ snap, runner, motion }: { snap: Snapshot; runner: Runn
         ))}
       </Box>
 
-      {/* Ingestion: ours, not orchestrated (UI-4) */}
-      <Box r={R.ingestion} style="ours">
-        <T x={R.ingestion.x + 10} y={R.ingestion.y + 22} cls="title">
-          Ingestion
+      {/* Ingestion: ours, not orchestrated (UI-4); presenter can stop/start it (FLT-3) */}
+      <g filter={snap.ingestion.running ? undefined : 'url(#offline-halo)'}>
+        <Box r={R.ingestion} style="ours" cls={snap.ingestion.running ? '' : 'stopped'}>
+          <T x={R.ingestion.x + 10} y={R.ingestion.y + 22} cls="title">
+            Ingestion
+          </T>
+          <T x={R.ingestion.x + 10} y={R.ingestion.y + 38} cls="tag">
+            not orchestrated
+          </T>
+          <T x={R.ingestion.x + 10} y={R.ingestion.y + 62} cls="small">
+            accepted {snap.ingestion.accepted}
+          </T>
+          <T x={R.ingestion.x + 10} y={R.ingestion.y + 80} cls="small">
+            rejected {snap.ingestion.rejected}
+          </T>
+          <T x={R.ingestion.x + 10} y={R.ingestion.y + 99} cls={`small ${snap.ingestion.status === 'running' ? 'muted' : 'offline-label'}`}>
+            {snap.ingestion.status === 'waiting for Observations DB' ? 'waiting for DB' : snap.ingestion.status}
+          </T>
+          <SvgButton
+            x={R.ingestion.x + 10}
+            y={R.ingestion.y + 106}
+            w={70}
+            label={snap.ingestion.running ? 'Stop' : 'Start'}
+            title={snap.ingestion.running ? 'Stop ingestion: readings queue in the sensor broker' : 'Start ingestion: the backlog drains'}
+            onClick={() => runner.apply({ type: 'ingestion', running: !snap.ingestion.running })}
+          />
+        </Box>
+      </g>
+
+      {/* Sensor broker: persistent queue between the DAQ gateway and ingestion (FLT-3) */}
+      <Box r={R.sensorBroker} style="ots">
+        <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 22} cls="title">
+          Sensor broker
         </T>
-        <T x={R.ingestion.x + 10} y={R.ingestion.y + 38} cls="tag">
-          not orchestrated
+        <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 38} cls="muted tiny">
+          persistent queue · QoS 1
         </T>
-        <T x={R.ingestion.x + 10} y={R.ingestion.y + 66} cls="small">
-          accepted {snap.ingestion.accepted}
+        <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 66} cls={`queue-count mono ${snap.sensorBroker.queued > snap.inputs.length ? 'backlog' : ''}`}>
+          {snap.sensorBroker.queued}
         </T>
-        <T x={R.ingestion.x + 10} y={R.ingestion.y + 84} cls="small">
-          rejected {snap.ingestion.rejected}
+        <T x={R.sensorBroker.x + 60} y={R.sensorBroker.y + 66} cls="small">
+          queued
         </T>
-        <T x={R.ingestion.x + 10} y={R.ingestion.y + 106} cls="muted small">
-          validates every sample
+        <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 90} cls="tiny muted">
+          {snap.sensorBroker.queued > snap.inputs.length ? `oldest ${snap.sensorBroker.oldestAge}s ago` : 'acked after DB commit'}
         </T>
       </Box>
 
-      {/* Observations DB = the observations source asset (UI-8) */}
-      <Store r={R.observationsDb}>
+      {/* Observations DB = the observations source asset (UI-8); presenter can stop/start it (FLT-3) */}
+      <g filter={snap.stores.observationsUp ? undefined : 'url(#offline-halo)'}>
+      <Store r={R.observationsDb} cls={snap.stores.observationsUp ? '' : 'stopped'}>
         <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 26} cls="title">
           Observations
         </T>
@@ -231,10 +267,19 @@ export function Diagram({ snap, runner, motion }: { snap: Snapshot; runner: Runn
         <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 62} cls="tag">
           source asset
         </T>
-        <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 92} cls="small mono">
-          {snap.stores.observations} rows
+        <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 82} cls={snap.stores.observationsUp ? 'small mono' : 'small offline-label'}>
+          {snap.stores.observationsUp ? `${snap.stores.observations} rows` : 'stopped'}
         </T>
+        <SvgButton
+          x={R.observationsDb.x + 12}
+          y={R.observationsDb.y + 92}
+          w={60}
+          label={snap.stores.observationsUp ? 'Stop' : 'Start'}
+          title={snap.stores.observationsUp ? 'Stop the Observations DB: ingestion holds off, observation reads fail' : 'Start the Observations DB'}
+          onClick={() => runner.apply({ type: 'observationsDb', up: !snap.stores.observationsUp })}
+        />
       </Store>
+      </g>
 
       {/* Triggers */}
       <Box r={R.driftSensor} style="ots">
@@ -346,7 +391,12 @@ export function Diagram({ snap, runner, motion }: { snap: Snapshot; runner: Runn
       </Box>
       <Shim r={R.shimRun} name="run" retryIn={retryOn('run')} />
       <Module r={R.modelRunner} name="Model runner" offline={snap.offline.modelRunner}>
-        <ExecLine r={R.modelRunner} label={executing('run')?.label ?? (retryOn('run') !== undefined ? `waiting for retry (${run?.lastFailure ?? ''})` : '')} frac={smoothProgress('run', 8)} active={!!executing('run')} />
+        <ExecLine r={R.modelRunner} label={executing('run')?.label ?? (retryOn('run') !== undefined ? 'waiting for retry' : '')} frac={smoothProgress('run', 8)} active={!!executing('run')} />
+        {retryOn('run') !== undefined && run?.lastFailure && (
+          <T x={R.modelRunner.x + 8} y={R.modelRunner.y + 58} cls="tiny muted">
+            {run.lastFailure}
+          </T>
+        )}
         <T x={R.modelRunner.x + 8} y={R.modelRunner.y + R.modelRunner.h - 10} cls="tiny muted">
           nudges background 60% to obs
         </T>
@@ -489,8 +539,21 @@ export function Diagram({ snap, runner, motion }: { snap: Snapshot; runner: Runn
       )}
 
       {/* Motion: tokens or per-edge counters (MOT-1, MOT-2) */}
-      {motion === 'tokens' ? <Tokens runner={runner} byKey={byKey} loop={loop} /> : <EdgeCounters snap={snap} routes={routes} />}
+      {motion === 'tokens' ? <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} /> : <EdgeCounters snap={snap} routes={routes} />}
     </svg>
+  );
+}
+
+/** A small clickable control drawn inside the diagram (keyboard accessible). */
+function SvgButton({ x, y, w, label, title, onClick }: { x: number; y: number; w: number; label: string; title: string; onClick: () => void }) {
+  return (
+    <g className="svg-button" role="button" tabIndex={0} aria-label={title} onClick={onClick} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick()}>
+      <title>{title}</title>
+      <rect x={x} y={y} width={w} height={18} rx={4} />
+      <text x={x + w / 2} y={y + 13} textAnchor="middle" className="tiny">
+        {label}
+      </text>
+    </g>
   );
 }
 
@@ -581,15 +644,37 @@ function ResidualBars({ r, snap }: { r: Rect; snap: Snapshot }) {
   );
 }
 
-function Tokens({ runner, byKey, loop }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[] }) {
+function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void }) {
+  // Drill-down: once paused, frozen tokens get a larger hit area and open a popup on click.
+  const frozen = runner.frozen;
   return (
-    <g className="tokens">
+    <g className={`tokens ${frozen ? 'inspectable' : ''}`}>
       {runner.tokens.map(({ v, p }) => {
         const tk = v.token;
         const pts = tk.edge === 'forecast>lineage>forecast' ? loop : byKey.get(tk.instance ? `${tk.edge}#${tk.instance}` : tk.edge)?.points;
         if (!pts) return null;
         const pt = pointAt(pts, p);
-        return <circle key={tk.seq} className={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} cx={pt.x} cy={pt.y} r={v.lineage ? 8 : 4.5} />;
+        const dot = <circle className={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} cx={pt.x} cy={pt.y} r={v.lineage ? 8 : 4.5} />;
+        if (!frozen) return <g key={tk.seq}>{dot}</g>;
+        const pick = (e: { clientX: number; clientY: number }) => onPick({ token: tk, x: e.clientX, y: e.clientY });
+        return (
+          <g
+            key={tk.seq}
+            className="pickable"
+            role="button"
+            tabIndex={0}
+            aria-label={`Inspect ${tk.payload?.summary ?? tk.edge}`}
+            onClick={pick}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              const b = (e.currentTarget as SVGGElement).getBoundingClientRect();
+              onPick({ token: tk, x: b.x + b.width / 2, y: b.y + b.height / 2 });
+            }}
+          >
+            <circle className="hit" cx={pt.x} cy={pt.y} r={14} />
+            {dot}
+          </g>
+        );
       })}
     </g>
   );

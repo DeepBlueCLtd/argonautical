@@ -39,10 +39,11 @@ The screen and the simulation share one model, in three regions separated by two
 
 **World** (not our system)
 - **Ocean**: the real environment. Each input has a true value that drifts slowly, and a scenario shift moves it the way a passing front would.
-- **Sensors**: onboard instruments. Each input has its own noise stream and noise level.
+- **Sensors**: onboard instruments. Each input has its own noise stream and noise level. The DAQ gateway publishes each reading to the sensor broker as a SensorThings Observation message (SensorThings MQTT topic, one Datastream per input).
 
 **System**
-- **Ingestion** (ours, not orchestrated): validates every observation and is the only writer to the Observations DB. It runs on every sample, not when the orchestrator calls it.
+- **Sensor broker** (off-the-shelf, mocked): a persistent queue between the DAQ gateway and ingestion. Ingestion holds a persistent session (QoS 1) and acknowledges messages only after the database commit, so an ingestion or database restart loses nothing.
+- **Ingestion** (ours, not orchestrated): consumes the sensor broker in order, validates every observation (keeping its measurement time) and is the only writer to the Observations DB. It runs continuously, not when the orchestrator calls it. After an outage it drains the backlog faster than new messages arrive.
 - **Orchestrator** (off-the-shelf, mocked): the asset graph and its triggers.
   - Assets: `observations`, `climatology`, `background` (the previous forecast), `forecast`, `features`, `announcement`. `observations` is a source asset: a declaration pointing at the Observations DB, not a separate thing, so it is drawn as the Observations DB itself (UI-8). `background` is drawn as a loop on `forecast` (UI-10).
   - Lineage: observations + climatology + background → forecast → features → announcement; forecast → announcement.
@@ -55,7 +56,7 @@ The screen and the simulation share one model, in three regions separated by two
   - **Model runner** (inside forecast): moves the background 60% of the way towards recent observations, falling back to climatology. It stages the result, then commits it atomically with a digest.
   - **Feature detector** (inside features): finds fronts and eddies in the new forecast.
   - **Announcer** (inside announcement): builds the announcement (ORC-5) and publishes it to the broker. The message contract is ours.
-- **Stores** (ours): the Observations DB (time series), the NetCDF store (coverage files: climatology and forecasts) and the Features DB (PostGIS).
+- **Stores** (ours): the Observations DB (time series in the SensorThings data model: one Thing, the ship; a Datastream per input; Observations with `phenomenonTime` and `result`. Ingestion writes Observation entities over SQL and pygeoapi serves them as SensorThings), the NetCDF store (coverage files: climatology and forecasts) and the Features DB (PostGIS).
 - **pygeoapi** (off-the-shelf, mocked, read-only): SensorThings, EDR and Features. It is the only read path, both for our modules and for consumers.
 - **Broker** (off-the-shelf, mocked): sits on the System–Consumers boundary and delivers only to subscribers.
 
@@ -108,6 +109,7 @@ The screen and the simulation share one model, in three regions separated by two
 | DET-2 | Features are tagged with their forecast id, so consumers can verify the feature count. |
 | FLT-1 | The presenter can take the model runner or the feature detector **offline**. While a module is offline, every call to it fails. |
 | FLT-2 | The presenter can make the next run fail once. In addition, a seeded random failure rate of about 3% applies. |
+| FLT-3 | The presenter can **stop and start ingestion** and **stop and start the Observations DB**. While either is stopped, messages queue in the sensor broker, and its queued count is shown. While the DB is stopped, reads of observations fail: model runs retry with backoff and the drift monitor reports observations unavailable. On restart the backlog drains in order, with nothing lost. |
 
 ### 3.5 Orchestrator
 
@@ -172,6 +174,7 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 | MOT-3 | Countdowns show what triggers things: a ring on the drift sensor (time to the next check), "stale in m:ss" rings on the staleness schedule and on forecast (showing "stale · replacing" once the scheduled run starts), an execution bar on the model runner ("replacing stale F2"), an execution bar on the feature detector, and a retry countdown on the shim. |
 | MOT-4 | **Retry state belongs to the orchestrator, not our code.** The retry countdown appears on the shim strip, which turns amber. A retry sends one amber token from the shim into the module. Lineage tokens are not re-sent on a retry. |
 | MOT-5 | While a module is offline it shows an offline state (a red halo) and no progress, and stops "running". |
+| MOT-6 | **Drill-down.** Every token record carries what was passed: a one-line summary, the real-world format it stands for in production (e.g. a SensorThings or EDR request and response, an MQTT message, a Dagster RunRequest, a NetCDF commit) and a mock data object filled with the simulation's values. When the simulation is paused, clicking a frozen token opens a popup showing these. Step leaves the new tick's tokens part-way along their edges so they can be inspected. Payloads never affect the event log or its digest. |
 
 ### 5.3 Colour semantics
 
@@ -195,7 +198,7 @@ Controls fall into three kinds, and each kind looks different so the audience ca
 |---|---|---|
 | **Scenario** | Nobody (the sea, the sensors) | Per-input shift (+5σ over 20 s, toggle); per-input sensor noise (0–3σ) |
 | **Operator** | The ship's operator | Drift threshold, quorum, persistence; Request a run |
-| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate 1×/10×/60×, number of inputs, fail next run, offline toggles, add consumer, motion mode, view (information flow / system), tour, event log |
+| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate 1×/10×/60×, number of inputs, fail next run, offline toggles, stop/start ingestion and Observations DB (on their cards), add consumer, motion mode, view (information flow / system), tour, event log |
 
 ### 5.5 Banner
 
@@ -244,6 +247,7 @@ The standard view is information flow (§5.1). A second, optional view shows the
 15. Removing any element's placement, or a link that a cross-node edge needs, fails the test suite.
 16. Each tour, run headless to completion, produces the same golden event-log digest as its replay test.
 17. With the OS set to reduced motion, the demo starts in reduced-motion mode and shows the switch-to-tokens hint; `?motion=tokens` overrides it.
+18. Stop ingestion for 30 s: the sensor broker's queued count grows by one per input per second. Start it: the queue drains to zero, and every observation is in the DB once, in measurement-time order. Stop the DB and request a run: the run retries until the DB is back, then commits.
 
 ---
 
@@ -271,6 +275,7 @@ None open. The six questions from v2 and three raised by the system-architecture
 - **Tour mode.** Wanted, built from the replay scripts (§5.7).
 - **Target display.** 1920×1080 minimum (UI-6), raised from 1280×720 to give the straddling Observations DB (UI-8) room. Scales up to large monitors; below 1080p (e.g. an older 720p projector) legibility is not guaranteed.
 - **Drift monitor cadence.** It stays a Dagster sensor. The 4 s interval is demo-only; production uses ≥30 s (ORC-1).
+- **Observation path.** Observations use the SensorThings schema end to end, with no SensorThings server (no FROST-Server). The DAQ gateway publishes SensorThings Observation messages to a **sensor broker** (a persistent queue), and ingestion acknowledges only after the DB commit. The broker is there for resilience: ingestion or DB restarts lose nothing. Buffering is commodity, so it is adopted rather than built into the gateway. It is a separate instance from the announcement broker, because the networks are separate.
 - **Read path.** Our modules read only through pygeoapi, as §2 states. Revisit if forecast grids grow large enough for the HTTP hop to matter.
 - **Network zones.** The instrument (OT) network and the mission network are separate, with a distribution zone between them (SYS-3).
 - **Announce shim.** It calls a new module of ours, the announcer, which publishes to the broker, so every shim calls one of our modules (§2).

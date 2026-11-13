@@ -1,11 +1,13 @@
 /** Ingestion (ours, not orchestrated): ING-1..4. The only writer to the Observations DB. */
 import type { InputSpec } from '../config.ts';
 import { NUMERICS } from '../config.ts';
-import type { InputKey, Observation, ObservationWriter } from '../contracts.ts';
+import type { InputKey, Observation, ObservationWriter, SensorMessage } from '../contracts.ts';
 
 export type RejectReason = 'not a finite number' | 'outside ±10σ of climatology' | 'jump > 4σ from last accepted';
 
 export interface Rejection {
+  /** Measurement time of the rejected reading. */
+  readonly tick: number;
   readonly input: InputKey;
   readonly value: number;
   readonly reason: RejectReason;
@@ -34,17 +36,24 @@ export class Ingestion {
     return undefined;
   }
 
+  /** Convenience: one reading per input, all measured at `tick`. */
   ingest(tick: number, readings: Readonly<Record<InputKey, number>>): IngestResult {
+    return this.ingestMessages(this.inputs.map((s) => ({ tick, input: s.key, value: readings[s.key] ?? NaN })));
+  }
+
+  /** Validate messages in order (each keeps its measurement time) and write the accepted ones in one commit. */
+  ingestMessages(messages: readonly SensorMessage[]): IngestResult {
     const accepted: Observation[] = [];
     const rejected: Rejection[] = [];
-    for (const spec of this.inputs) {
-      const value = readings[spec.key] ?? NaN;
-      const reason = this.validate(spec, value);
+    for (const m of messages) {
+      const spec = this.inputs.find((s) => s.key === m.input);
+      if (!spec) continue;
+      const reason = this.validate(spec, m.value);
       if (reason) {
-        rejected.push({ input: spec.key, value, reason });
+        rejected.push({ tick: m.tick, input: m.input, value: m.value, reason });
       } else {
-        accepted.push({ tick, input: spec.key, value });
-        this.lastAccepted.set(spec.key, value);
+        accepted.push({ tick: m.tick, input: m.input, value: m.value });
+        this.lastAccepted.set(m.input, m.value);
       }
     }
     if (accepted.length) this.writer.append(accepted);

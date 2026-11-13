@@ -1,6 +1,7 @@
 import { DRIFT_BOUNDS, MAX_INPUTS, MIN_INPUTS, NOISE_BOUNDS, type ControlAction, type Snapshot } from '@argonautical/sim';
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Diagram, type Motion } from './diagram/Diagram.tsx';
+import { Diagram, type Motion, type Picked } from './diagram/Diagram.tsx';
+import { TokenPopup } from './TokenPopup.tsx';
 import { VIEW } from './diagram/layout.ts';
 import boundary from './generated/boundary.json';
 import { Runner, type Rate } from './runner.ts';
@@ -92,6 +93,7 @@ export function App() {
   );
   const [motion, setMotion] = useState<Motion>(initialMotion);
   const [logOpen, setLogOpen] = useState(false);
+  const [picked, setPicked] = useState<Picked | null>(null);
   const layout = useLayout(runner.sim.inputs.length);
   const snap = runner.sim.snapshot();
   const act = (a: ControlAction) => runner.apply(a);
@@ -101,7 +103,10 @@ export function App() {
       <PresenterBar runner={runner} snap={snap} motion={motion} setMotion={setMotion} logOpen={logOpen} setLogOpen={setLogOpen} />
       <Banner snap={snap} />
       <main className="stage">
-        <Diagram snap={snap} runner={runner} motion={motion} />
+        <Diagram snap={snap} runner={runner} motion={motion} onPick={setPicked} />
+        {motion === 'tokens' && runner.frozen && !picked && (
+          <div className="inspect-hint">{runner.tokens.length ? 'Paused · click a dot to see what it carries' : 'Paused · press Step to send one tick of tokens, then click a dot'}</div>
+        )}
         <Legend />
       </main>
       <footer className="controls">
@@ -109,6 +114,7 @@ export function App() {
         <OperatorPanel snap={snap} act={act} />
       </footer>
       {logOpen && <EventLogPanel runner={runner} onClose={() => setLogOpen(false)} />}
+      {picked && runner.frozen && <TokenPopup token={picked.token} x={picked.x} y={picked.y} onClose={() => setPicked(null)} />}
     </div>
   );
 }

@@ -34,6 +34,7 @@ export interface Placement {
 export const PLACEMENT: Record<ElementId, Placement> = {
   ocean: { node: 'sea', process: '—' },
   sensors: { node: 'daq', process: 'instruments' },
+  sensorBroker: { node: 'ingest', process: 'mosquitto (OT)' },
   ingestion: { node: 'ingest', process: 'ingest-svc' },
   observationsDb: { node: 'data', process: 'postgres' },
   orchestrator: { node: 'orch', process: 'dagster-daemon' },

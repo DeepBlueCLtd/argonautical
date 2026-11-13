@@ -73,13 +73,14 @@ flowchart LR
 
 | SRD element | Production component | Node / zone | Notes |
 |---|---|---|---|
-| Sensors | Instruments + DAQ gateways | OT | Gateways normalise serial/NMEA to a single message format. |
+| Sensors | Instruments + DAQ gateways | OT | Gateways translate serial/NMEA/vendor output into **SensorThings Observation messages** on the SensorThings MQTT topic pattern (`v1.1/Datastreams('<id>')/Observations`). |
+| Sensor broker | Mosquitto (separate instance on the OT network) | OT / ingestion host | A persistent queue for resilience. Ingestion holds a persistent session (QoS 1) and acknowledges only after the DB commit, so ingestion or DB restarts lose nothing and the backlog drains in order. The alternative, a point-to-point link with store-and-forward in the gateway, was rejected: that is custom code for a commodity job. Configure it with persistence to disk, and size its queue for the longest DB outage you expect. |
 | Ingestion | Long-running service | OT (edge of) | Only writer to Observations DB. Not orchestrated (UI-4) — correct in production too: per-sample work does not belong in a batch orchestrator. |
 | Orchestrator | Dagster webserver + daemon + metadata Postgres | Orchestration node | The "private store" (§2) is Dagster's own Postgres. |
 | Shims | `@asset` / `@sensor` definitions | Code location process | See §1.4 — the boundary is an import boundary, not a process boundary. |
 | Drift monitor, feature detector, announcer | Python packages imported by the code location | Orchestration node | Run in-process with the shims. The announcer owns the announcement message contract. |
 | Model runner | Container launched by Dagster Pipes | Compute node | Heavier, may be a different language/runtime; isolate it. |
-| Observations DB | Postgres + TimescaleDB | Data node | |
+| Observations DB | Postgres + TimescaleDB, **SensorThings schema** | Data node | Data model is SensorThings end to end (Thing = ship, a Datastream per input, Observations). Ingestion writes Observation entities over SQL; pygeoapi serves them as the SensorThings API. There is no SensorThings server (FROST-Server was considered and not adopted): the schema travels in the gateways' messages, and ingestion validates and writes those entities. The cost: ingestion is coupled to the schema. |
 | NetCDF store | Shared volume (NFS) or MinIO with Zarr | Data node | Atomic commit = write to staging path, then rename/manifest swap. |
 | Features DB | PostGIS | Data node | |
 | pygeoapi | Container behind reverse proxy | Distribution zone | Read-only DB role. |
@@ -259,6 +260,7 @@ Adopted components must have: an OSI-approved licence compatible with redistribu
 |---|---|---|---|
 | Orchestrator | **Adopt** | Dagster (Apache-2.0) | Commodity. Behind shims (ARC-1, ARC-2) so it stays replaceable (Prefect, Airflow). |
 | Broker | **Adopt** | Mosquitto (EPL-2.0) | Commodity. Retained messages cover late joiners. |
+| Sensor broker | **Adopt** | Mosquitto (EPL-2.0), separate OT instance | Commodity buffering. Adopted rather than built into the DAQ gateway. |
 | Geospatial API | **Adopt** | pygeoapi (MIT) | Commodity, OGC-standard. |
 | Observations DB | **Adopt** | PostgreSQL (+ TimescaleDB *Apache-2.0 edition*) | **Licence trap:** several TimescaleDB features are under the non-OSI Timescale Licence. Use the Apache edition, or plain Postgres partitioning. |
 | Features DB | **Adopt** | PostGIS (GPL-2.0) | GPL is fine when it runs as a separate server process; check if anything ever links it in. |

@@ -4,7 +4,7 @@
  * way to mutate state, ARC-4) and a read-only snapshot.
  */
 import type { InputSpec } from './config.ts';
-import { DEFAULT_CONSUMERS, DRIFT_BOUNDS, NOISE_BOUNDS, TIMING, inputsFor } from './config.ts';
+import { DEFAULT_CONSUMERS, DRIFT_BOUNDS, NOISE_BOUNDS, NUMERICS, TIMING, inputsFor } from './config.ts';
 import type { Values } from './contracts.ts';
 import { Consumer } from './consumers/consumer.ts';
 import { EventLog, clockLabel } from './events.ts';
@@ -16,7 +16,9 @@ import { Ingestion } from './modules/ingestion.ts';
 import { ModelRunner } from './modules/modelRunner.ts';
 import { Orchestrator } from './orchestrator/orchestrator.ts';
 import { Broker } from './platform/broker.ts';
+import { SensorBroker } from './platform/sensorBroker.ts';
 import { PygeoApi } from './platform/pygeoapi.ts';
+import * as P from './payloads.ts';
 import { Streams } from './rng.ts';
 import { FeaturesDb, NetcdfStore, ObservationsDb } from './stores/stores.ts';
 import { TokenRecorder } from './tokens.ts';
@@ -43,7 +45,9 @@ export type ControlAction =
   | { readonly type: 'offline'; readonly module: FaultTarget; readonly offline: boolean }
   | { readonly type: 'failNextRun' }
   | { readonly type: 'addConsumer' }
-  | { readonly type: 'reconfigureConsumer'; readonly consumer: string };
+  | { readonly type: 'reconfigureConsumer'; readonly consumer: string }
+  | { readonly type: 'ingestion'; readonly running: boolean }
+  | { readonly type: 'observationsDb'; readonly up: boolean };
 
 export class Simulation {
   readonly seed: string;
@@ -58,15 +62,21 @@ export class Simulation {
   readonly featuresDb = new FeaturesDb();
   readonly pygeoapi: PygeoApi;
   readonly broker: Broker;
+  readonly sensorBroker: SensorBroker;
+  /** Presenter can stop and start ingestion (FLT-3). */
+  ingestionRunning = true;
+  private backlogPeak = 0;
   readonly ingestion: Ingestion;
   readonly orchestrator: Orchestrator;
   readonly faults: Faults;
   readonly consumers: Consumer[] = [];
   private t = 0;
+  private readonly units: Record<string, string>;
 
   constructor(opts: SimOptions) {
     this.seed = opts.seed;
     this.inputs = inputsFor(opts.inputs ?? 4);
+    this.units = Object.fromEntries(this.inputs.map((s) => [s.key, s.unit]));
     this.streams = new Streams(opts.seed);
     const now = () => this.t;
     this.tokens = new TokenRecorder(this.log, now);
@@ -76,6 +86,7 @@ export class Simulation {
     this.netcdf = new NetcdfStore(clim);
     this.pygeoapi = new PygeoApi(this.observationsDb, this.netcdf, this.featuresDb, this.tokens);
     this.broker = new Broker(this.tokens);
+    this.sensorBroker = new SensorBroker(this.tokens, this.units);
     this.faults = new Faults(this.streams.get('failures'));
 
     // Our modules, wired to the read path (pygeoapi) and to our stores. They never see the orchestrator.
@@ -95,7 +106,7 @@ export class Simulation {
       },
       {
         commit: (f) => {
-          tokens.emit(edgeId('modelRunner', 'write', 'netcdfStore'));
+          tokens.emit(edgeId('modelRunner', 'write', 'netcdfStore'), { payload: P.forecastCommit(f) });
           this.netcdf.commit(f);
         },
       },
@@ -108,7 +119,7 @@ export class Simulation {
       },
       {
         writeAll: (id, feats) => {
-          tokens.emit(edgeId('featureDetector', 'write', 'featuresDb'));
+          tokens.emit(edgeId('featureDetector', 'write', 'featuresDb'), { payload: P.featuresInsert(id, feats) });
           this.featuresDb.writeAll(id, feats);
         },
       },
@@ -149,17 +160,40 @@ export class Simulation {
     this.t++;
     const t = this.t;
     this.ocean.step();
-    const readings = this.sensors.sample();
-    this.tokens.emit(edgeId('sensors', 'send', 'ingestion'));
-    const res = this.ingestion.ingest(t, readings);
-    if (res.accepted.length) this.tokens.emit(edgeId('ingestion', 'write', 'observationsDb'));
-    for (const r of res.rejected) {
-      const v = Number.isFinite(r.value) ? r.value.toFixed(3) : String(r.value);
-      this.log.append(t, 'ingest', `rejected ${r.input} = ${v}: ${r.reason}`);
-    }
+    this.sensorBroker.publish(t, this.sensors.sample());
+    this.ingest(t);
     this.orchestrator.tick(t);
     for (const c of this.consumers) c.tick(t);
     this.tokens.prune();
+  }
+
+  /**
+   * Ingestion drains the sensor broker in order, faster than it fills, and acknowledges only after the
+   * database commit. While ingestion or the database is stopped, messages stay queued.
+   */
+  private ingest(t: number): void {
+    if (!this.ingestionRunning || !this.observationsDb.up) return;
+    const batch = this.sensorBroker.deliver(NUMERICS.ingestCatchUp * this.inputs.length, t);
+    if (!batch.length) return;
+    const res = this.ingestion.ingestMessages(batch);
+    if (res.accepted.length) this.tokens.emit(edgeId('ingestion', 'write', 'observationsDb'), { payload: P.observationInsert(res.accepted, res.rejected.length) });
+    this.sensorBroker.ack(batch.length);
+    for (const r of res.rejected) {
+      const v = Number.isFinite(r.value) ? r.value.toFixed(3) : String(r.value);
+      const late = r.tick < t ? ` (measured ${clockLabel(r.tick)})` : '';
+      this.log.append(t, 'ingest', `rejected ${r.input} = ${v}: ${r.reason}${late}`);
+    }
+    const queued = this.sensorBroker.queued;
+    if (queued > 0) this.backlogPeak = Math.max(this.backlogPeak, queued + batch.length);
+    else if (this.backlogPeak > 0) {
+      this.log.append(t, 'ingest', `sensor broker backlog drained (peak ${this.backlogPeak} messages, none lost)`);
+      this.backlogPeak = 0;
+    }
+  }
+
+  /** Readable state of ingestion for the UI. */
+  get ingestionStatus(): 'running' | 'stopped' | 'waiting for Observations DB' {
+    return !this.ingestionRunning ? 'stopped' : !this.observationsDb.up ? 'waiting for Observations DB' : 'running';
   }
 
   // ---- Control API (scenario, operator, presenter) ----
@@ -186,6 +220,10 @@ export class Simulation {
         return void this.addConsumer();
       case 'reconfigureConsumer':
         return this.reconfigureConsumer(a.consumer);
+      case 'ingestion':
+        return this.setIngestionRunning(a.running);
+      case 'observationsDb':
+        return this.setObservationsDbUp(a.up);
     }
   }
 
@@ -245,6 +283,18 @@ export class Simulation {
   setOffline(module: FaultTarget, offline: boolean): void {
     this.faults.offline[module] = offline;
     this.control(`presenter: ${module} ${offline ? 'offline' : 'online'}`);
+  }
+
+  /** Presenter: FLT-3, stop or start ingestion. Messages queue in the sensor broker while it is stopped. */
+  setIngestionRunning(running: boolean): void {
+    this.ingestionRunning = running;
+    this.control(`presenter: ingestion ${running ? 'started' : 'stopped'}`);
+  }
+
+  /** Presenter: FLT-3, stop or start the Observations DB. Ingestion holds off; observation reads fail. */
+  setObservationsDbUp(up: boolean): void {
+    this.observationsDb.up = up;
+    this.control(`presenter: Observations DB ${up ? 'started' : 'stopped'}`);
   }
 
   /** Presenter: FLT-2. */
@@ -309,9 +359,11 @@ export class Simulation {
         reading: this.sensors.last[s.key],
         residual: o.cursor.residuals[s.key],
       })),
-      ingestion: { accepted: this.ingestion.acceptedCount, rejected: this.ingestion.rejectedCount },
+      ingestion: { accepted: this.ingestion.acceptedCount, rejected: this.ingestion.rejectedCount, running: this.ingestionRunning, status: this.ingestionStatus },
+      sensorBroker: { queued: this.sensorBroker.queued, oldestAge: this.sensorBroker.oldest === undefined ? 0 : this.t - this.sensorBroker.oldest, published: this.sensorBroker.published, delivered: this.sensorBroker.delivered },
       stores: {
         observations: this.observationsDb.count,
+        observationsUp: this.observationsDb.up,
         coverageFiles: this.netcdf.fileCount,
         features: this.featuresDb.count,
       },

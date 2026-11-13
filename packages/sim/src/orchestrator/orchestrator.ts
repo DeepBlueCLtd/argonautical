@@ -3,7 +3,7 @@
  * run queue with merge, and retry with backoff. ORC-1..6, DRF-5.
  */
 import { TIMING } from '../config.ts';
-import type { Feature, Forecast, Job } from '../contracts.ts';
+import { ServiceUnavailable, type Feature, type Forecast, type Job } from '../contracts.ts';
 import type { EventLog } from '../events.ts';
 import { clockLabel } from '../events.ts';
 import { ModuleFailure } from '../faults.ts';
@@ -11,6 +11,7 @@ import type { Announcer } from '../modules/announcer.ts';
 import type { DriftCheckResult, DriftMonitor, DriftParams } from '../modules/driftMonitor.ts';
 import type { FeatureDetector } from '../modules/featureDetector.ts';
 import type { ModelRunner } from '../modules/modelRunner.ts';
+import * as P from '../payloads.ts';
 import type { TokenRecorder } from '../tokens.ts';
 import { edgeId, type ElementId } from '../topology/elements.ts';
 import * as shims from './shims.ts';
@@ -119,7 +120,7 @@ export class Orchestrator {
   /** Manual request from the operator (and the entry point for all triggers). */
   request(cause: Cause, from: ElementId, note = ''): void {
     const t = this.d.now();
-    this.d.tokens.emit(edgeId(from, 'trigger', 'forecast'));
+    this.d.tokens.emit(edgeId(from, 'trigger', 'forecast'), { payload: P.runRequest(cause, from, note, t) });
     const why = note ? ` (${note})` : '';
     if (this.pending) {
       this.pending.causes.push(cause);
@@ -142,9 +143,22 @@ export class Orchestrator {
   }
 
   private driftCheck(t: number): void {
-    this.d.tokens.emit(edgeId('shimCheck', 'call', 'driftMonitor'));
-    const res = shims.check(this.d.monitor, { params: this.params, streak: this.cursor.streak, driftRun: this.driftRunState });
-    const changed = res.status !== this.cursor.status;
+    const before = this.cursor.status;
+    this.d.tokens.emit(edgeId('shimCheck', 'call', 'driftMonitor'), {
+      payload: P.shimCall('drift_monitor.check', 'Python call inside the Dagster sensor', { ...this.params, streak: this.cursor.streak, drift_run: this.driftRunState ?? null }),
+    });
+    let res;
+    try {
+      res = shims.check(this.d.monitor, { params: this.params, streak: this.cursor.streak, driftRun: this.driftRunState });
+    } catch (e) {
+      if (!(e instanceof ServiceUnavailable)) throw e;
+      // The sensor tick fails; its cursor is kept for the next check.
+      const status = 'observations unavailable (DB down)';
+      Object.assign(this.cursor, { status, lastCheck: t });
+      if (status !== before) this.d.log.append(t, 'drift', `drift monitor: ${status}`);
+      return;
+    }
+    const changed = res.status !== before;
     Object.assign(this.cursor, { streak: res.streak, status: res.status, lastCheck: t, residuals: res.residuals, exceeding: res.exceeding });
     if (res.requestRun) {
       const list = res.exceeding.join(', ');
@@ -180,19 +194,25 @@ export class Orchestrator {
     a.retryAt = undefined;
     a.job = undefined;
     const first = a.attempt === 1;
-    const retry = first ? {} : { retry: true };
+    const retry: { retry?: boolean } = first ? {} : { retry: true };
     try {
       if (a.step === 'run') {
         if (first) {
-          this.d.tokens.emit(edgeId('observationsDb', 'lineage', 'forecast'));
-          this.d.tokens.emit(edgeId('climatology', 'lineage', 'forecast'));
+          this.d.tokens.emit(edgeId('observationsDb', 'lineage', 'forecast'), { payload: P.lineage('observations', 'forecast', a.id) });
+          this.d.tokens.emit(edgeId('climatology', 'lineage', 'forecast'), { payload: P.lineage('climatology', 'forecast', a.id) });
         }
-        this.d.tokens.emit(edgeId('shimRun', 'call', 'modelRunner'), retry);
+        this.d.tokens.emit(edgeId('shimRun', 'call', 'modelRunner'), {
+          ...retry,
+          payload: P.shimCall('model_runner.run', 'Dagster Pipes: launch the model-runner container', { forecast_id: a.forecastId, cause: a.causes.join(' + ') }, a.attempt),
+        });
         if (!first) this.d.log.append(t, 'retry', `${a.id}: retry ${a.attempt - 1} of model run`);
         a.job = shims.run(this.d.runner, { id: a.forecastId, cause: a.causes.join(' + '), tick: t });
       } else if (a.step === 'detect') {
-        if (first) this.d.tokens.emit(edgeId('forecast', 'lineage', 'features'));
-        this.d.tokens.emit(edgeId('shimDetect', 'call', 'featureDetector'), retry);
+        if (first) this.d.tokens.emit(edgeId('forecast', 'lineage', 'features'), { payload: P.lineage('forecast', 'features', a.id, { partition: a.forecastId }) });
+        this.d.tokens.emit(edgeId('shimDetect', 'call', 'featureDetector'), {
+          ...retry,
+          payload: P.shimCall('feature_detector.detect', 'Python call inside the Dagster asset', { forecast_id: a.forecastId }, a.attempt),
+        });
         if (!first) this.d.log.append(t, 'retry', `${a.id}: retry ${a.attempt - 1} of detection`);
         a.job = shims.detect(this.d.detector, a.forecastId);
       } else {
@@ -235,7 +255,7 @@ export class Orchestrator {
       this.current = { id: f.id, validUntil: f.validUntil, digest: f.digest, cause: f.cause };
       this.d.log.append(t, 'commit', `${f.id} committed (${f.cause}), valid until ${clockLabel(f.validUntil)}, digest ${f.digest}`);
       // UI-10: the committed forecast becomes the next background.
-      this.d.tokens.emit(edgeId('forecast', 'lineage', 'forecast'));
+      this.d.tokens.emit(edgeId('forecast', 'lineage', 'forecast'), { payload: P.backgroundLoop(f) });
       this.materialise('forecast', t);
       this.nextStep('detect', t);
     } else if (a.step === 'detect') {
@@ -261,9 +281,11 @@ export class Orchestrator {
   private announce(t: number): void {
     const a = this.active!;
     const f = a.forecast!;
-    this.d.tokens.emit(edgeId('features', 'lineage', 'announcement'));
-    this.d.tokens.emit(edgeId('forecast', 'lineage', 'announcement'));
-    this.d.tokens.emit(edgeId('shimAnnounce', 'call', 'announcer'));
+    this.d.tokens.emit(edgeId('features', 'lineage', 'announcement'), { payload: P.lineage('features', 'announcement', a.id, { partition: f.id }) });
+    this.d.tokens.emit(edgeId('forecast', 'lineage', 'announcement'), { payload: P.lineage('forecast', 'announcement', a.id, { partition: f.id }) });
+    this.d.tokens.emit(edgeId('shimAnnounce', 'call', 'announcer'), {
+      payload: P.shimCall('announcer.announce', 'Python call inside the Dagster asset', { forecast_id: f.id, feature_count: a.featureCount ?? 0 }),
+    });
     const msg = shims.announce(this.d.announcer, { forecast: f, featureCount: a.featureCount ?? 0 });
     this.d.log.append(t, 'announce', `announce ${msg.forecastId} (${msg.cause}), ${msg.featureCount} features, digest ${msg.digest}`);
     this.materialise('announcement', t);
@@ -273,7 +295,8 @@ export class Orchestrator {
   }
 
   private fail(t: number, e: unknown): void {
-    if (!(e instanceof ModuleFailure)) throw e;
+    if (!(e instanceof ModuleFailure) && !(e instanceof ServiceUnavailable)) throw e;
+    const reason = e instanceof ModuleFailure ? e.reason : e.message;
     const a = this.active!;
     a.failures++;
     a.totalFailures++;
@@ -282,8 +305,8 @@ export class Orchestrator {
     const b = TIMING.retryBackoff;
     const delay = b[Math.min(a.failures - 1, b.length - 1)]!;
     a.retryAt = t + delay;
-    a.lastFailure = e.reason;
+    a.lastFailure = reason;
     const name = STEP_MODULE[a.step as 'run' | 'detect'].name;
-    this.d.log.append(t, 'fail', `${a.id}: ${name} failed (${e.reason}); retry in ${delay}s`);
+    this.d.log.append(t, 'fail', `${a.id}: ${name} failed (${reason}); retry in ${delay}s`);
   }
 }
