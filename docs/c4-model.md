@@ -4,7 +4,7 @@ Companion to `srd.md` (v2) and `docs/system-architecture.md`. Status: **draft fo
 
 This is an alternative to `docs/system-architecture.md` §1.2–1.3, kept as a separate document so the two can be compared. It describes the **eventual production system**, not the demonstrator. Like the rest of the architecture material, it is a candidate design, not a commitment.
 
-Diagrams use Mermaid's C4 syntax, so they render on GitHub with no tooling. Mermaid still marks its C4 support as experimental, and layout control is limited (see §8).
+Diagrams are Mermaid flowcharts styled with C4 conventions, and Mermaid sequence diagrams for the Dynamic views. Both render on GitHub with no tooling. Mermaid's dedicated C4 syntax was tried first and dropped because its layout was unreadable (§8).
 
 | Level | Diagram | Section |
 |---|---|---|
@@ -15,6 +15,8 @@ Diagrams use Mermaid's C4 syntax, so they render on GitHub with no tooling. Merm
 | — | Deployment: ship, shore, test rig | §6 |
 
 Notation, consistent with SRD §5.3 and `system-architecture.md` §5.4:
+
+- **Dark blue, solid border:** ours (build). **Light blue, dashed border:** adopted (off the shelf). **Grey:** external system. **Navy rounded:** person. **Cylinder:** data store. **Dashed grey frame:** system boundary or network zone. **Thick arrow:** crosses a zone boundary.
 
 - **Ours (build):** element names without a product. For example, "Ingestion service".
 - **Adopted (off the shelf):** the candidate product and licence are given in the technology field. For example, "Mosquitto, EPL-2.0".
@@ -44,33 +46,36 @@ Carries forward assumptions A1–A4 (`system-architecture.md` §1.1), and adds t
 Two software systems are in scope. One is the **onboard forecast pipeline**. The other is **shore support**, which is new in this document: it distributes climatology, receives returned data, and builds releases.
 
 ```mermaid
-C4Context
-  title System Context — onboard forecast pipeline
-
-  Enterprise_Boundary(ship, "Ship") {
-    Person(watch, "Watchkeeper / forecaster", "Requests forecast runs; watches run status.")
-    Person(maint, "Onboard maintainer", "Monitors health; installs releases from port media; restarts services.")
-    System_Ext(instr, "Onboard instruments", "Sensors and DAQ hardware on the OT network.")
-    System(pipe, "Onboard forecast pipeline", "Ingests observations, runs assimilation forecasts, detects features, announces results.")
-    System_Ext(cons, "Onboard consumer systems", "Mission systems that use forecasts and features.")
-  }
-
-  Enterprise_Boundary(shore, "Shore") {
-    System(shoresup, "Shore support", "Stages climatology, archives returned data, builds and validates releases.")
-    System_Ext(clim, "Climatology provider", "Source of reference ocean climatology.")
-    Person_Ext(analyst, "Shore analyst", "Studies returned observations, forecasts and features.")
-  }
-
-  Rel(instr, pipe, "Observations", "SensorThings over MQTT")
-  Rel(pipe, cons, "Announcements; forecast and feature queries", "MQTT, OGC APIs")
-  Rel(watch, pipe, "Requests runs, views status", "HTTPS")
-  Rel(maint, pipe, "Monitors, installs, restarts", "HTTPS, console")
-  BiRel(pipe, shoresup, "Climatology in; data out", "Intermittent shore link")
-  Rel(clim, shoresup, "Climatology products")
-  Rel(analyst, shoresup, "Queries archive")
-  Rel(shoresup, maint, "Release media, carried in port", "Physical media")
-
-  UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+flowchart LR
+  subgraph SHIP["Ship"]
+    direction LR
+    instr["<b>Onboard instruments</b><br/><i>[External system]</i>"]:::ext
+    watch(["<b>Watchkeeper / forecaster</b><br/><i>[Person]</i>"]):::person
+    maint(["<b>Onboard maintainer</b><br/><i>[Person]</i>"]):::person
+    pipe["<b>Onboard forecast pipeline</b><br/><i>[Software system]</i><br/>Ingests, forecasts,<br/>detects features, announces"]:::ours
+    cons["<b>Onboard consumer systems</b><br/><i>[External system]</i>"]:::ext
+  end
+  subgraph SHORE["Shore"]
+    direction TB
+    clim["<b>Climatology provider</b><br/><i>[External system]</i>"]:::ext
+    shoresup["<b>Shore support</b><br/><i>[Software system]</i><br/>Climatology, archive, releases"]:::ours
+    analyst(["<b>Shore analyst</b><br/><i>[Person]</i>"]):::person
+  end
+  instr -->|"Observations<br/><i>SensorThings/MQTT</i>"| pipe
+  watch -->|"Requests runs,<br/>views status"| pipe
+  maint -->|"Monitors, installs,<br/>restarts"| pipe
+  pipe -->|"Announcements;<br/>OGC API queries"| cons
+  pipe <-.->|"Climatology in, data out<br/><i>intermittent shore link</i>"| shoresup
+  clim --> shoresup
+  analyst -->|"Queries archive"| shoresup
+  shoresup -.->|"Release media<br/><i>carried in port</i>"| maint
+  classDef person fill:#08427b,stroke:#052e56,color:#fff
+  classDef ours fill:#1168bd,stroke:#0b4884,color:#fff
+  classDef adopted fill:#5a9bd8,stroke:#2e6295,color:#fff,stroke-dasharray:6 3
+  classDef ext fill:#8a8a8a,stroke:#666,color:#fff
+  classDef zone fill:#fafafa,stroke:#999,stroke-dasharray:6 4,color:#333
+  classDef host fill:#fff,stroke:#bbb,color:#333
+  class SHIP,SHORE zone
 ```
 
 ---
@@ -80,59 +85,62 @@ C4Context
 ### 3.1 Onboard forecast pipeline
 
 ```mermaid
-C4Container
-  title Containers — onboard forecast pipeline
+flowchart LR
+  instr["<b>Onboard instruments</b>"]:::ext
+  watch(["<b>Watchkeeper</b>"]):::person
+  maint(["<b>Onboard maintainer</b>"]):::person
+  shore["<b>Shore support</b>"]:::ext
+  cons["<b>Onboard consumer systems</b>"]:::ext
 
-  System_Ext(instr, "Onboard instruments", "Serial, NMEA, Modbus")
-  Person(watch, "Watchkeeper")
-  Person(maint, "Onboard maintainer")
-  System_Ext(cons, "Onboard consumer systems")
-  System_Ext(shoresup, "Shore support")
+  subgraph PIPE["Onboard forecast pipeline"]
+    subgraph INGEST["Ingest"]
+      gw["<b>DAQ gateway</b><br/><i>vendor DAQ + our adapter</i>"]:::ours
+      sbrk["<b>Sensor broker</b><br/><i>Mosquitto</i>"]:::adopted
+      ing["<b>Ingestion service</b><br/><i>Python, ioos_qc</i>"]:::ours
+    end
+    subgraph ORCH["Orchestrate and compute"]
+      dweb["<b>Dagster webserver</b>"]:::adopted
+      dd["<b>Dagster daemon</b><br/><i>+ metadata DB, Postgres</i>"]:::adopted
+      cl["<b>Code location</b><br/><i>glue, shims, our modules</i>"]:::ours
+      mr["<b>Model runner</b><br/><i>Pipes container</i>"]:::ours
+    end
+    subgraph OPS["Operate"]
+      sync["<b>Shore sync agent</b>"]:::ours
+      reg["<b>Onboard registry</b><br/><i>OCI registry</i>"]:::adopted
+      mon["<b>Observability</b><br/><i>Prometheus, Grafana, Loki</i>"]:::adopted
+    end
+    subgraph STORE["Stores (our data)"]
+      fdb[("<b>Features DB</b><br/><i>PostGIS</i>")]:::adopted
+      cov[("<b>Coverage store</b><br/><i>NetCDF / Zarr</i>")]:::adopted
+      obs[("<b>Observations DB</b><br/><i>Postgres + Timescale</i>")]:::adopted
+    end
+    subgraph DIST["Distribute"]
+      pga["<b>pygeoapi</b><br/><i>read-only OGC APIs</i>"]:::adopted
+      brk["<b>Announcement broker</b><br/><i>Mosquitto, retained</i>"]:::adopted
+    end
+  end
 
-  System_Boundary(pipe, "Onboard forecast pipeline") {
-    Container(gw, "DAQ gateway", "Vendor DAQ + our SensorThings adapter", "Translates instrument output into SensorThings Observation messages.")
-    ContainerQueue(sbrk, "Sensor broker", "Mosquitto, EPL-2.0", "Persistent queue (QoS 1, disk persistence).")
-    Container(ing, "Ingestion service", "Python, ioos_qc", "Validates observations; only writer to the Observations DB. Acks after commit.")
-    Container(dweb, "Dagster webserver", "Dagster, Apache-2.0", "Run status UI; manual run requests.")
-    Container(dd, "Dagster daemon", "Dagster, Apache-2.0", "Evaluates sensors and schedules; owns the run queue.")
-    Container(cl, "Code location", "Python", "Asset/sensor definitions, run glue, shims and our in-process modules (see §4).")
-    ContainerDb(dmeta, "Dagster metadata DB", "PostgreSQL", "Run history, schedules, sensor cursors.")
-    Container(mr, "Model runner", "Container via Dagster Pipes", "Assimilation; stages then atomically commits forecasts.")
-    ContainerDb(obs, "Observations DB", "PostgreSQL + TimescaleDB (Apache ed.)", "SensorThings schema.")
-    ContainerDb(cov, "Coverage store", "NetCDF / Zarr on filesystem", "Climatology and forecasts; atomic manifest swap.")
-    ContainerDb(fdb, "Features DB", "PostGIS, GPL-2.0", "Fronts and eddies, tagged by forecast id.")
-    Container(pga, "pygeoapi", "pygeoapi, MIT", "Read-only SensorThings, EDR and Features APIs.")
-    ContainerQueue(brk, "Announcement broker", "Mosquitto, EPL-2.0", "Retained announcements for late joiners.")
-    Container(sync, "Shore sync agent", "Ours (thin) on adopted transfer tool", "Imports climatology; returns data when the link is up.")
-    Container(reg, "Onboard registry", "OCI registry (e.g. CNCF Distribution, Apache-2.0)", "Holds signed images loaded from port media.")
-    Container(mon, "Observability", "Prometheus, Grafana, Loki", "Metrics, logs and alerts, onboard only.")
-  }
-
-  Rel(instr, gw, "Raw readings")
-  Rel(gw, sbrk, "Publishes Observations", "MQTT")
-  Rel(sbrk, ing, "Delivers in order", "MQTT, persistent session")
-  Rel(ing, obs, "Writes Observations", "SQL")
-  Rel(watch, dweb, "Requests runs", "HTTPS")
-  Rel(dweb, dmeta, "Reads/writes")
-  Rel(dd, dmeta, "Reads/writes")
-  Rel(dd, cl, "Evaluates sensors, launches runs", "gRPC")
-  Rel(cl, mr, "Launches", "Dagster Pipes")
-  Rel(cl, pga, "Reads", "HTTP")
-  Rel(mr, pga, "Reads observations, background", "HTTP")
-  Rel(mr, cov, "Commits forecast")
-  Rel(cl, fdb, "Writes features", "SQL")
-  Rel(cl, brk, "Publishes announcement", "MQTT")
-  Rel(pga, obs, "Reads", "SQL, read-only role")
-  Rel(pga, cov, "Reads")
-  Rel(pga, fdb, "Reads", "SQL, read-only role")
-  Rel(brk, cons, "Announcements", "MQTT")
-  Rel(cons, pga, "Queries", "OGC APIs")
-  BiRel(sync, shoresup, "Climatology in; data out", "Shore link")
-  Rel(sync, cov, "Commits climatology")
-  Rel(maint, mon, "Monitors", "HTTPS")
-  Rel(maint, reg, "Loads release media")
-
-  UpdateLayoutConfig($c4ShapeInRow="4", $c4BoundaryInRow="1")
+  instr --> gw --> sbrk --> ing -->|"writes"| obs
+  watch --> dweb --> dd
+  dd -->|"sensors, runs"| cl
+  cl -->|"Pipes"| mr
+  mr -->|"commits forecast"| cov
+  cl -->|"writes features"| fdb
+  cl -->|"publishes"| brk
+  sync <-.->|"shore link"| shore
+  sync -->|"commits climatology"| cov
+  maint -->|"monitors, installs"| OPS
+  STORE <-.->|"read-only"| pga
+  brk -->|"announcements"| cons
+  pga <-->|"OGC API queries"| cons
+  classDef person fill:#08427b,stroke:#052e56,color:#fff
+  classDef ours fill:#1168bd,stroke:#0b4884,color:#fff
+  classDef adopted fill:#5a9bd8,stroke:#2e6295,color:#fff,stroke-dasharray:6 3
+  classDef ext fill:#8a8a8a,stroke:#666,color:#fff
+  classDef zone fill:#fafafa,stroke:#999,stroke-dasharray:6 4,color:#333
+  classDef host fill:#fff,stroke:#bbb,color:#333
+  class PIPE zone
+  class INGEST,ORCH,OPS,STORE,DIST host
 ```
 
 Only the main data relations are drawn. Every service also pulls its image from the onboard registry and exports metrics and logs to observability. Those relations are omitted for legibility.
@@ -140,31 +148,32 @@ Only the main data relations are drawn. Every service also pulls its image from 
 ### 3.2 Shore support
 
 ```mermaid
-C4Container
-  title Containers — shore support
-
-  System_Ext(clim, "Climatology provider")
-  System_Ext(pipe, "Onboard forecast pipeline")
-  Person_Ext(analyst, "Shore analyst")
-  Person(maint, "Onboard maintainer")
-
-  System_Boundary(ss, "Shore support") {
-    Container(cstage, "Climatology staging", "Ours (thin)", "Regrids/validates provider climatology into the onboard format; versions it.")
-    Container(ssync, "Shore sync endpoint", "Same transfer tool as onboard", "Counterpart of the onboard shore sync agent.")
-    ContainerDb(arch, "Shore archive", "PostgreSQL/PostGIS + object store", "Returned observations, forecasts and features.")
-    Container(rel, "Release pipeline", "CI, signing, SBOM", "Builds, scans and signs images; writes port media.")
-    Container(rig, "Test rig", "Integration mirror (§6.3)", "Validates each release before it goes on media.")
-  }
-
-  Rel(clim, cstage, "Climatology products")
-  Rel(cstage, ssync, "Versioned climatology")
-  BiRel(ssync, pipe, "Climatology out; data in", "Shore link, intermittent")
-  Rel(ssync, arch, "Stores returned data")
-  Rel(analyst, arch, "Queries")
-  Rel(rel, rig, "Deploys candidate release")
-  Rel(rel, maint, "Port media", "Physical")
-
-  UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+flowchart LR
+  clim["<b>Climatology provider</b>"]:::ext
+  pipe["<b>Onboard forecast pipeline</b>"]:::ext
+  analyst(["<b>Shore analyst</b>"]):::person
+  maint(["<b>Onboard maintainer</b>"]):::person
+  subgraph SS["Shore support"]
+    direction LR
+    cstage["<b>Climatology staging</b><br/><i>ours, thin</i>"]:::ours
+    ssync["<b>Shore sync endpoint</b><br/><i>same tool as onboard</i>"]:::adopted
+    arch[("<b>Shore archive</b><br/><i>PostGIS + object store</i>")]:::adopted
+    rel["<b>Release pipeline</b><br/><i>CI, signing, SBOM</i>"]:::ours
+    rig["<b>Test rig</b><br/><i>integration mirror</i>"]:::ours
+  end
+  clim --> cstage --> ssync
+  ssync <-.->|"shore link"| pipe
+  ssync --> arch
+  analyst --> arch
+  rel -->|"deploys candidate"| rig
+  rel -.->|"port media"| maint
+  classDef person fill:#08427b,stroke:#052e56,color:#fff
+  classDef ours fill:#1168bd,stroke:#0b4884,color:#fff
+  classDef adopted fill:#5a9bd8,stroke:#2e6295,color:#fff,stroke-dasharray:6 3
+  classDef ext fill:#8a8a8a,stroke:#666,color:#fff
+  classDef zone fill:#fafafa,stroke:#999,stroke-dasharray:6 4,color:#333
+  classDef host fill:#fff,stroke:#bbb,color:#333
+  class SS zone
 ```
 
 ---
@@ -174,41 +183,53 @@ C4Container
 This diagram is where the import boundary meets the process boundary (`system-architecture.md` §1.4 point 1). Everything below runs in **one process**. The model runner is the only module of ours that is isolated in its own process.
 
 ```mermaid
-C4Component
-  title Components — code location process
+flowchart LR
+  dd["<b>Dagster daemon</b>"]:::adopted
+  subgraph CL["Code location (one process)"]
+    direction LR
+    defs["<b>Definitions</b><br/><i>@asset, @sensor, @schedule</i>"]:::adopted
+    glue["<b>Run glue</b><br/><i>coalesce, capped retry</i>"]:::ours
+    subgraph SH["Shims"]
+      direction TB
+      sc["check"]:::ours
+      sr["run"]:::ours
+      sd["detect"]:::ours
+      sa["announce"]:::ours
+    end
+    subgraph MOD["Our modules"]
+      direction TB
+      drift["<b>Drift monitor</b>"]:::ours
+      det["<b>Feature detector</b>"]:::ours
+      ann["<b>Announcer</b>"]:::ours
+    end
+    pipes["<b>Pipes client</b><br/><i>dagster-pipes</i>"]:::adopted
+    rd["<b>Read client</b><br/><i>only read path</i>"]:::ours
+  end
+  mr["<b>Model runner</b><br/><i>separate process</i>"]:::ours
+  pga["<b>pygeoapi</b>"]:::adopted
+  fdb[("<b>Features DB</b>")]:::adopted
+  brk["<b>Announcement broker</b>"]:::adopted
 
-  Container(dd, "Dagster daemon")
-  Container(mr, "Model runner", "Pipes container")
-  Container(pga, "pygeoapi")
-  ContainerDb(fdb, "Features DB")
-  ContainerQueue(brk, "Announcement broker")
-
-  Container_Boundary(cl, "Code location (one process)") {
-    Component(defs, "Definitions", "Dagster @asset, @sensor, @schedule", "Assets: climatology, forecast, features, announcement. Drift sensor; staleness schedule.")
-    Component(glue, "Run glue", "Orchestrator glue (ours)", "Coalesces queued requests and their causes (ORC-2); capped retry + alert.")
-    Component(shims, "Shims", "check, run, detect, announce", "One per crossing; pass-through only (ARC-2).")
-    Component(drift, "Drift monitor", "Our module", "Residuals in sigma; quorum and persistence (DRF-1–5).")
-    Component(det, "Feature detector", "Our module", "Fronts and eddies from the forecast.")
-    Component(ann, "Announcer", "Our module", "Builds the announcement; owns the message contract (ORC-5).")
-    Component(pipes, "Pipes client", "dagster-pipes", "Launches the model runner and relays its logs and results.")
-    Component(rd, "Read client", "HTTP, ours", "The only read path, via pygeoapi.")
-  }
-
-  Rel(dd, defs, "Evaluates / launches")
-  Rel(defs, glue, "Run requests")
-  Rel(defs, shims, "Calls")
-  Rel(shims, drift, "check")
-  Rel(shims, pipes, "run")
-  Rel(shims, det, "detect")
-  Rel(shims, ann, "announce")
-  Rel(pipes, mr, "Launches", "Dagster Pipes")
-  Rel(drift, rd, "Reads observations, forecast")
-  Rel(det, rd, "Reads forecast")
-  Rel(rd, pga, "HTTP")
-  Rel(det, fdb, "Writes features", "SQL")
-  Rel(ann, brk, "Publishes", "MQTT")
-
-  UpdateLayoutConfig($c4ShapeInRow="4", $c4BoundaryInRow="1")
+  dd --> defs
+  defs --> glue
+  defs --> SH
+  sc --> drift
+  sr --> pipes
+  sd --> det
+  sa --> ann
+  pipes -->|"Dagster Pipes"| mr
+  drift & det --> rd
+  rd --> pga
+  det --> fdb
+  ann --> brk
+  classDef person fill:#08427b,stroke:#052e56,color:#fff
+  classDef ours fill:#1168bd,stroke:#0b4884,color:#fff
+  classDef adopted fill:#5a9bd8,stroke:#2e6295,color:#fff,stroke-dasharray:6 3
+  classDef ext fill:#8a8a8a,stroke:#666,color:#fff
+  classDef zone fill:#fafafa,stroke:#999,stroke-dasharray:6 4,color:#333
+  classDef host fill:#fff,stroke:#bbb,color:#333
+  class CL zone
+  class SH,MOD host
 ```
 
 Boundary rules (ARC-1, ARC-7): the drift monitor, feature detector and announcer import neither Dagster nor the shims nor the deployment model. The run glue and the Pipes client are **orchestrator glue**. They are custom code, but they are neither our special sauce nor off the shelf, and they need an owner (`system-architecture.md` §5.3).
@@ -217,37 +238,33 @@ Boundary rules (ARC-1, ARC-7): the drift monitor, feature detector and announcer
 
 ## 5. Dynamic diagrams
 
-Steps are numbered in the labels. Mermaid's `C4Dynamic` draws relations in the order they are declared.
+Drawn as sequence diagrams, with numbered steps. A sequence diagram shows order better than C4's numbered-arrow form.
 
 ### 5.1 Drift → forecast → announce
 
 ```mermaid
-C4Dynamic
-  title Dynamic — drift triggers a forecast and announcement
-
-  Container(dd, "Dagster daemon")
-  Container(cl, "Code location")
-  Container(mr, "Model runner")
-  Container(pga, "pygeoapi")
-  ContainerDb(cov, "Coverage store")
-  ContainerDb(fdb, "Features DB")
-  ContainerQueue(brk, "Announcement broker")
-  System_Ext(cons, "Consumer")
-
-  Rel(dd, cl, "1. Evaluate drift sensor (every >=30 s)")
-  Rel(cl, pga, "2. Read latest observations and current forecast")
-  Rel(cl, dd, "3. Drift declared: run request (merged if one is queued)")
-  Rel(dd, cl, "4. Launch run")
-  Rel(cl, mr, "5. Launch model runner (Pipes)")
-  Rel(mr, pga, "6. Read observations, background, climatology")
-  Rel(mr, cov, "7. Stage, then commit forecast Fn atomically with digest")
-  Rel(cl, pga, "8. Detect: read Fn")
-  Rel(cl, fdb, "9. Write features tagged Fn")
-  Rel(cl, brk, "10. Publish retained announcement")
-  Rel(brk, cons, "11. Deliver announcement")
-  Rel(cons, pga, "12. Query Fn and features; verify digest and count")
-
-  UpdateLayoutConfig($c4ShapeInRow="4", $c4BoundaryInRow="1")
+sequenceDiagram
+  autonumber
+  participant DD as Dagster daemon
+  participant CL as Code location
+  participant MR as Model runner
+  participant PGA as pygeoapi
+  participant ST as Coverage store / Features DB
+  participant BRK as Announcement broker
+  participant CON as Consumer
+  DD->>CL: Evaluate drift sensor (every ≥30 s)
+  CL->>PGA: Read latest observations, current forecast
+  CL-->>DD: Drift declared: run request (merged if one is queued)
+  DD->>CL: Launch run
+  CL->>MR: Launch model runner (Pipes)
+  MR->>PGA: Read observations, background, climatology
+  MR->>ST: Stage, then commit forecast Fn with digest
+  CL->>PGA: Detect: read Fn
+  CL->>ST: Write features tagged Fn
+  CL->>BRK: Publish retained announcement
+  BRK->>CON: Deliver announcement
+  CON->>PGA: Query Fn and features
+  CON->>CON: Verify digest and feature count
 ```
 
 A step that fails (5–9) is retried with backoff, up to a cap. After that an alert is raised, and the staleness schedule becomes the recovery path (`system-architecture.md` §1.4 point 4).
@@ -255,49 +272,43 @@ A step that fails (5–9) is retried with backoff, up to a cap. After that an al
 ### 5.2 Ingest outage recovery
 
 ```mermaid
-C4Dynamic
-  title Dynamic — Observations DB outage and recovery
-
-  Container(gw, "DAQ gateway")
-  ContainerQueue(sbrk, "Sensor broker")
-  Container(ing, "Ingestion service")
-  ContainerDb(obs, "Observations DB")
-  Container(cl, "Code location")
-  Container(mon, "Observability")
-
-  Rel(gw, sbrk, "1. Publish Observations (continues throughout)")
-  Rel(sbrk, ing, "2. Deliver next message")
-  Rel(ing, obs, "3. Commit fails: DB down; message not acked")
-  Rel(ing, mon, "4. Alert: ingestion blocked, backlog growing")
-  Rel(cl, obs, "5. Model reads fail via pygeoapi; runs retry with backoff")
-  Rel(ing, obs, "6. DB back: commit succeeds")
-  Rel(ing, sbrk, "7. Ack; next message. Backlog drains in order, nothing lost")
-
-  UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+sequenceDiagram
+  autonumber
+  participant GW as DAQ gateway
+  participant SB as Sensor broker
+  participant ING as Ingestion service
+  participant OBS as Observations DB
+  participant MON as Observability
+  participant CL as Code location
+  GW->>SB: Publish Observations (continues throughout)
+  SB->>ING: Deliver next message
+  ING-xOBS: Commit fails: DB down
+  Note over SB,ING: Message not acked — backlog grows on disk
+  ING->>MON: Alert: ingestion blocked
+  CL-xOBS: Reads fail (via pygeoapi) — runs retry with backoff
+  Note over OBS: DB restarts
+  ING->>OBS: Commit succeeds
+  ING->>SB: Ack — take next message
+  Note over SB,OBS: Backlog drains in order — nothing lost
 ```
 
-Step 5 is shown as a direct relation for brevity. The real path goes through pygeoapi. The sensor broker's disk must hold the longest DB outage you expect (`system-architecture.md` §1.3).
+Step 5 is drawn as a direct call for brevity. The real path goes through pygeoapi. The sensor broker's disk must hold the longest DB outage you expect (`system-architecture.md` §1.3).
 
 ### 5.3 Late-joiner consumer
 
 ```mermaid
-C4Dynamic
-  title Dynamic — a consumer joins mid-run
-
-  System_Ext(cons, "New consumer")
-  ContainerQueue(brk, "Announcement broker")
-  Container(pga, "pygeoapi")
-  ContainerDb(cov, "Coverage store")
-  ContainerDb(fdb, "Features DB")
-
-  Rel(cons, brk, "1. Subscribe")
-  Rel(brk, cons, "2. Deliver retained latest announcement")
-  Rel(cons, pga, "3. Query forecast Fn (EDR) and features")
-  Rel(pga, cov, "4. Read committed Fn")
-  Rel(pga, fdb, "5. Read features tagged Fn")
-  Rel(cons, cons, "6. Verify digest and feature count")
-
-  UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+sequenceDiagram
+  autonumber
+  participant CON as New consumer
+  participant BRK as Announcement broker
+  participant PGA as pygeoapi
+  participant ST as Coverage store / Features DB
+  CON->>BRK: Subscribe
+  BRK->>CON: Retained latest announcement (Fn)
+  CON->>PGA: Query forecast Fn (EDR) and features
+  PGA->>ST: Read committed Fn and features tagged Fn
+  PGA->>CON: Results
+  CON->>CON: Verify digest and feature count
 ```
 
 ---
@@ -309,67 +320,62 @@ C4Dynamic
 The deployment nodes are **logical** (C4). Nodes in the processing enclave may share physical hosts, so the diagram does not size or count servers. Container runtime: Docker Compose or k3s on hardened hosts (A4).
 
 ```mermaid
-C4Deployment
-  title Deployment — ship (production)
+flowchart LR
+  subgraph OT["Instrument network (OT)"]
+    subgraph DAQ["DAQ gateways · vendor hw"]
+      gw["DAQ gateway"]:::ours
+    end
+    subgraph INGH["Ingestion host"]
+      sbrk["Sensor broker"]:::adopted
+      ing["Ingestion service"]:::ours
+    end
+  end
+  subgraph ENC["Processing enclave"]
+    subgraph ORN["Orchestration node"]
+      dagster["Dagster webserver,<br/>daemon, metadata DB"]:::adopted
+      cl["Code location"]:::ours
+    end
+    subgraph CMP["Compute node"]
+      mr["Model runner"]:::ours
+    end
+    subgraph DAT["Data node"]
+      obs[("Observations DB")]:::adopted
+      cov[("Coverage store")]:::adopted
+      fdb[("Features DB")]:::adopted
+    end
+    subgraph OPN["Ops node"]
+      sync["Shore sync agent"]:::ours
+      reg["Onboard registry"]:::adopted
+      mon["Observability"]:::adopted
+    end
+  end
+  subgraph DMZ["Distribution zone"]
+    subgraph DH["Distribution host"]
+      pga["pygeoapi"]:::adopted
+      brk["Announcement broker"]:::adopted
+    end
+  end
+  subgraph MIS["Mission network"]
+    cons["Consumer systems"]:::ext
+  end
+  sat["Shore link terminal<br/><i>satcom, intermittent</i>"]:::ext
 
-  Deployment_Node(ot, "Instrument network (OT)", "Isolated segment; no inbound from mission") {
-    Deployment_Node(daq, "DAQ gateways", "Vendor hardware") {
-      Container(gw, "DAQ gateway", "SensorThings adapter")
-    }
-    Deployment_Node(ingh, "Ingestion host", "Linux, container runtime") {
-      ContainerQueue(sbrk, "Sensor broker", "Mosquitto")
-      Container(ing, "Ingestion service")
-    }
-  }
-
-  Deployment_Node(enc, "Processing enclave", "Segment behind OT and DMZ firewalls") {
-    Deployment_Node(orch, "Orchestration node", "Logical") {
-      Container(dweb, "Dagster webserver")
-      Container(dd, "Dagster daemon")
-      Container(cl, "Code location")
-      ContainerDb(dmeta, "Dagster metadata DB")
-    }
-    Deployment_Node(comp, "Compute node", "Logical") {
-      Container(mr, "Model runner", "Pipes")
-    }
-    Deployment_Node(datan, "Data node", "Logical") {
-      ContainerDb(obs, "Observations DB")
-      ContainerDb(cov, "Coverage store")
-      ContainerDb(fdb, "Features DB")
-    }
-    Deployment_Node(ops, "Ops node", "Logical") {
-      Container(mon, "Observability")
-      Container(reg, "Onboard registry")
-      Container(sync, "Shore sync agent")
-    }
-  }
-
-  Deployment_Node(dmz, "Distribution zone", "DMZ") {
-    Deployment_Node(dist, "Distribution host", "Linux, reverse proxy") {
-      Container(pga, "pygeoapi")
-      ContainerQueue(brk, "Announcement broker", "Mosquitto")
-    }
-  }
-
-  Deployment_Node(mis, "Mission network", "Separate segment") {
-    Container_Ext(cons, "Onboard consumer systems")
-  }
-
-  Deployment_Node(link, "Shore link gateway", "Satcom, intermittent") {
-    Container_Ext(sat, "Link terminal", "Ship-owned satcom")
-  }
-
-  Rel(gw, sbrk, "MQTT")
-  Rel(ing, obs, "SQL via OT-to-enclave firewall")
-  Rel(cl, mr, "Pipes")
-  Rel(mr, cov, "Commit")
-  Rel(cl, brk, "MQTT, enclave to DMZ")
-  Rel(pga, obs, "SQL, DMZ to enclave, read-only")
-  Rel(brk, cons, "MQTT via DMZ-to-mission firewall")
-  Rel(cons, pga, "HTTPS")
-  Rel(sync, sat, "Outbound only")
-
-  UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="2")
+  gw --> sbrk --> ing
+  ing ==>|"SQL · OT→enclave FW"| obs
+  dagster --> cl -->|"Pipes"| mr --> cov
+  cl ==>|"MQTT · enclave→DMZ"| brk
+  DAT <==>|"read-only SQL / files"| pga
+  brk ==>|"MQTT · DMZ→mission FW"| cons
+  pga <==>|"HTTPS queries"| cons
+  sync ==>|"outbound only"| sat
+  class OT,ENC,DMZ,MIS zone
+  class DAQ,INGH,ORN,CMP,DAT,OPN,DH host
+  classDef person fill:#08427b,stroke:#052e56,color:#fff
+  classDef ours fill:#1168bd,stroke:#0b4884,color:#fff
+  classDef adopted fill:#5a9bd8,stroke:#2e6295,color:#fff,stroke-dasharray:6 3
+  classDef ext fill:#8a8a8a,stroke:#666,color:#fff
+  classDef zone fill:#fafafa,stroke:#999,stroke-dasharray:6 4,color:#333
+  classDef host fill:#fff,stroke:#bbb,color:#333
 ```
 
 Firewall rules implied by the diagram. Each one should become a test on the test rig (§6.3):
@@ -386,39 +392,35 @@ Firewall rules implied by the diagram. Each one should become a test on the test
 ### 6.2 Shore
 
 ```mermaid
-C4Deployment
-  title Deployment — shore
-
-  Deployment_Node(sdc, "Shore data centre", "Organisation-managed") {
-    Deployment_Node(sapp, "Shore app host", "Linux, container runtime") {
-      Container(cstage, "Climatology staging")
-      Container(ssync, "Shore sync endpoint")
-    }
-    Deployment_Node(sdata, "Shore data host", "Linux") {
-      ContainerDb(arch, "Shore archive")
-    }
-    Deployment_Node(ci, "Build infrastructure", "CI runners, signing key in HSM") {
-      Container(rel, "Release pipeline")
-    }
-  }
-
-  Deployment_Node(media, "Port media", "Encrypted removable drive, carried aboard") {
-    Container(img, "Release bundle", "Artefact bundle", "Signed images, SBOM, climatology baseline")
-  }
-
-  Deployment_Node(sgw, "Shore link gateway", "Satcom ground segment") {
-    Container_Ext(gs, "Ground station", "Satcom provider")
-  }
-
-  System_Ext(clim, "Climatology provider")
-
-  Rel(clim, cstage, "Download")
-  Rel(cstage, ssync, "Versioned climatology")
-  BiRel(ssync, gs, "Sync sessions")
-  Rel(ssync, arch, "Returned data")
-  Rel(rel, img, "Writes bundle after rig pass")
-
-  UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="2")
+flowchart LR
+  clim["Climatology provider"]:::ext
+  subgraph SDC["Shore data centre"]
+    direction TB
+    subgraph SAPP["Shore app host"]
+      cstage["Climatology staging"]:::ours
+      ssync["Shore sync endpoint"]:::adopted
+    end
+    subgraph SDATA["Shore data host"]
+      arch[("Shore archive")]:::adopted
+    end
+    subgraph CI["Build infrastructure · HSM signing"]
+      rel["Release pipeline"]:::ours
+    end
+  end
+  gs["Ground station<br/><i>satcom provider</i>"]:::ext
+  media["Release bundle<br/><i>encrypted port media:<br/>signed images, SBOM,<br/>climatology baseline</i>"]:::ours
+  clim --> cstage --> ssync
+  ssync <-.->|"sync sessions"| gs
+  ssync --> arch
+  rel -->|"after rig pass"| media
+  class SDC zone
+  class SAPP,SDATA,CI host
+  classDef person fill:#08427b,stroke:#052e56,color:#fff
+  classDef ours fill:#1168bd,stroke:#0b4884,color:#fff
+  classDef adopted fill:#5a9bd8,stroke:#2e6295,color:#fff,stroke-dasharray:6 3
+  classDef ext fill:#8a8a8a,stroke:#666,color:#fff
+  classDef zone fill:#fafafa,stroke:#999,stroke-dasharray:6 4,color:#333
+  classDef host fill:#fff,stroke:#bbb,color:#333
 ```
 
 ### 6.3 Shore test rig — integration mirror
@@ -429,46 +431,51 @@ The test rig has the same zones and the same container set as the ship, on small
 - A **consumer simulator** replaces the mission systems. It subscribes, queries and verifies (CON-1–3).
 
 ```mermaid
-C4Deployment
-  title Deployment — shore test rig (integration mirror)
+flowchart LR
+  rel["Release pipeline"]:::ext
+  subgraph ROT["Rig OT VLAN"]
+    subgraph RPL["Replayer host"]
+      rep["Sensor replayer<br/><i>test tool</i>"]:::ours
+      sbrk["Sensor broker"]:::adopted
+      ing["Ingestion service"]:::ours
+    end
+  end
+  subgraph RENC["Rig enclave VLAN"]
+    subgraph RSRV["Rig server · all enclave nodes on one host"]
+      orchs["Dagster + code location"]:::adopted
+      mr["Model runner"]:::ours
+      stores[("Observations DB,<br/>coverage store,<br/>Features DB")]:::adopted
+      sync["Shore sync agent"]:::ours
+    end
+  end
+  subgraph RDMZ["Rig DMZ VLAN"]
+    subgraph RDH["Rig distribution host"]
+      pga["pygeoapi"]:::adopted
+      brk["Announcement broker"]:::adopted
+    end
+  end
+  subgraph RMIS["Rig mission VLAN"]
+    csim["Consumer simulator<br/><i>test tool</i>"]:::ours
+  end
+  linksim["Link simulator<br/><i>on/off</i>"]:::ext
 
-  Deployment_Node(rot, "Rig OT segment", "VLAN") {
-    Deployment_Node(rpl, "Replayer host", "Linux") {
-      Container(rep, "Sensor replayer", "Ours (test)", "Recorded and synthetic SensorThings messages.")
-      ContainerQueue(sbrk, "Sensor broker")
-      Container(ing, "Ingestion service")
-    }
-  }
-
-  Deployment_Node(renc, "Rig enclave segment", "VLAN") {
-    Deployment_Node(rsrv, "Rig server", "Single host; all enclave nodes") {
-      Container(orchs, "Dagster webserver, daemon, code location, metadata DB")
-      Container(mr, "Model runner")
-      ContainerDb(stores, "Observations DB, coverage store, Features DB")
-      Container(sync, "Shore sync agent")
-    }
-  }
-
-  Deployment_Node(rdmz, "Rig DMZ segment", "VLAN") {
-    Deployment_Node(rdist, "Rig distribution host", "Linux") {
-      Container(pga, "pygeoapi")
-      ContainerQueue(brk, "Announcement broker")
-    }
-  }
-
-  Deployment_Node(rmis, "Rig mission segment", "VLAN") {
-    Container(csim, "Consumer simulator", "Ours (test)", "Subscribes, queries, verifies.")
-  }
-
-  Container_Ext(rel, "Release pipeline", "Shore CI")
-
-  Rel(rep, sbrk, "MQTT")
-  Rel(ing, stores, "SQL via rig firewall")
-  Rel(brk, csim, "MQTT")
-  Rel(csim, pga, "HTTPS")
-  Rel(rel, orchs, "Deploys candidate release to all rig hosts")
-
-  UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="2")
+  rel -.->|"deploys candidate"| orchs
+  rep --> sbrk --> ing
+  ing ==>|"via rig FW"| stores
+  orchs --> mr --> stores
+  orchs ==> brk
+  stores <==> pga
+  brk ==> csim
+  pga <==> csim
+  sync ==> linksim
+  class ROT,RENC,RDMZ,RMIS zone
+  class RPL,RSRV,RDH host
+  classDef person fill:#08427b,stroke:#052e56,color:#fff
+  classDef ours fill:#1168bd,stroke:#0b4884,color:#fff
+  classDef adopted fill:#5a9bd8,stroke:#2e6295,color:#fff,stroke-dasharray:6 3
+  classDef ext fill:#8a8a8a,stroke:#666,color:#fff
+  classDef zone fill:#fafafa,stroke:#999,stroke-dasharray:6 4,color:#333
+  classDef host fill:#fff,stroke:#bbb,color:#333
 ```
 
 What the rig proves: the release images start; the firewall rules in §6.1 hold (including negative tests); the dynamic flows in §5 work end to end, including DB and ingestion restarts; and shore sync works against a link simulator that can be switched on and off.
@@ -497,7 +504,7 @@ What it does not prove: real instrument protocols and the DAQ adapter, productio
 - **New containers expand scope.** The shore sync agent, onboard registry, shore support system and test rig are not in the SRD. Each needs an owner, and two of them (sync agent, registry) open new paths across zone boundaries. The sync agent is the first container in the enclave that talks to the outside world. It is the one most likely to be challenged in a security review.
 - **Read-path tension.** "pygeoapi is the only read path" was decided for our modules. Data back to shore (Q2) and climatology import (Q3) test that rule from both directions. Either extend the rule explicitly or record the exceptions.
 - **Mission access to the orchestrator UI (Q1) conflicts with zone separation.** A watchkeeper actor implies a path that the zone model does not provide today. This is the most important design gap the Context diagram exposes.
-- **Mermaid C4 is a compromise.** It renders on GitHub, but its layout is crude. Deployment diagrams with more than about 15 elements get cramped, and the step order in Dynamic diagrams is only conventional. There is also no single model: the eight diagrams are maintained by hand and can drift from each other, from `system-architecture.md` §1.2 and from `deployment.ts`. If this document is chosen over §1.2, consider Structurizr DSL, or a test that checks container names against `deployment.ts` placements.
+- **Mermaid flowcharts are a compromise.** They render on GitHub and lay out far better than Mermaid's C4 mode, but the C4 semantics live only in styling conventions, not in the notation. Some relations are omitted, or drawn to a whole group, to keep the diagrams legible. There is also no single model: the eight diagrams are maintained by hand and can drift from each other, from `system-architecture.md` §1.2 and from `deployment.ts`. If this document is chosen over §1.2, consider Structurizr DSL, or a test that checks container names against `deployment.ts` placements.
 - **Naming differs from `deployment.ts`.** "Ops node" and "Shore link gateway" do not exist in the demonstrator, and the demonstrator's "Sea" zone has no production meaning. That is acceptable while the documents are compared, but must be reconciled afterwards.
 - **The test rig's blind spot is the edge that fails most.** The replayer bypasses the DAQ adapter and instrument protocols, which are often the least reliable parts at sea. A small bench of real instruments, or vendor simulators, would close that gap.
 - **The "ours" vs "adopted" line is clearer here than in the SRD.** The technology field names the product and licence for every adopted container, so licence traps (TimescaleDB edition, PostGIS GPL, avoiding MinIO's AGPL) are visible on the diagrams themselves.
