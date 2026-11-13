@@ -1,5 +1,5 @@
 import { DRIFT_BOUNDS, EDGES, INPUTS, NOISE_BOUNDS, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 import type { Rate, Runner } from '../runner.ts';
 import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
 
@@ -120,7 +120,22 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
   // While the step's reads are in flight it waits for its inputs; the countdown starts once they have arrived.
   const reading = (step: 'run' | 'detect') => !!run && run.step === step && run.retryIn === undefined && run.reading;
   const executing = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn === undefined && !run.reading ? run : undefined);
-  const execLabel = (step: 'run' | 'detect') => executing(step)?.label ?? (reading(step) ? 'awaiting inputs' : retryOn(step) !== undefined ? 'waiting for retry' : '');
+  // A step first retrieves its inputs. It says "retrieving data" until the simulation's read phase is over
+  // AND the replies have visibly arrived (at faster rates the animation can lag the clock), and only then
+  // shows its own label ("replacing F1"), with the bar counting from that moment.
+  const READER = { run: 'modelRunner', detect: 'featureDetector' } as const;
+  const retrieving = (step: 'run' | 'detect') => reading(step) || (!!executing(step) && runner.readsPending(READER[step]));
+  const execLabel = (step: 'run' | 'detect') => (retrieving(step) ? 'retrieving data' : (executing(step)?.label ?? (retryOn(step) !== undefined ? 'waiting for retry' : '')));
+  const dataIn = useRef(new Map<string, number>());
+  const shownProgress = (step: 'run' | 'detect', dur: number) => {
+    const r = executing(step);
+    if (!r || retrieving(step)) return 0;
+    const key = `${r.id}#${step}#${r.attempt}`;
+    const p = smoothProgress(step, dur);
+    if (!dataIn.current.has(key)) dataIn.current.set(key, p);
+    const p0 = Math.min(dataIn.current.get(key)!, 0.95);
+    return Math.max(0, (p - p0) / (1 - p0));
+  };
   const smoothProgress = (step: 'run' | 'detect', dur: number) => {
     const r = executing(step);
     return r ? Math.min(1, r.progress + runner.frac / dur) : 0;
@@ -435,7 +450,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
       <PlayPause at={{ x: R.forecast.x + 20, y: R.forecast.y + 19 }} running={!snap.offline.modelRunner} what="the model runner (every run fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })} />
       <Shim r={R.shimRun} name="run" retryIn={retryOn('run')} />
       <Module r={R.modelRunner} name="Model runner" offline={snap.offline.modelRunner}>
-        <ExecLine r={R.modelRunner} label={execLabel('run')} frac={smoothProgress('run', 8)} active={!!executing('run')} />
+        <ExecLine r={R.modelRunner} label={execLabel('run')} frac={shownProgress('run', 8)} active={!!executing('run') && !retrieving('run')} />
         {retryOn('run') !== undefined && run?.lastFailure && (
           <T x={R.modelRunner.x + 8} y={R.modelRunner.y + 58} cls="tiny muted">
             {run.lastFailure}
@@ -464,7 +479,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
       <PlayPause at={{ x: R.features.x + 20, y: R.features.y + 19 }} running={!snap.offline.featureDetector} what="the feature detector (detection fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })} />
       <Shim r={R.shimDetect} name="detect" retryIn={retryOn('detect')} />
       <Module r={R.featureDetector} name="Feature detector" offline={snap.offline.featureDetector}>
-        <ExecLine r={R.featureDetector} label={execLabel('detect')} frac={smoothProgress('detect', 5)} active={!!executing('detect')} />
+        <ExecLine r={R.featureDetector} label={execLabel('detect')} frac={shownProgress('detect', 5)} active={!!executing('detect') && !retrieving('detect')} />
         <T x={R.featureDetector.x + 8} y={R.featureDetector.y + R.featureDetector.h - 10} cls="tiny muted">
           fronts &amp; eddies
         </T>

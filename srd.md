@@ -103,7 +103,7 @@ The screen and the simulation share one model, in three regions separated by two
 
 | ID | Requirement |
 |---|---|
-| MOD-1 | A model run takes 8 s, counted from when its inputs (climatology, background, observations) have arrived; its call and reads through pygeoapi take 7 s, so a run completes 15 s after it starts. It stages a forecast, then commits it atomically with an id (`F1`, `F2`, …), cause, values, valid-until and digest. A failed run commits nothing. |
+| MOD-1 | A model run takes 8 s, counted from when its inputs (climatology, background, observations) have arrived; its call and reads through pygeoapi take 7 s, so a run completes 15 s after it starts. Until its inputs have arrived, both in the simulation and on screen, the model runner says "retrieving data"; only then does it show what it is doing ("replacing F1") and start its progress bar. The feature detector does the same. It stages a forecast, then commits it atomically with an id (`F1`, `F2`, …), cause, values, valid-until and digest. A failed run commits nothing. |
 | MOD-2 | When a forecast is committed, the previous one becomes the background. |
 | DET-1 | Detection takes 5 s, counted from when its inputs (forecast, climatology) have arrived; its call and reads take 7 s. A front is reported for each input more than 0.75σ from climatology; 1–3 eddies are reported, derived from the digest. |
 | DET-2 | Features are tagged with their forecast id, so consumers can verify the feature count. |
