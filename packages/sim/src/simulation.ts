@@ -17,6 +17,7 @@ import { ModelRunner } from './modules/modelRunner.ts';
 import { Orchestrator } from './orchestrator/orchestrator.ts';
 import { Broker } from './platform/broker.ts';
 import { PygeoApi } from './platform/pygeoapi.ts';
+import * as P from './payloads.ts';
 import { Streams } from './rng.ts';
 import { FeaturesDb, NetcdfStore, ObservationsDb } from './stores/stores.ts';
 import { TokenRecorder } from './tokens.ts';
@@ -63,10 +64,12 @@ export class Simulation {
   readonly faults: Faults;
   readonly consumers: Consumer[] = [];
   private t = 0;
+  private readonly units: Record<string, string>;
 
   constructor(opts: SimOptions) {
     this.seed = opts.seed;
     this.inputs = inputsFor(opts.inputs ?? 4);
+    this.units = Object.fromEntries(this.inputs.map((s) => [s.key, s.unit]));
     this.streams = new Streams(opts.seed);
     const now = () => this.t;
     this.tokens = new TokenRecorder(this.log, now);
@@ -95,7 +98,7 @@ export class Simulation {
       },
       {
         commit: (f) => {
-          tokens.emit(edgeId('modelRunner', 'write', 'netcdfStore'));
+          tokens.emit(edgeId('modelRunner', 'write', 'netcdfStore'), { payload: P.forecastCommit(f) });
           this.netcdf.commit(f);
         },
       },
@@ -108,7 +111,7 @@ export class Simulation {
       },
       {
         writeAll: (id, feats) => {
-          tokens.emit(edgeId('featureDetector', 'write', 'featuresDb'));
+          tokens.emit(edgeId('featureDetector', 'write', 'featuresDb'), { payload: P.featuresInsert(id, feats) });
           this.featuresDb.writeAll(id, feats);
         },
       },
@@ -150,9 +153,9 @@ export class Simulation {
     const t = this.t;
     this.ocean.step();
     const readings = this.sensors.sample();
-    this.tokens.emit(edgeId('sensors', 'send', 'ingestion'));
+    this.tokens.emit(edgeId('sensors', 'send', 'ingestion'), { payload: P.sensorReadings(t, readings, this.units) });
     const res = this.ingestion.ingest(t, readings);
-    if (res.accepted.length) this.tokens.emit(edgeId('ingestion', 'write', 'observationsDb'));
+    if (res.accepted.length) this.tokens.emit(edgeId('ingestion', 'write', 'observationsDb'), { payload: P.observationInsert(res.accepted, res.rejected.length) });
     for (const r of res.rejected) {
       const v = Number.isFinite(r.value) ? r.value.toFixed(3) : String(r.value);
       this.log.append(t, 'ingest', `rejected ${r.input} = ${v}: ${r.reason}`);

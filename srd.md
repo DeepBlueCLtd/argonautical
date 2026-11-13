@@ -172,6 +172,7 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 | MOT-3 | Countdowns show what triggers things: a ring on the drift sensor (time to the next check), "stale in m:ss" rings on the staleness schedule and on forecast (showing "stale · replacing" once the scheduled run starts), an execution bar on the model runner ("replacing stale F2"), an execution bar on the feature detector, and a retry countdown on the shim. |
 | MOT-4 | **Retry state belongs to the orchestrator, not our code.** The retry countdown appears on the shim strip, which turns amber. A retry sends one amber token from the shim into the module. Lineage tokens are not re-sent on a retry. |
 | MOT-5 | While a module is offline it shows an offline state (a red halo) and no progress, and stops "running". |
+| MOT-6 | **Drill-down.** Every token record carries what was passed: a one-line summary, the real-world format it stands for in production (e.g. a SensorThings or EDR request and response, an MQTT message, a Dagster RunRequest, a NetCDF commit) and a mock data object filled with the simulation's values. When the simulation is paused, clicking a frozen token opens a popup showing these. Step leaves the new tick's tokens part-way along their edges so they can be inspected. Payloads never affect the event log or its digest. |
 
 ### 5.3 Colour semantics
 

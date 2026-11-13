@@ -1,4 +1,4 @@
-import { EDGES, clockLabel, type Snapshot } from '@argonautical/sim';
+import { EDGES, clockLabel, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, type ReactNode } from 'react';
 import type { Runner } from '../runner.ts';
 import { CONSUMER_AREA, RECTS, REGIONS, VIEW, consumerRect, forecastLoop, midpoint, pathD, pointAt, routeAll, type Rect, type Route } from './layout.ts';
@@ -71,7 +71,13 @@ function Shim({ r, name, retryIn }: { r: Rect; name: string; retryIn?: number })
 
 // ---- diagram ----
 
-export function Diagram({ snap, runner, motion }: { snap: Snapshot; runner: Runner; motion: Motion }) {
+export interface Picked {
+  readonly token: Token;
+  readonly x: number;
+  readonly y: number;
+}
+
+export function Diagram({ snap, runner, motion, onPick }: { snap: Snapshot; runner: Runner; motion: Motion; onPick: (p: Picked) => void }) {
   const consumerIds = snap.consumers.map((c) => c.id);
   const routes = useMemo(() => routeAll(EDGES, consumerIds), [consumerIds.join(',')]);
   const byKey = useMemo(() => new Map(routes.map((r) => [r.key, r])), [routes]);
@@ -489,7 +495,7 @@ export function Diagram({ snap, runner, motion }: { snap: Snapshot; runner: Runn
       )}
 
       {/* Motion: tokens or per-edge counters (MOT-1, MOT-2) */}
-      {motion === 'tokens' ? <Tokens runner={runner} byKey={byKey} loop={loop} /> : <EdgeCounters snap={snap} routes={routes} />}
+      {motion === 'tokens' ? <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} /> : <EdgeCounters snap={snap} routes={routes} />}
     </svg>
   );
 }
@@ -581,15 +587,37 @@ function ResidualBars({ r, snap }: { r: Rect; snap: Snapshot }) {
   );
 }
 
-function Tokens({ runner, byKey, loop }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[] }) {
+function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void }) {
+  // Drill-down: once paused, frozen tokens get a larger hit area and open a popup on click.
+  const frozen = runner.frozen;
   return (
-    <g className="tokens">
+    <g className={`tokens ${frozen ? 'inspectable' : ''}`}>
       {runner.tokens.map(({ v, p }) => {
         const tk = v.token;
         const pts = tk.edge === 'forecast>lineage>forecast' ? loop : byKey.get(tk.instance ? `${tk.edge}#${tk.instance}` : tk.edge)?.points;
         if (!pts) return null;
         const pt = pointAt(pts, p);
-        return <circle key={tk.seq} className={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} cx={pt.x} cy={pt.y} r={v.lineage ? 8 : 4.5} />;
+        const dot = <circle className={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} cx={pt.x} cy={pt.y} r={v.lineage ? 8 : 4.5} />;
+        if (!frozen) return <g key={tk.seq}>{dot}</g>;
+        const pick = (e: { clientX: number; clientY: number }) => onPick({ token: tk, x: e.clientX, y: e.clientY });
+        return (
+          <g
+            key={tk.seq}
+            className="pickable"
+            role="button"
+            tabIndex={0}
+            aria-label={`Inspect ${tk.payload?.summary ?? tk.edge}`}
+            onClick={pick}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              const b = (e.currentTarget as SVGGElement).getBoundingClientRect();
+              onPick({ token: tk, x: b.x + b.width / 2, y: b.y + b.height / 2 });
+            }}
+          >
+            <circle className="hit" cx={pt.x} cy={pt.y} r={14} />
+            {dot}
+          </g>
+        );
       })}
     </g>
   );

@@ -1,5 +1,6 @@
 /** SIM-6: token records for every interaction on a declared edge. */
 import type { EventLog } from './events.ts';
+import type { Payload } from './payloads.ts';
 import { EDGE_IDS } from './topology/elements.ts';
 
 export interface Token {
@@ -10,6 +11,8 @@ export interface Token {
   readonly retry?: boolean;
   /** Consumer instance for template edges (e.g. 'C2'). */
   readonly instance?: string;
+  /** What was passed, for drill-down (never part of the event log). */
+  readonly payload?: Payload;
 }
 
 export interface EdgeStat {
@@ -21,6 +24,7 @@ export interface EmitOptions {
   duration?: number;
   retry?: boolean;
   instance?: string;
+  payload?: Payload;
 }
 
 const KEEP_TICKS = 60;
@@ -44,7 +48,7 @@ export class TokenRecorder {
       this.log.append(tick, 'defect', msg);
       return;
     }
-    const t: Token = { seq: ++this.seq, edge, start: tick, duration: opts.duration ?? 1, ...(opts.retry ? { retry: true } : {}), ...(opts.instance ? { instance: opts.instance } : {}) };
+    const t: Token = { seq: ++this.seq, edge, start: tick, duration: opts.duration ?? 1, ...(opts.retry ? { retry: true } : {}), ...(opts.instance ? { instance: opts.instance } : {}), ...(opts.payload ? { payload: opts.payload } : {}) };
     this.recent.push(t);
     const s = this.stats.get(edge);
     this.stats.set(edge, { count: (s?.count ?? 0) + 1, last: tick });
