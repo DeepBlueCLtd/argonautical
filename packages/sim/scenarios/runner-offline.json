@@ -2,10 +2,10 @@
   "name": "runner-offline",
   "description": "Acceptance 6: the model runner is offline; the run shim retries on a 2, 4, 8, 10, 10 s backoff and nothing is committed until it returns.",
   "seed": "demo",
-  "until": 90,
+  "until": 102,
   "steps": [
-    { "at": 20, "action": { "type": "offline", "module": "modelRunner", "offline": true }, "caption": "The model runner goes offline (red halo)." },
-    { "at": 21, "action": { "type": "requestRun" }, "caption": "A run is requested. The run shim turns amber: retry state belongs to the orchestrator." },
-    { "at": 50, "action": { "type": "offline", "module": "modelRunner", "offline": false }, "caption": "The runner is back. The next retry commits F2 and the pipeline continues." }
+    { "at": 32, "action": { "type": "offline", "module": "modelRunner", "offline": true }, "caption": "The model runner goes offline (red halo)." },
+    { "at": 33, "action": { "type": "requestRun" }, "caption": "A run is requested. The run shim turns amber: retry state belongs to the orchestrator." },
+    { "at": 62, "action": { "type": "offline", "module": "modelRunner", "offline": false }, "caption": "The runner is back. The next retry commits F2 and the pipeline continues." }
   ]
 }

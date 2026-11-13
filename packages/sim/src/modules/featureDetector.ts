@@ -38,6 +38,7 @@ export class FeatureDetector {
     const writer = this.writer;
     const features = this.detect(forecastId);
     return {
+      readDuration: TIMING.inputReadDuration,
       duration: TIMING.detectDuration,
       label: `detecting in ${forecastId}`,
       progress() {},

@@ -2,10 +2,10 @@
   "name": "detector-offline",
   "description": "Acceptance 7: the feature detector is offline after the forecast commits; the detect shim retries until it returns.",
   "seed": "demo",
-  "until": 80,
+  "until": 92,
   "steps": [
-    { "at": 20, "action": { "type": "offline", "module": "featureDetector", "offline": true }, "caption": "The feature detector goes offline." },
-    { "at": 20, "action": { "type": "requestRun" }, "caption": "F2 is still produced and committed; detection then fails and retries on the detect shim." },
-    { "at": 50, "action": { "type": "offline", "module": "featureDetector", "offline": false }, "caption": "The detector is back: features are detected, F2 is announced." }
+    { "at": 32, "action": { "type": "offline", "module": "featureDetector", "offline": true }, "caption": "The feature detector goes offline." },
+    { "at": 32, "action": { "type": "requestRun" }, "caption": "F2 is still produced and committed; detection then fails and retries on the detect shim." },
+    { "at": 62, "action": { "type": "offline", "module": "featureDetector", "offline": false }, "caption": "The detector is back: features are detected, F2 is announced." }
   ]
 }

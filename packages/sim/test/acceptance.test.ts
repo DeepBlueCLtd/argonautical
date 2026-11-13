@@ -76,7 +76,7 @@ describe('acceptance criteria', () => {
     let sawProgressWhileOffline = false;
     const sim = runScript(s, (x) => {
       const snap = x.snapshot();
-      if (x.tick > 22 && x.tick < 50) {
+      if (x.tick > 34 && x.tick < 62) {
         if (snap.run?.retryIn !== undefined) sawRetry = true;
         if (snap.run?.progress) sawProgressWhileOffline = true;
         expect(snap.offline.modelRunner).toBe(true);
@@ -84,12 +84,12 @@ describe('acceptance criteria', () => {
     });
     const fails = events(sim, 'fail').map((e) => [e.tick, Number(/retry in (\d+)s/.exec(e.text)![1])]);
     expect(fails.map((f) => f[1])).toEqual([2, 4, 8, 10, 10]);
-    expect(fails.map((f) => f[0])).toEqual([22, 24, 28, 36, 46]);
+    expect(fails.map((f) => f[0])).toEqual([34, 36, 40, 48, 58]);
     expect(sawRetry).toBe(true);
     expect(sawProgressWhileOffline).toBe(false);
-    expect(events(sim, 'commit').filter((e) => e.tick > 20 && e.tick < 56)).toHaveLength(0);
+    expect(events(sim, 'commit').filter((e) => e.tick > 32 && e.tick < 68)).toHaveLength(0);
     const commit = events(sim, 'commit').find((e) => e.text.startsWith('F2 committed'));
-    expect(commit?.tick).toBe(56 + 8);
+    expect(commit?.tick).toBe(68 + TIMING.inputReadDuration + TIMING.modelRunDuration);
     // MOT-4: retries send an amber token from the shim into the module
     const retryTokens = [...sim.tokens.tokens].filter((t) => t.edge === 'shimRun>call>modelRunner' && t.retry);
     expect(retryTokens.length).toBeGreaterThan(0);
@@ -106,7 +106,7 @@ describe('acceptance criteria', () => {
     expect(fails[0]!.tick).toBe(commit.tick);
     expect(fails.map((e) => Number(/retry in (\d+)s/.exec(e.text)![1]))).toEqual([2, 4, 8, 10]);
     const ann = events(sim, 'announce').find((e) => e.text.startsWith('announce F2'));
-    expect(ann!.tick).toBeGreaterThan(50);
+    expect(ann!.tick).toBeGreaterThan(62);
     for (const c of sim.consumers) expect(c.latest).toMatchObject({ forecastId: 'F2', ok: true });
   });
 
@@ -133,13 +133,13 @@ describe('acceptance criteria', () => {
     const sim = new Simulation({ seed: 'reconfigure' });
     sim.reconfigureConsumer('C1');
     expect(sim.log.entries.at(-1)!.text).toBe('C1 reconfigured; no forecast yet');
-    sim.step(20); // F1 committed, detected and announced; C1 verified it
+    sim.step(30); // F1 committed, detected and announced; C1 verified it
     const before = sim.consumers[0]!.results.length;
     const queries = sim.tokens.edgeStats.get('consumer>query>pygeoapi')!.count;
     sim.reconfigureConsumer('C1');
     const r = sim.consumers[0]!.results;
     expect(r).toHaveLength(before + 1);
-    expect(r.at(-1)).toMatchObject({ tick: 20, trigger: 'reconfigure', ok: true, forecastId: 'F1' });
+    expect(r.at(-1)).toMatchObject({ tick: 30, trigger: 'reconfigure', ok: true, forecastId: 'F1' });
     expect(sim.tokens.edgeStats.get('consumer>query>pygeoapi')!.count).toBeGreaterThan(queries);
     expect(sim.consumers[1]!.results.some((x) => x.trigger === 'reconfigure')).toBe(false);
     expect(() => sim.reconfigureConsumer('C9')).toThrow(RangeError);

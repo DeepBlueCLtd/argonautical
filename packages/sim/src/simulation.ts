@@ -342,7 +342,9 @@ export class Simulation {
           step: a.step,
           attempt: a.attempt,
           label: a.label,
-          progress: a.attemptStart !== undefined && a.step !== 'announce' ? (this.t - a.attemptStart) / (a.step === 'run' ? TIMING.modelRunDuration : TIMING.detectDuration) : 0,
+          // The countdown starts once the step's inputs have arrived (MOD-1, DET-1); until then it is reading.
+          reading: a.attemptStart !== undefined && a.step !== 'announce' && this.t - a.attemptStart < TIMING.inputReadDuration,
+          progress: a.attemptStart !== undefined && a.step !== 'announce' ? Math.max(0, this.t - a.attemptStart - TIMING.inputReadDuration) / (a.step === 'run' ? TIMING.modelRunDuration : TIMING.detectDuration) : 0,
           retryIn: a.retryAt !== undefined ? a.retryAt - this.t : undefined,
           lastFailure: a.lastFailure,
         }

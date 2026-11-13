@@ -44,6 +44,7 @@ export class Faults {
     const fails = this.drawFailure(target);
     const job = start();
     return {
+      readDuration: job.readDuration,
       duration: job.duration,
       label: job.label,
       progress: () => {
