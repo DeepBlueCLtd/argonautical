@@ -368,3 +368,7 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .status-badge.basic rect { fill: #eef1f4; stroke: #9aa5b1; }
 .status-badge.neutral rect { fill: #fff; stroke: var(--line); }
 .diagram .status-badge text { font-weight: 700; fill: var(--ink); }
+
+/* CAT-4: topic tags on broker tokens; a consumer's latest notice */
+.diagram .topic-tag { font: 700 9px var(--mono); fill: var(--std-M); paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.diagram .notice { fill: var(--std-M); font-weight: 700; }

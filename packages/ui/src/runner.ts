@@ -50,6 +50,36 @@ const MAX_PER_EDGE = 4;
 /** Longest wall-clock gap we will catch up on (e.g. after a background tab). */
 const MAX_FRAME = 0.25;
 
+/** The broker topic a token carries, from its payload (CAT-4). */
+export function topicOf(t: Token): string | undefined {
+  const d = t.payload?.data as { topic?: string } | undefined;
+  return d?.topic?.replace(/^argonautical\//, '');
+}
+
+/** A short tag for a broker token: which topic, or a subscription change. */
+export function topicTag(t: Token): string | undefined {
+  const topic = topicOf(t);
+  if (!topic) return undefined;
+  const name = topic.split('/')[0]!;
+  if (t.edge === 'consumer>subscribe>broker') return `${/UNSUBSCRIBE/.test(t.payload!.format) ? '−' : '+'}${name}`;
+  return name;
+}
+
+function noticeOf(t: Token): string {
+  const d = t.payload?.data as { payload?: { forecast_id?: string } } | undefined;
+  const id = d?.payload?.forecast_id;
+  switch (topicOf(t)) {
+    case 'forecast/new':
+      return `▸ ${id} ready`;
+    case 'features/new':
+      return `▸ features of ${id}`;
+    case 'catalogue/changed':
+      return '▸ catalogue changed';
+    default:
+      return '▸ message';
+  }
+}
+
 export class Runner {
   sim: Simulation;
   rate: Rate = DEFAULT_RATE;
@@ -70,6 +100,8 @@ export class Runner {
   /** After a release or a call, the rest of that tick's tokens wait until it lands, so cause visibly precedes effect. */
   private hold = { tick: -1, at: 0 };
   private listeners = new Set<() => void>();
+  /** CAT-4: per consumer, the latest broker message to reach it on screen (when it lands, and what it says). */
+  private inbox = new Map<string, { at: number; label: string }>();
   /** Per reader (element#instance): the latest gathering and the one before it. */
   private gatherings = new Map<string, Gathering[]>();
 
@@ -96,6 +128,7 @@ export class Runner {
     this.lastSeq = 0;
     this.exchangesThisTick.clear();
     this.gatherings.clear();
+    this.inbox.clear();
     this.hold = { tick: -1, at: 0 };
     this.frac = 0;
     this.emit();
@@ -179,7 +212,9 @@ export class Runner {
       // the same caller in the same tick leave together, side by side, and the slower NetCDF reads
       // come back later than SQL ones, so the replies arrive staggered.
       let dur: number;
-      const now = t.start === this.hold.tick ? Math.max(this.anim, this.hold.at) : this.anim;
+      let now = t.start === this.hold.tick ? Math.max(this.anim, this.hold.at) : this.anim;
+      // A consumer acts on a broker message only once that message has landed on screen.
+      if (t.instance && t.edge.startsWith('consumer>')) now = Math.max(now, this.inbox.get(t.instance)?.at ?? 0);
       let born = now;
       let abreast = 0;
       if (t.role) {
@@ -208,6 +243,7 @@ export class Runner {
       if (same.length >= MAX_PER_EDGE) this.visuals.splice(this.visuals.indexOf(same[0]!), 1);
       this.visuals.push({ token: t, born, dur, lineage, ...(abreast ? { abreast } : {}) });
       if (t.role) this.gather(t, born, dur);
+      if (t.edge === 'broker>deliver>consumer' && t.instance) this.inbox.set(t.instance, { at: born + dur, label: noticeOf(t) });
     }
   }
 
@@ -231,6 +267,19 @@ export class Runner {
    * True while the reader's latest reads are still on screen: requests out, replies not yet back.
    * The diagram shows "retrieving data" until then, so a step never looks busy before its inputs arrive.
    */
+  /**
+   * CAT-4: what a consumer has just heard from the broker ("▸ F3 ready", "▸ catalogue changed"),
+   * from when the message lands on screen until the reads it triggered are back (or a few seconds).
+   */
+  notice(instance: string): string | undefined {
+    const n = this.inbox.get(instance);
+    if (!n || this.anim < n.at) return undefined;
+    if (this.anim - n.at < this.wall(4, 1.2)) return n.label;
+    const list = this.gatherings.get(`consumer#${instance}`) ?? [];
+    const g = list[list.length - 1];
+    return g && g.start >= n.at && this.anim < g.lastAt ? n.label : undefined;
+  }
+
   readsPending(element: string, instance?: string): boolean {
     const list = this.gatherings.get(`${element}#${instance ?? ''}`) ?? [];
     const g = list[list.length - 1];
