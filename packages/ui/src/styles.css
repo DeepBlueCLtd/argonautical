@@ -162,8 +162,6 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .ring .track { fill: none; stroke: #e3e7eb; stroke-width: 4; }
 .ring .fill { fill: none; stroke: var(--ink); stroke-width: 4; }
 .diagram .strong { font-weight: 700; }
-.diagram .countdown { font-size: 22px; font-weight: 700; fill: var(--ink); }
-.diagram .countdown.expired { font-size: 14px; }
 
 .residuals .axis, .diagram .axis { stroke: #b8c0c8; stroke-width: 1; }
 .residuals .threshold { stroke: var(--muted); stroke-dasharray: 3 3; stroke-width: 1; }

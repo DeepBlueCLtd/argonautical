@@ -324,13 +324,17 @@ export function Diagram({ snap, runner, motion }: { snap: Snapshot; runner: Runn
         </T>
         {f && (
           <>
-            <T x={R.forecast.x + R.forecast.w - 12} y={R.forecast.y + 18} cls="tiny muted" anchor="end">
-              {staleRemaining > 0 ? 'stale in' : 'stale'}
+            <Ring
+              cx={R.forecast.x + R.forecast.w - 30}
+              cy={R.forecast.y + 32}
+              r={19}
+              frac={1 - staleRemaining / snap.schedule.staleAfter}
+              label={mmss(snap.schedule.staleIn)}
+              cls="stale-ring"
+            />
+            <T x={R.forecast.x + 12} y={R.forecast.y + 62} cls={`tiny ${staleRemaining > 0 ? 'muted' : 'strong'}`}>
+              {staleRemaining > 0 ? 'stale in' : stale.replacing ? 'stale · replacing' : 'stale'}
             </T>
-            <T x={R.forecast.x + R.forecast.w - 12} y={R.forecast.y + 42} cls={`countdown mono ${staleRemaining > 0 ? '' : 'expired'}`} anchor="end">
-              {staleRemaining > 0 ? mmss(snap.schedule.staleIn) : stale.replacing ? 'replacing' : '0:00'}
-            </T>
-            <Bar x={R.forecast.x + 12} y={R.forecast.y + 54} w={R.forecast.w - 24} frac={staleRemaining / snap.schedule.staleAfter} cls="stale" />
           </>
         )}
         <T x={R.forecast.x + 12} y={R.forecast.y + R.forecast.h - 30} cls="tiny muted">
