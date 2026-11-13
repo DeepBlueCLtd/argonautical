@@ -155,7 +155,7 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 | ID | Requirement |
 |---|---|
 | UI-1 | Three labelled regions (World \| System \| Onboard consumers) separated by visible boundary lines, with the broker straddling the right-hand line. |
-| UI-2 | **The orchestrator is the dominant element** and is drawn as its asset graph. Assets are the primary visual objects; lineage is drawn as heavy, highlighted flows. |
+| UI-2 | **The orchestrator is the dominant element** and is drawn as its asset graph. Assets are the primary visual objects. Lineage is drawn as thin (2 px) lines in a distinct blue-grey, so the larger lineage tokens show each dependency being resolved; heavy lines were tried and hid the tokens. |
 | UI-3 | Each of our modules sits **inside** the asset or sensor it computes, with a shim strip above it. Our software is visually distinct from the off-the-shelf parts. Containment replaces arrows from the orchestrator to its shims. |
 | UI-4 | Ingestion sits outside the orchestrator and is marked "not orchestrated". |
 | UI-5 | The stores and pygeoapi sit below the orchestrator, except the Observations DB (UI-8). Read lines are labelled "read only", and their arrows show the direction the data moves. |
@@ -170,7 +170,7 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 | ID | Requirement |
 |---|---|
 | MOT-1 | Tokens travel along edges only when the simulation records an interaction. Lineage tokens are larger and stay visible for at least about 1.2 s of wall-clock time at any speed. |
-| MOT-2 | A reduced-motion mode replaces tokens with an "n · last time" label per edge. The default follows the OS setting. When the OS asks for reduced motion, the toolbar shows a visible hint with a one-click switch to tokens, and `?motion=tokens` (or `?motion=reduced`) forces the mode for rehearsal. |
+| MOT-2 | *(Withdrawn, Nov 13, 2026.)* There is no reduced-motion mode: tokens are always shown, whatever the OS setting. The per-edge counters it used were judged too cluttered. |
 | MOT-3 | Countdowns show what triggers things: a ring on the drift sensor (time to the next check), "stale in m:ss" rings on the staleness schedule and on forecast (showing "stale · replacing" once the scheduled run starts), an execution bar on the model runner ("replacing stale F2"), an execution bar on the feature detector, and a retry countdown on the shim. |
 | MOT-4 | **Retry state belongs to the orchestrator, not our code.** The retry countdown appears on the shim strip, which turns amber. A retry sends one amber token from the shim into the module. Lineage tokens are not re-sent on a retry. |
 | MOT-5 | While a module is offline it shows an offline state (a red halo) and no progress, and stops "running". |
@@ -197,8 +197,8 @@ Controls fall into three kinds, and each kind looks different so the audience ca
 | Kind | Who would really have it | Controls |
 |---|---|---|
 | **Scenario** | Nobody (the sea, the sensors) | Per-input shift (+5σ over 20 s, toggle); per-input sensor noise (0–3σ) |
-| **Operator** | The ship's operator | Drift threshold, quorum, persistence; Request a run |
-| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate 1×/10×/60×, number of inputs, fail next run, offline toggles, stop/start ingestion and Observations DB (on their cards), add consumer, motion mode, view (information flow / system), tour, event log |
+| **Operator** | The ship's operator | Drift threshold, quorum, persistence; Request a run (a violet button on the Manual request card) |
+| **Presenter** | The person giving the demo | Seed + restart, run/pause, step, rate 1×/10×/60×, number of inputs, fail next run, offline toggles, stop/start ingestion and Observations DB (on their cards), add consumer, view (information flow / system), tour, event log |
 
 ### 5.5 Banner
 
@@ -246,7 +246,7 @@ The standard view is information flow (§5.1). A second, optional view shows the
 14. With the model runner offline, the system view shows the compute node offline, and the run token's route ends at the orchestration→compute link, with the amber retry on the shim.
 15. Removing any element's placement, or a link that a cross-node edge needs, fails the test suite.
 16. Each tour, run headless to completion, produces the same golden event-log digest as its replay test.
-17. With the OS set to reduced motion, the demo starts in reduced-motion mode and shows the switch-to-tokens hint; `?motion=tokens` overrides it.
+17. *(Withdrawn with MOT-2.)*
 18. Stop ingestion for 30 s: the sensor broker's queued count grows by one per input per second. Start it: the queue drains to zero, and every observation is in the DB once, in measurement-time order. Stop the DB and request a run: the run retries until the DB is back, then commits.
 
 ---
@@ -268,7 +268,7 @@ None open. The six questions from v2 and three raised by the system-architecture
 
 ### Decided (Nov 12, 2026)
 
-- **Reduced motion.** Follows the OS by default, with a visible presenter override (MOT-2).
+- **Reduced motion.** Removed (MOT-2 withdrawn, Nov 13, 2026): tokens are always shown. The earlier decision to follow the OS setting is superseded.
 - **Observations.** The `observations` source asset and the Observations DB are one element, straddling the orchestrator edge (UI-8).
 - **Background.** Drawn as a loop arrow on `forecast` (UI-10).
 - **Orchestrator private store.** Drawn in both views (UI-9, SYS-4).

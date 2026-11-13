@@ -1,16 +1,12 @@
 import { DRIFT_BOUNDS, MAX_INPUTS, MIN_INPUTS, NOISE_BOUNDS, type ControlAction, type Snapshot } from '@argonautical/sim';
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Diagram, type Motion, type Picked } from './diagram/Diagram.tsx';
+import { Diagram, type Picked } from './diagram/Diagram.tsx';
 import { TokenPopup } from './TokenPopup.tsx';
 import { VIEW } from './diagram/layout.ts';
 import boundary from './generated/boundary.json';
 import { Runner, type Rate } from './runner.ts';
 
 const params = new URLSearchParams(location.search);
-const osReduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-const motionParam = params.get('motion');
-// MOT-2: follow the OS by default; ?motion= forces a mode for rehearsal.
-const initialMotion: Motion = motionParam === 'tokens' || motionParam === 'reduced' ? motionParam : osReduced ? 'reduced' : 'tokens';
 
 function useRunner(): Runner {
   const ref = useRef<Runner>();
@@ -91,7 +87,6 @@ export function App() {
     (fn) => runner.subscribe(fn),
     () => runner.sim,
   );
-  const [motion, setMotion] = useState<Motion>(initialMotion);
   const [logOpen, setLogOpen] = useState(false);
   const [picked, setPicked] = useState<Picked | null>(null);
   const layout = useLayout(runner.sim.inputs.length);
@@ -100,11 +95,11 @@ export function App() {
 
   return (
     <div className={`app ${layout}`}>
-      <PresenterBar runner={runner} snap={snap} motion={motion} setMotion={setMotion} logOpen={logOpen} setLogOpen={setLogOpen} />
+      <PresenterBar runner={runner} snap={snap} logOpen={logOpen} setLogOpen={setLogOpen} />
       <Banner snap={snap} />
       <main className="stage">
-        <Diagram snap={snap} runner={runner} motion={motion} onPick={setPicked} />
-        {motion === 'tokens' && runner.frozen && !picked && (
+        <Diagram snap={snap} runner={runner} onPick={setPicked} />
+        {runner.frozen && !picked && (
           <div className="inspect-hint">{runner.tokens.length ? 'Paused · click a dot to see what it carries' : 'Paused · press Step to send one tick of tokens, then click a dot'}</div>
         )}
         <Legend />
@@ -119,8 +114,8 @@ export function App() {
   );
 }
 
-function PresenterBar(props: { runner: Runner; snap: Snapshot; motion: Motion; setMotion: (m: Motion) => void; logOpen: boolean; setLogOpen: (b: boolean) => void }) {
-  const { runner, snap, motion, setMotion } = props;
+function PresenterBar(props: { runner: Runner; snap: Snapshot; logOpen: boolean; setLogOpen: (b: boolean) => void }) {
+  const { runner, snap } = props;
   const [seed, setSeed] = useState(runner.seed);
   const [inputs, setInputs] = useState(runner.inputs);
   return (
@@ -171,14 +166,6 @@ function PresenterBar(props: { runner: Runner; snap: Snapshot; motion: Motion; s
       </button>
       <button onClick={() => runner.apply({ type: 'addConsumer' })}>Add consumer</button>
       <span className="sep" />
-      <button onClick={() => setMotion(motion === 'tokens' ? 'reduced' : 'tokens')} title="MOT-2">
-        Motion: {motion}
-      </button>
-      {motion === 'reduced' && osReduced && motionParam !== 'reduced' && (
-        <button className="hint" onClick={() => setMotion('tokens')}>
-          OS asks for reduced motion · show tokens
-        </button>
-      )}
       <button className={props.logOpen ? 'on' : ''} onClick={() => props.setLogOpen(!props.logOpen)}>
         Event log ({snap.events.count})
       </button>
@@ -270,9 +257,6 @@ function OperatorPanel({ snap, act }: { snap: Snapshot; act: (a: ControlAction) 
         persistence <b className="mono">{d.persistence}</b>
         <input type="range" min={b.persistence.min} max={b.persistence.max} step={1} value={d.persistence} onChange={(e) => act({ type: 'persistence', value: Number(e.target.value) })} />
       </label>
-      <button className="primary" onClick={() => act({ type: 'requestRun' })}>
-        Request a run
-      </button>
     </section>
   );
 }

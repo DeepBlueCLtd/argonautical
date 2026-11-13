@@ -12,7 +12,7 @@
   --ots-fill: #fbfbfc;
   --world: #eef1f4;
   --lineage: #2c3a48; /* lineage tokens and labels */
-  --lineage-track: #b7c2cd; /* heavy lineage lines: light, so dark tokens show on them */
+  --lineage-track: #6f8599; /* lineage lines: thin, a darker blue-grey than data lines */
 
   --mat: #22a05a; /* green: materialising */
   --mat-fill: #d6f5e1;
@@ -50,7 +50,6 @@ button:hover { border-color: var(--ink); }
 button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 button.on.danger { background: var(--offline); border-color: var(--offline); }
 button.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
-button.hint { border-style: dashed; color: var(--muted); }
 .seg { display: inline-flex; }
 .seg button { border-radius: 0; margin-left: -1px; }
 .seg button:first-child { border-radius: 4px 0 0 4px; }
@@ -171,7 +170,7 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .diagram .axis.zero { stroke: var(--ink); }
 
 .edge { fill: none; stroke: #9aa5b1; stroke-width: 1.4; }
-.edge.lineage { stroke: var(--lineage-track); stroke-width: 7; stroke-linejoin: round; }
+.edge.lineage { stroke: var(--lineage-track); stroke-width: 2; stroke-linejoin: round; }
 .edge.trigger { stroke: var(--lineage); stroke-dasharray: 2 4; stroke-width: 1.6; }
 .edge.query, .edge.read { stroke: #b4bec8; }
 .edge.call { stroke: var(--ours); }
@@ -184,18 +183,19 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .token.lineage { fill: var(--lineage); stroke-width: 2.5; }
 .token.retry { fill: var(--retry); }
 
-.counter rect { fill: #fff; stroke: var(--line); opacity: 0.92; }
-.counter.recent rect { stroke: var(--ink); }
 
 .diagram .verdict { font-size: 22px; font-weight: 700; }
-.diagram .queue-count { font-size: 22px; font-weight: 700; }
-.diagram .queue-count.backlog { fill: var(--ink); }
+.queue-tab path { fill: var(--ink); }
+.diagram .queue-tab text { fill: #fff; font: 700 12px var(--mono); }
 .box.stopped > rect, .store.stopped > rect { stroke: var(--offline); }
 .svg-button { cursor: pointer; }
 .svg-button rect { fill: #fff; stroke: var(--line); }
 .svg-button:hover rect, .svg-button:focus-visible rect { stroke: var(--ink); }
 .svg-button:active rect { fill: var(--world); }
 .svg-button:focus { outline: none; }
+.svg-button.operator rect { fill: #f3f0fa; stroke: var(--k-operator); }
+.diagram .svg-button.operator text { fill: var(--k-operator); font-weight: 700; }
+.svg-button.operator:hover rect { fill: #e6dff5; }
 .diagram .verdict.ok { fill: var(--mat); }
 .diagram .verdict.bad { fill: var(--offline); }
 
@@ -209,7 +209,7 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .token-popup header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .token-popup header button { margin-left: auto; padding: 0 8px; }
 .token-popup .kind { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 6px; border-radius: 3px; background: var(--world); }
-.token-popup .kind.lineage, .token-popup .kind.trigger { background: var(--lineage-track); }
+.token-popup .kind.lineage, .token-popup .kind.trigger { background: #dfe5eb; }
 .token-popup .kind.call { background: var(--ours-pale); color: var(--ours); }
 .token-popup .route { font-weight: 600; }
 .token-popup .meta { padding: 6px 10px 0; color: var(--muted); font-size: 12px; }
