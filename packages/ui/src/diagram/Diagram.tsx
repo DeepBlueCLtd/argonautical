@@ -96,7 +96,7 @@ export interface SlotTip {
   readonly box: { left: number; top: number; right: number; bottom: number };
 }
 
-export function Diagram({ snap, runner, onPick, onTip, onTokenTip }: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; onTokenTip: (t: TokenTip | null) => void }) {
+export function Diagram({ snap, runner, onPick, onTip, onTokenTip, spotlight }: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; onTokenTip: (t: TokenTip | null) => void; spotlight?: Rect | null }) {
   const consumerIds = snap.consumers.map((c) => c.id);
   const routes = useMemo(() => routeAll(EDGES, consumerIds), [consumerIds.join(',')]);
   const byKey = useMemo(() => new Map(routes.map((r) => [r.key, r])), [routes]);
@@ -584,6 +584,18 @@ export function Diagram({ snap, runner, onPick, onTip, onTokenTip }: { snap: Sna
 
       {/* Tokens: one per recorded interaction (MOT-1) */}
       <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} onTokenTip={onTokenTip} />
+
+      {/* WALK-2: the walkthrough dims everything but the current region or component. */}
+      {spotlight !== undefined && (
+        <g className="spotlight">
+          <path
+            className="dim"
+            fillRule="evenodd"
+            d={`M0,0 H${VIEW.w} V${VIEW.h} H0 Z${spotlight ? ` M${spotlight.x},${spotlight.y} v${spotlight.h} h${spotlight.w} v${-spotlight.h} Z` : ''}`}
+          />
+          {spotlight && <rect className="ring" x={spotlight.x} y={spotlight.y} width={spotlight.w} height={spotlight.h} rx={8} />}
+        </g>
+      )}
     </svg>
   );
 }

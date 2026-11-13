@@ -228,6 +228,16 @@ The standard view is information flow (§5.1). A second, optional view shows the
 | TOUR-3 | Captions appear in one fixed caption strip that does not cover the diagram (UI-6 still holds). They say what is about to happen and what to watch. |
 | TOUR-4 | The viewer can pause, step, and leave the tour at any time. Leaving hands control to the presenter with the simulation state unchanged. |
 
+### 5.8 Walkthrough
+
+| ID | Requirement |
+|---|---|
+| WALK-1 | The app opens paused at T+00:00 with a walkthrough running, unless `?walkthrough=off`. A Walkthrough button in the presenter toolbar restarts it (and pauses the simulation). |
+| WALK-2 | The walkthrough introduces the three regions (World, System, Onboard consumers) one at a time, then each component one at a time in the order data flows, then the token key. Each step dims the rest of the diagram and spotlights its region or component. |
+| WALK-3 | A caption card beside the spotlight gives the step's kind (region, component), title and a short explanation, with its position (n / total) and a progress bar. |
+| WALK-4 | Next, Back and Skip buttons; → or Enter for next, ← for back, Esc to leave. Leaving keeps the simulation paused. |
+| WALK-5 | The last step offers "Start the simulation" (runs it) or "Stay paused". The steps' text and spotlight areas are declared in one list (`packages/ui/src/walkthrough.ts`). |
+
 ---
 
 ## 6. Acceptance criteria
