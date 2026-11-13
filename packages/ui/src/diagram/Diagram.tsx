@@ -121,6 +121,9 @@ export function Diagram({ snap, runner, onPick, onTip }: { snap: Snapshot; runne
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" className="arrowhead" />
         </marker>
+ <marker id="arrow-release" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" className="arrowhead release" />
+        </marker>
         <marker id="arrow-heavy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" className="arrowhead heavy" />
         </marker>
@@ -819,8 +822,11 @@ function Pulse({ pts, p, token, frozen, onPick }: { pts: Pt[]; p: number; token:
   const flash = release && p > sweepEnd ? (p - sweepEnd) / (1 - sweepEnd) : -1;
   const at = pointAt(pts, Math.min(1, head / L));
   const pick = (x: number, y: number) => onPick({ token, x, y });
+  // The whole line (and its arrowhead) turns green as the pulse sweeps, holds through the flash, then fades back.
+  const tint = release ? (p < sweepEnd ? s : 1 - Math.max(0, (p - sweepEnd) / (1 - sweepEnd) - 0.5) * 2) : 0;
   return (
     <g className={`pulse ${token.signal}`}>
+      {release && <path d={pathD(pts)} className="tint" opacity={tint} markerEnd="url(#arrow-release)" />}
       {s < 1 || !release ? <path d={pathD(pts)} className="sweep" strokeDasharray={`${seg} ${L + seg * 2}`} strokeDashoffset={seg - head} opacity={release ? 1 : 1 - s * 0.6} /> : null}
       {flash >= 0 && <circle className="flash" cx={end.x} cy={end.y} r={5 + flash * 16} opacity={1 - flash} />}
       {flash >= 0 && <circle className="flash-core" cx={end.x} cy={end.y} r={5} opacity={1 - flash * 0.7} />}
