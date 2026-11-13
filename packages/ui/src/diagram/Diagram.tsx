@@ -80,6 +80,12 @@ export interface Picked {
   readonly fromSlot?: boolean;
 }
 
+/** Hovering a moving token: what it carries (MOT-6). */
+export interface TokenTip {
+  readonly token: Token;
+  readonly box: { left: number; top: number; right: number; bottom: number };
+}
+
 /** Hovering (or focusing) an input slot: what the document is and what its reader uses it for. */
 export interface SlotTip {
   readonly decl: InputDecl;
@@ -90,7 +96,7 @@ export interface SlotTip {
   readonly box: { left: number; top: number; right: number; bottom: number };
 }
 
-export function Diagram({ snap, runner, onPick, onTip }: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void }) {
+export function Diagram({ snap, runner, onPick, onTip, onTokenTip }: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; onTokenTip: (t: TokenTip | null) => void }) {
   const consumerIds = snap.consumers.map((c) => c.id);
   const routes = useMemo(() => routeAll(EDGES, consumerIds), [consumerIds.join(',')]);
   const byKey = useMemo(() => new Map(routes.map((r) => [r.key, r])), [routes]);
@@ -577,7 +583,7 @@ export function Diagram({ snap, runner, onPick, onTip }: { snap: Snapshot; runne
       </g>
 
       {/* Tokens: one per recorded interaction (MOT-1) */}
-      <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} />
+      <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} onTokenTip={onTokenTip} />
     </svg>
   );
 }
@@ -842,7 +848,7 @@ function Pulse({ pts, p, token, frozen, onPick }: { pts: Pt[]; p: number; token:
   );
 }
 
-function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void }) {
+function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void; onTokenTip: (t: TokenTip | null) => void }) {
   // Drill-down: once paused, frozen tokens get a larger hit area and open a popup on click.
   const frozen = runner.frozen;
   return (
@@ -852,30 +858,51 @@ function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<st
         const pts = tk.edge === 'forecast>lineage>forecast' ? loop : byKey.get(tk.instance ? `${tk.edge}#${tk.instance}` : tk.edge)?.points;
         if (!pts) return null;
         if (tk.signal) return <Pulse key={tk.seq} pts={pts} p={p} token={tk} frozen={frozen} onPick={onPick} />;
-        // Reads sent together travel side by side: the nth sits ABREAST_GAP·n pixels behind the first,
-        // closing up as they leave and arrive.
+        // Reads sent together travel side by side: the nth stays a constant ABREAST_GAP·n pixels behind
+        // the first all the way (it appears once it has that much line behind it), so they never overlap.
         const lag = v.abreast ? (v.abreast * ABREAST_GAP) / Math.max(1, lengthOf(pts)) : 0;
-        const q = Math.max(0, Math.min(1, p * (1 + lag) - lag));
+        const q = Math.min(1, p - lag);
+        if (q < 0) return null;
         // Replies travel back along the line, against its arrow.
         const pt = pointAt(pts, tk.reverse ? 1 - q : q);
         const dot = <DocToken x={pt.x} y={pt.y} size={v.lineage ? 1.5 : 1.25} letter={tk.payload?.standard} cls={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} />;
-        if (!frozen) return <g key={tk.seq}>{dot}</g>;
-        const pick = (e: { clientX: number; clientY: number }) => onPick({ token: tk, x: e.clientX, y: e.clientY });
+        // Hover (any time) shows what the token carries; paused, a click opens the full data.
+        const tip = (el: Element) => {
+          const b = el.getBoundingClientRect();
+          onTokenTip({ token: tk, box: { left: b.left, top: b.top, right: b.right, bottom: b.bottom } });
+        };
+        const hover = { onMouseEnter: (e: { currentTarget: Element }) => tip(e.currentTarget), onMouseLeave: () => onTokenTip(null) };
+        if (!frozen)
+          return (
+            <g key={tk.seq} className="hoverable" data-seq={tk.seq} {...hover}>
+              <circle className="hit" cx={pt.x} cy={pt.y} r={9} />
+              {dot}
+            </g>
+          );
+        const pick = (e: { clientX: number; clientY: number }) => {
+          onTokenTip(null);
+          onPick({ token: tk, x: e.clientX, y: e.clientY });
+        };
         return (
           <g
             key={tk.seq}
             className="pickable"
+            data-seq={tk.seq}
             role="button"
             tabIndex={0}
             aria-label={`Inspect ${tk.payload?.summary ?? tk.edge}`}
+            {...hover}
+            onFocus={(e) => tip(e.currentTarget)}
+            onBlur={() => onTokenTip(null)}
             onClick={pick}
             onKeyDown={(e) => {
               if (e.key !== 'Enter' && e.key !== ' ') return;
               const b = (e.currentTarget as SVGGElement).getBoundingClientRect();
+              onTokenTip(null);
               onPick({ token: tk, x: b.x + b.width / 2, y: b.y + b.height / 2 });
             }}
           >
-            <circle className="hit" cx={pt.x} cy={pt.y} r={14} />
+            <circle className="hit" cx={pt.x} cy={pt.y} r={9} />
             {dot}
           </g>
         );
