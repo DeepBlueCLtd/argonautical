@@ -148,9 +148,9 @@ function PresenterBar(props: { runner: Runner; snap: Snapshot; logOpen: boolean;
       </button>
       <button onClick={() => runner.step()}>Step</button>
       <div className="seg" role="group" aria-label="Rate">
-        {([1, 10, 60] as Rate[]).map((r) => (
+        {([0.5, 1, 10, 60] as Rate[]).map((r) => (
           <button key={r} className={runner.rate === r ? 'on' : ''} onClick={() => runner.setRate(r)}>
-            {r}×
+            {r === 0.5 ? '½' : r}×
           </button>
         ))}
       </div>

@@ -9,9 +9,9 @@ The browser demonstrator and the explanatory site shell. React + SVG, built with
 
 ## How it is built
 
-- **The simulation drives everything.** `src/runner.ts` owns the wall clock (run/pause, step, 1×/10×/60×) and calls the simulation's control API and `step()`. Nothing else mutates simulation state (ARC-4).
+- **The simulation drives everything.** `src/runner.ts` owns the wall clock (run/pause, step, ½×/1×/10×/60×, default ½×) and calls the simulation's control API and `step()`. Nothing else mutates simulation state (ARC-4).
 - **Wiring is declared, not drawn (ARC-3).** `src/diagram/layout.ts` holds only rectangles and routing hints. Every edge drawn comes from the simulation's declared `EDGES`; consumer edges are drawn per consumer instance.
-- **Tokens are real interactions (MOT-1).** Each token record from the simulation becomes one moving dot. It stays on screen for at least 0.6 s (1.2 s for lineage) at any speed, and stops when paused. A step animates that one tick's tokens and then stays paused.
+- **Tokens are real interactions (MOT-1).** Each token record from the simulation becomes one moving dot. It stays on screen for at least 0.6 s (1.2 s for lineage) at any speed; each leg of a pygeoapi round trip takes 1.2 s, and stops when paused. A step animates that one tick's tokens and then stays paused.
 - **Drill-down (MOT-6).** When paused, the frozen dots can be clicked or tapped (or reached with Tab and Enter). The popup shows the interaction, what was passed, its production format and a mock JSON object built from the simulation's values. Step leaves the tokens part-way so there is something to click. Payloads are built in `packages/sim/src/payloads.ts`. A read through pygeoapi plays as four legs in sequence (request → DB query → DB rows → response), with the replies running back along their lines, so each can be opened.
 - **Buffering (FLT-3).** The Ingestion and Observations DB cards have Stop/Start buttons, and a stopped component gets the red halo. While a backlog builds, a dark tab on the Sensor broker's exit edge shows "N queued". The tab is square where it meets the card and rounded on its outer corners. The card shows how long the oldest message has waited. The `buffering` scenario walks through it.
 - **No reduced-motion mode.** Tokens are always shown (MOT-2 withdrawn).
