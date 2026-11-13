@@ -858,10 +858,11 @@ function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; b
         const pts = tk.edge === 'forecast>lineage>forecast' ? loop : byKey.get(tk.instance ? `${tk.edge}#${tk.instance}` : tk.edge)?.points;
         if (!pts) return null;
         if (tk.signal) return <Pulse key={tk.seq} pts={pts} p={p} token={tk} frozen={frozen} onPick={onPick} />;
-        // Reads sent together travel side by side: the nth sits ABREAST_GAP·n pixels behind the first,
-        // closing up as they leave and arrive.
+        // Reads sent together travel side by side: the nth stays a constant ABREAST_GAP·n pixels behind
+        // the first all the way (it appears once it has that much line behind it), so they never overlap.
         const lag = v.abreast ? (v.abreast * ABREAST_GAP) / Math.max(1, lengthOf(pts)) : 0;
-        const q = Math.max(0, Math.min(1, p * (1 + lag) - lag));
+        const q = Math.min(1, p - lag);
+        if (q < 0) return null;
         // Replies travel back along the line, against its arrow.
         const pt = pointAt(pts, tk.reverse ? 1 - q : q);
         const dot = <DocToken x={pt.x} y={pt.y} size={v.lineage ? 1.5 : 1.25} letter={tk.payload?.standard} cls={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} />;
@@ -874,7 +875,7 @@ function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; b
         if (!frozen)
           return (
             <g key={tk.seq} className="hoverable" data-seq={tk.seq} {...hover}>
-              <circle className="hit" cx={pt.x} cy={pt.y} r={10} />
+              <circle className="hit" cx={pt.x} cy={pt.y} r={9} />
               {dot}
             </g>
           );
@@ -901,7 +902,7 @@ function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; b
               onPick({ token: tk, x: b.x + b.width / 2, y: b.y + b.height / 2 });
             }}
           >
-            <circle className="hit" cx={pt.x} cy={pt.y} r={14} />
+            <circle className="hit" cx={pt.x} cy={pt.y} r={9} />
             {dot}
           </g>
         );
