@@ -63,15 +63,17 @@ function walk(dir) {
   });
 }
 
-/** Small fixed tab on every preview page linking back to the list. */
+/** Small fixed tab (bottom centre, dismissible) on every preview page, linking back to the list. */
 function injectRibbon(previewRoot, number) {
   for (const file of walk(previewRoot).filter((f) => f.endsWith('.html'))) {
     const depth = relative(previewRoot, file).split(sep).length - 1;
     const back = '../'.repeat(depth + 1);
     const tab =
-      `<div data-preview-ribbon style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:2147483647;` +
-      `background:#1f2933;color:#fff;font:600 11px/1 system-ui,sans-serif;padding:4px 10px;border-radius:0 0 6px 6px;opacity:.9">` +
-      `PR #${number} preview · <a href="${back}" style="color:#9cc9f5">all previews</a></div>`;
+      `<div data-preview-ribbon style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:2147483647;` +
+      `background:#1f2933;color:#fff;font:600 11px/1 system-ui,sans-serif;padding:4px 6px 4px 10px;border-radius:6px 6px 0 0;opacity:.9">` +
+      `PR #${number} preview · <a href="${back}" style="color:#9cc9f5">all previews</a> ` +
+      `<button type="button" aria-label="Hide preview tab" onclick="this.parentNode.remove()" ` +
+      `style="all:unset;cursor:pointer;margin-left:6px;padding:0 4px;color:#9aa5b1">×</button></div>`;
     const html = readFileSync(file, 'utf8');
     if (html.includes('data-preview-ribbon')) continue;
     writeFileSync(file, html.includes('</body>') ? html.replace('</body>', `${tab}\n</body>`) : html + tab);
