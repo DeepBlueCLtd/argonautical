@@ -9,5 +9,16 @@
     "author": "IanMayo",
     "status": "merged",
     "updated": "2026-11-13T07:04:21.761Z"
+  },
+  {
+    "number": 8,
+    "title": "Add browser UI and explanatory site shell; publish to gh-pages",
+    "summary": "First version of the UI: a React + SVG app built with Vite, published as a static site.",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/8",
+    "branch": "claude/sweet-newton-m24x65",
+    "sha": "19431fa5cd30e94af4d73dda64bf80fbbe68519f",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-13T07:05:10.868Z"
   }
 ]
