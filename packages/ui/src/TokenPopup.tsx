@@ -2,9 +2,9 @@ import { EDGES, STANDARDS, clockLabel, element, type Token } from '@argonautical
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /** Legs of a pygeoapi round trip: label each by what it is, not by the edge it rides on. */
-const ROLE: Record<string, string> = { request: 'Request', 'db-query': 'DB query', 'db-rows': 'DB rows', response: 'Response' };
+export const ROLE: Record<string, string> = { request: 'Request', 'db-query': 'DB query', 'db-rows': 'DB rows', response: 'Response' };
 
-const KIND: Record<string, string> = {
+export const KIND: Record<string, string> = {
   send: 'Send',
   write: 'Write',
   read: 'Read (read only)',
@@ -15,6 +15,20 @@ const KIND: Record<string, string> = {
   lineage: 'Lineage',
   trigger: 'Trigger',
 };
+
+/** "Ingestion → Observations DB": which way the token is going, in element names. */
+export function routeOf(token: Token): string {
+  const edge = EDGES.find((e) => e.id === token.edge);
+  if (!edge) return token.edge;
+  const label = (id: string) => (id === 'consumer' && token.instance ? `Consumer ${token.instance}` : element(id as never).label);
+  return token.reverse ? `${label(edge.to)} → ${label(edge.from)}` : `${label(edge.from)} → ${label(edge.to)}`;
+}
+
+/** "Request", "Write", "Lineage"…: what kind of interaction the token is. */
+export function kindOf(token: Token): string {
+  const edge = EDGES.find((e) => e.id === token.edge);
+  return token.role ? ROLE[token.role]! : (KIND[edge?.kind ?? ''] ?? edge?.kind ?? '');
+}
 
 /** Drill-down on one token: what moved along the arrow, in what format, with a mock data object. */
 export function TokenPopup({ token, x, y, onClose }: { token: Token; x: number; y: number; onClose: () => void }) {

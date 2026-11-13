@@ -321,3 +321,8 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .pulse .pulse-hit { fill: transparent; cursor: pointer; }
 .pulse .pulse-hit:focus { outline: none; }
 .diagram .waiting { fill: var(--muted); font-style: italic; }
+
+/* Moving tokens: hover any time for the page panel */
+.tokens .hoverable .hit { fill: transparent; }
+.tokens .hoverable { cursor: help; }
+.tokens .hoverable:hover .token .page { stroke-width: 2.6; }
