@@ -25,7 +25,7 @@ export const MAX_INPUTS = 6;
 
 export const TIMING = {
   /** ORC-1 */
-  driftSensorInterval: 4,
+  driftSensorInterval: 10,
   /** ORC-1: a forecast older than this is stale. */
   staleAfter: 180,
   /** MOD-1 */

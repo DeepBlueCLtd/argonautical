@@ -58,7 +58,7 @@ export function TokenPopup({ token, x, y, onClose }: { token: Token; x: number; 
         <>
           <p className="summary">{p.summary}</p>
           <p className="format">
-            <b className="std-badge">{p.standard}</b> {STANDARDS[p.standard]} · {p.format}
+            <b className={`std-badge std-${p.standard}`}>{p.standard}</b> {STANDARDS[p.standard]} · {p.format}
           </p>
           <pre className="data">{JSON.stringify(p.data, null, 2)}</pre>
           <p className="note">Mock data: the values are the simulation's, the format is illustrative.</p>

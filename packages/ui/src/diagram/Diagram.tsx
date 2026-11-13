@@ -585,7 +585,7 @@ export function DocToken({ x, y, size, cls, letter }: { x: number; y: number; si
   const x0 = x - w / 2;
   const y0 = y - h / 2;
   return (
-    <g className={cls}>
+    <g className={`${cls} ${letter ? `std-${letter}` : ''}`}>
       <path className="page" d={`M${x0},${y0} H${x0 + w - f} L${x0 + w},${y0 + f} V${y0 + h} H${x0} Z`} />
       <path className="fold" d={`M${x0 + w - f},${y0} V${y0 + f} H${x0 + w}`} />
       {letter ? (

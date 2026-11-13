@@ -47,7 +47,7 @@ The screen and the simulation share one model, in three regions separated by two
 - **Orchestrator** (off-the-shelf, mocked): the asset graph and its triggers.
   - Assets: `observations`, `climatology`, `background` (the previous forecast), `forecast`, `features`, `announcement`. `observations` is a source asset: a declaration pointing at the Observations DB, not a separate thing, so it is drawn as the Observations DB itself (UI-8). `background` is drawn as a loop on `forecast` (UI-10).
   - Lineage: observations + climatology + background → forecast → features → announcement; forecast → announcement.
-  - Triggers: the drift sensor (every 4 s), the staleness schedule (a forecast older than 180 s) and manual requests.
+  - Triggers: the drift sensor (every 10 s), the staleness schedule (a forecast older than 180 s) and manual requests.
   - Run policy: one run at a time. A request arriving during a run queues; later requests merge into the queued one. Failed steps are retried until they succeed, with backoff.
   - Its own private store (run history, schedule, sensor state). This is modelled and drawn small, inside the orchestrator (UI-9).
 - **Shims** (thin wrappers, one per crossing): check, run, detect and announce. Each one calls a single module of ours and holds no logic.
@@ -115,7 +115,7 @@ The screen and the simulation share one model, in three regions separated by two
 
 | ID | Requirement |
 |---|---|
-| ORC-1 | Drift sensor every 4 s. Staleness schedule at 180 s. Both are declared configuration that is shown on screen, not operator-tunable. The 4 s interval is demo time-compression: production keeps the Dagster sensor at ≥30 s. |
+| ORC-1 | Drift sensor every 10 s. Staleness schedule at 180 s. Both are declared configuration that is shown on screen, not operator-tunable. The 10 s interval is demo time-compression: production keeps the Dagster sensor at ≥30 s. |
 | ORC-2 | One run at a time; queue, then merge. Log the causes of merged requests (e.g. `drift + manual`). |
 | ORC-3 | Retry failed steps (run or detect) until they succeed, with exponential backoff of 2, 4, 8 s, then 10 s thereafter. |
 | ORC-4 | Each run progresses through run → detect → announce. Each asset records when it was materialised. |
@@ -169,7 +169,7 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 
 | ID | Requirement |
 |---|---|
-| MOT-1 | Tokens (drawn as small white document icons, lettered with the standard their content follows: S SensorThings, Q SQL, E OGC API – EDR, C CoverageJSON, F OGC API – Features, G GeoJSON, N NetCDF, M MQTT announcement, D Dagster, H HTTP status, lettered by payload; a token key sits at the foot of the Onboard consumers column, which shows up to five consumer cards) travel along edges only when the simulation records an interaction. Lineage tokens are larger and stay visible for at least about 1.2 s of wall-clock time at any speed. |
+| MOT-1 | Tokens (drawn as small white document icons, lettered with the standard their content follows: S SensorThings, Q SQL, E OGC API – EDR, C CoverageJSON, F OGC API – Features, G GeoJSON, N NetCDF, M MQTT announcement, D Dagster, H HTTP status, lettered by payload, and filled with a pale colour per standard; a token key sits at the foot of the Onboard consumers column, which shows up to five consumer cards) travel along edges only when the simulation records an interaction. Lineage tokens are larger and stay visible for at least about 1.2 s of wall-clock time at any speed. |
 | MOT-2 | *(Withdrawn, Nov 13, 2026.)* There is no reduced-motion mode: tokens are always shown, whatever the OS setting. The per-edge counters it used were judged too cluttered. |
 | MOT-3 | Countdowns show what triggers things: a ring on the drift sensor (time to the next check), "stale in m:ss" rings on the staleness schedule and on forecast (showing "stale · replacing" once the scheduled run starts), an execution bar on the model runner ("replacing stale F2"), an execution bar on the feature detector, and a retry countdown on the shim. |
 | MOT-4 | **Retry state belongs to the orchestrator, not our code.** The retry countdown appears on the shim strip, which turns amber. A retry sends one amber token from the shim into the module. Lineage tokens are not re-sent on a retry. |
@@ -274,7 +274,7 @@ None open. The six questions from v2 and three raised by the system-architecture
 - **Orchestrator private store.** Drawn in both views (UI-9, SYS-4).
 - **Tour mode.** Wanted, built from the replay scripts (§5.7).
 - **Target display.** 1920×1080 minimum (UI-6), raised from 1280×720 to give the straddling Observations DB (UI-8) room. Scales up to large monitors; below 1080p (e.g. an older 720p projector) legibility is not guaranteed.
-- **Drift monitor cadence.** It stays a Dagster sensor. The 4 s interval is demo-only; production uses ≥30 s (ORC-1).
+- **Drift monitor cadence.** It stays a Dagster sensor. The 10 s interval (4 s before Nov 13, 2026) is demo-only; production uses ≥30 s (ORC-1).
 - **Observation path.** Observations use the SensorThings schema end to end, with no SensorThings server (no FROST-Server). The DAQ gateway publishes SensorThings Observation messages to a **sensor broker** (a persistent queue), and ingestion acknowledges only after the DB commit. The broker is there for resilience: ingestion or DB restarts lose nothing. Buffering is commodity, so it is adopted rather than built into the gateway. It is a separate instance from the announcement broker, because the networks are separate.
 - **Read path.** Our modules read only through pygeoapi, as §2 states. Revisit if forecast grids grow large enough for the HTTP hop to matter.
 - **Network zones.** The instrument (OT) network and the mission network are separate, with a distribution zone between them (SYS-3).

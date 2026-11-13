@@ -1,5 +1,6 @@
 /** SRD §6 acceptance criteria that the simulation can prove headless. */
 import { describe, expect, it } from 'vitest';
+import { TIMING } from '../src/config.ts';
 import { runScript } from '../src/scenario.ts';
 import { Simulation } from '../src/simulation.ts';
 import { events, loadScenario } from './helpers.ts';
@@ -15,8 +16,9 @@ describe('acceptance criteria', () => {
     const sim = runScript(loadScenario('drift'));
     const declared = events(sim, 'drift').find((e) => e.text.startsWith('drift declared'));
     expect(declared).toBeDefined();
-    // shift starts at 30 and needs ~12 s to pass 3σ, then quorum on 2 consecutive 4 s checks
-    expect(declared!.tick).toBeLessThanOrEqual(30 + 12 + 2 * 4 + 4);
+    // shift starts at 30 and needs ~12 s to pass 3σ, then quorum on `persistence` consecutive checks
+    const every = TIMING.driftSensorInterval;
+    expect(declared!.tick).toBeLessThanOrEqual(30 + 12 + 2 * every + every);
     const f = sim.netcdf.all.find((x) => x.cause === 'drift');
     expect(f).toBeDefined();
     expect(sim.featuresDb.byForecast(f!.id).length).toBeGreaterThan(0);
