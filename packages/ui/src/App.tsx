@@ -6,6 +6,8 @@ import { TokenPopup } from './TokenPopup.tsx';
 import { VIEW } from './diagram/layout.ts';
 import boundary from './generated/boundary.json';
 import { Runner, type Rate } from './runner.ts';
+import { WalkCard } from './Walkthrough.tsx';
+import { WALKTHROUGH } from './walkthrough.ts';
 
 const params = new URLSearchParams(location.search);
 
@@ -14,9 +16,14 @@ function useRunner(): Runner {
   if (!ref.current) {
     const inputs = Number(params.get('inputs') ?? 4);
     ref.current = new Runner(params.get('seed') ?? 'demo', inputs >= MIN_INPUTS && inputs <= MAX_INPUTS ? inputs : 4);
+    // WALK-1: the app opens paused at T+00:00 while the walkthrough runs.
+    if (WALK_ON) ref.current.running = false;
   }
   return ref.current;
 }
+
+/** WALK-1: the walkthrough opens by default; `?walkthrough=off` skips it (`?tour=` is kept for TOUR-1's scenario tours). */
+const WALK_ON = params.get('walkthrough') !== 'off';
 
 type Layout = 'side' | 'bottom';
 const layoutParam = params.get('layout');
@@ -92,17 +99,29 @@ export function App() {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [tip, setTip] = useState<SlotTip | null>(null);
   const [tokenTip, setTokenTip] = useState<TokenTip | null>(null);
+  const [walk, setWalk] = useState<number | null>(WALK_ON ? 0 : null);
+  const walkStep = walk === null ? undefined : WALKTHROUGH[walk];
+  const spotlight = walkStep ? (walkStep.rect?.(runner.sim.consumers.length) ?? null) : undefined;
+  const startWalk = () => {
+    runner.setRunning(false);
+    setPicked(null);
+    setWalk(0);
+  };
+  const endWalk = (start: boolean) => {
+    setWalk(null);
+    if (start) runner.setRunning(true);
+  };
   const layout = useLayout(runner.sim.inputs.length);
   const snap = runner.sim.snapshot();
   const act = (a: ControlAction) => runner.apply(a);
 
   return (
     <div className={`app ${layout}`}>
-      <PresenterBar runner={runner} snap={snap} logOpen={logOpen} setLogOpen={setLogOpen} />
+      <PresenterBar runner={runner} snap={snap} logOpen={logOpen} setLogOpen={setLogOpen} onWalkthrough={startWalk} />
       <Banner snap={snap} />
       <main className="stage">
-        <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} />
-        {runner.frozen && !picked && (
+        <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} spotlight={spotlight} />
+        {runner.frozen && !picked && walk === null && (
           <div className="inspect-hint">{runner.tokens.length ? 'Paused · click a dot to see what it carries' : 'Paused · press Step to send one tick of tokens, then click a dot'}</div>
         )}
         <Legend />
@@ -111,6 +130,7 @@ export function App() {
         <ScenarioPanel snap={snap} act={act} />
         <OperatorPanel snap={snap} act={act} />
       </footer>
+      {walk !== null && <WalkCard index={walk} rect={spotlight ?? undefined} onGo={setWalk} onClose={endWalk} />}
       {logOpen && <EventLogPanel runner={runner} onClose={() => setLogOpen(false)} />}
       {tip && !picked && <SlotTipPanel tip={tip} runner={runner} />}
       {/* A token's panel goes when the token arrives (it is no longer on screen). */}
@@ -120,7 +140,7 @@ export function App() {
   );
 }
 
-function PresenterBar(props: { runner: Runner; snap: Snapshot; logOpen: boolean; setLogOpen: (b: boolean) => void }) {
+function PresenterBar(props: { runner: Runner; snap: Snapshot; logOpen: boolean; setLogOpen: (b: boolean) => void; onWalkthrough: () => void }) {
   const { runner, snap } = props;
   const [seed, setSeed] = useState(runner.seed);
   const [inputs, setInputs] = useState(runner.inputs);
@@ -163,6 +183,9 @@ function PresenterBar(props: { runner: Runner; snap: Snapshot; logOpen: boolean;
       <span className="sep" />
       <button onClick={() => runner.apply({ type: 'addConsumer' })}>Add consumer</button>
       <span className="sep" />
+      <button onClick={props.onWalkthrough} title="Introduce each region and component in turn">
+        Walkthrough
+      </button>
       <button className={props.logOpen ? 'on' : ''} onClick={() => props.setLogOpen(!props.logOpen)}>
         Event log ({snap.events.count})
       </button>

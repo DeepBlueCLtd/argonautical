@@ -326,3 +326,23 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .tokens .hoverable .hit { fill: transparent; }
 .tokens .hoverable { cursor: help; }
 .tokens .hoverable:hover .token .page { stroke-width: 2.6; }
+
+/* WALK-1..5: walkthrough spotlight and caption card */
+.spotlight .dim { fill: rgba(22, 30, 40, 0.55); pointer-events: all; }
+.spotlight .ring { fill: none; stroke: #fff; stroke-width: 3; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8)); pointer-events: none; }
+.walk-card { position: fixed; z-index: 30; width: min(340px, calc(100vw - 16px)); background: var(--panel); border-radius: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3); padding: 12px 14px 10px; font-size: 13.5px; line-height: 1.45; border-top: 5px solid var(--ours); transition: left 0.25s ease, top 0.25s ease; }
+.walk-card.region { border-top-color: var(--k-scenario); }
+.walk-card.key { border-top-color: var(--std-C); }
+.walk-card.start { border-top-color: var(--mat); }
+.walk-head { display: flex; justify-content: space-between; align-items: baseline; }
+.walk-kind { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.walk-count { font-size: 11px; color: var(--muted); }
+.walk-card h2 { margin: 2px 0 6px; font-size: 17px; }
+.walk-card p { margin: 0 0 10px; }
+.walk-progress { height: 3px; background: var(--world); border-radius: 2px; overflow: hidden; margin-bottom: 10px; }
+.walk-progress i { display: block; height: 100%; background: var(--ours); transition: width 0.25s ease; }
+.walk-actions { display: flex; gap: 6px; align-items: center; }
+.walk-actions .grow { flex: 1; }
+.walk-actions button.link { border: 0; background: none; color: var(--muted); padding: 2px 4px; text-decoration: underline; cursor: pointer; }
+.walk-hint { font-size: 11px; margin-top: 6px; }
+@media (prefers-reduced-motion: reduce) { .walk-card, .walk-progress i { transition: none; } }
