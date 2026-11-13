@@ -92,6 +92,9 @@ export function Diagram({ snap, runner, motion }: { snap: Snapshot; runner: Runn
 
   const R = RECTS;
   const f = snap.forecast;
+  // Staleness countdown (ORC-1, MOT-3): smooth between ticks; "replacing" once a run is under way.
+  const staleRemaining = f ? Math.max(0, snap.schedule.staleIn - (snap.schedule.staleIn > 0 ? runner.frac : 0)) : 0;
+  const stale = { replacing: !!run && f !== undefined && snap.schedule.staleIn === 0 };
 
   return (
     <svg className="diagram" viewBox={`0 0 ${VIEW.w} ${VIEW.h}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Forecast pipeline information flow">
@@ -260,12 +263,23 @@ export function Diagram({ snap, runner, motion }: { snap: Snapshot; runner: Runn
         <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 22} cls="title">
           Staleness schedule
         </T>
-        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 40} cls="muted small">
-          forecast older than {snap.schedule.staleAfter} s
+        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 44} cls="muted tiny">
+          replaces a forecast
         </T>
-        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 64} cls="small mono">
-          {f ? `stale in ${mmss(snap.schedule.staleIn)}` : 'no forecast yet'}
+        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 58} cls="muted tiny">
+          older than {snap.schedule.staleAfter} s
         </T>
+        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 76} cls="tiny">
+          {!f ? 'no forecast yet' : staleRemaining > 0 ? 'stale in' : stale.replacing ? 'stale · replacing' : 'stale'}
+        </T>
+        <Ring
+          cx={R.stalenessSchedule.x + R.stalenessSchedule.w - 30}
+          cy={R.stalenessSchedule.y + 52}
+          r={21}
+          frac={f ? 1 - staleRemaining / snap.schedule.staleAfter : 0}
+          label={f ? mmss(snap.schedule.staleIn) : '—'}
+          cls="stale-ring"
+        />
       </Box>
       <Box r={R.manualRequest} style="ots">
         <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 22} cls="title">
@@ -310,10 +324,13 @@ export function Diagram({ snap, runner, motion }: { snap: Snapshot; runner: Runn
         </T>
         {f && (
           <>
-            <Bar x={R.forecast.x + 12} y={R.forecast.y + 52} w={R.forecast.w - 24} frac={snap.schedule.staleIn / snap.schedule.staleAfter} cls="stale" />
-            <T x={R.forecast.x + 12} y={R.forecast.y + 72} cls="tiny muted">
-              stale in {mmss(snap.schedule.staleIn)}
+            <T x={R.forecast.x + R.forecast.w - 12} y={R.forecast.y + 18} cls="tiny muted" anchor="end">
+              {staleRemaining > 0 ? 'stale in' : 'stale'}
             </T>
+            <T x={R.forecast.x + R.forecast.w - 12} y={R.forecast.y + 42} cls={`countdown mono ${staleRemaining > 0 ? '' : 'expired'}`} anchor="end">
+              {staleRemaining > 0 ? mmss(snap.schedule.staleIn) : stale.replacing ? 'replacing' : '0:00'}
+            </T>
+            <Bar x={R.forecast.x + 12} y={R.forecast.y + 54} w={R.forecast.w - 24} frac={staleRemaining / snap.schedule.staleAfter} cls="stale" />
           </>
         )}
         <T x={R.forecast.x + 12} y={R.forecast.y + R.forecast.h - 30} cls="tiny muted">
@@ -503,15 +520,14 @@ function ExecLine({ r, label, frac, active }: { r: Rect; label: string; frac: nu
   );
 }
 
-function Ring({ cx, cy, frac, label }: { cx: number; cy: number; frac: number; label: string }) {
-  const rr = 13;
+function Ring({ cx, cy, frac, label, r: rr = 13, cls = '' }: { cx: number; cy: number; frac: number; label: string; r?: number; cls?: string }) {
   const c = 2 * Math.PI * rr;
   const f = Math.max(0, Math.min(1, frac));
   return (
-    <g className="ring">
+    <g className={`ring ${cls}`}>
       <circle cx={cx} cy={cy} r={rr} className="track" />
       <circle cx={cx} cy={cy} r={rr} className="fill" strokeDasharray={`${c * f} ${c}`} transform={`rotate(-90 ${cx} ${cy})`} />
-      <text x={cx} y={cy + 4} textAnchor="middle" className="tiny mono">
+      <text x={cx} y={cy + 4} textAnchor="middle" className={rr > 16 ? 'small mono strong' : 'tiny mono'}>
         {label}
       </text>
     </g>
