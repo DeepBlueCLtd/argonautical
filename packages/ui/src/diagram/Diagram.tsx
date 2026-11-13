@@ -315,18 +315,18 @@ export function Diagram({ snap, runner, onPick, onTip }: { snap: Snapshot; runne
         <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 22} cls="title">
           Staleness schedule
         </T>
-        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 44} cls="muted tiny">
+        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 40} cls="muted tiny">
           replaces a forecast
         </T>
-        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 58} cls="muted tiny">
+        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 54} cls="muted tiny">
           older than {snap.schedule.staleAfter} s
         </T>
-        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 76} cls="tiny">
+        <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 70} cls="tiny">
           {!f ? 'no forecast yet' : staleRemaining > 0 ? 'stale in' : stale.replacing ? 'stale · replacing' : 'stale'}
         </T>
         <Ring
           cx={R.stalenessSchedule.x + R.stalenessSchedule.w - 30}
-          cy={R.stalenessSchedule.y + 52}
+          cy={R.stalenessSchedule.y + 46}
           r={21}
           frac={f ? 1 - staleRemaining / snap.schedule.staleAfter : 0}
           label={f ? mmss(snap.schedule.staleIn) : '—'}
