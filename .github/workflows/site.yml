@@ -1,0 +1,50 @@
+name: Site and PR previews
+
+# Publishes to the gh-pages branch:
+#   push to main → the site root (previews/ is preserved)
+#   pull request → previews/pr-<n>/, an entry on previews/index.html, and a PR comment with the link
+# Previews are kept after a PR closes; the list marks them merged or closed.
+# One-time setup: Settings → Pages → "Deploy from a branch" → gh-pages, folder / (root).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, edited, closed]
+  workflow_dispatch:
+
+permissions:
+  contents: write # push to gh-pages
+  pull-requests: write # preview comment
+
+concurrency:
+  # Builds for one PR (or for main) supersede each other; title/body edits and closes run separately
+  # because they are cheap and the publish script retries pushes on a fresh copy of gh-pages.
+  group: site-${{ github.event.pull_request.number || github.ref }}-${{ (github.event.action == 'edited' || github.event.action == 'closed') && 'meta' || 'build' }}
+  cancel-in-progress: ${{ github.event.action != 'edited' && github.event.action != 'closed' }}
+
+jobs:
+  publish:
+    # Fork PRs get a read-only token and cannot publish; previews are for branches in this repository.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      BUILD: ${{ github.event.action != 'edited' && github.event.action != 'closed' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A closed PR's merge ref may no longer exist; the default branch has the publish script.
+          ref: ${{ github.event.action == 'closed' && github.event.repository.default_branch || '' }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build
+        if: env.BUILD == 'true'
+        run: |
+          npm ci
+          npm run build --if-present
+      - name: Publish
+        run: node .github/scripts/site-publish.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SITE_DIR: packages/ui/dist
+          PAGES_URL: ${{ vars.PAGES_URL }}
