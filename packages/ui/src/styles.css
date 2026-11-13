@@ -314,6 +314,8 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .pulse .sweep { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .pulse.release .sweep { stroke: var(--mat); stroke-width: 5; filter: drop-shadow(0 0 4px var(--mat)); }
 .pulse.check .sweep { stroke: var(--lineage-track); stroke-width: 4; opacity: 0.55; }
+.pulse .tint { fill: none; stroke: var(--mat); stroke-width: 2.5; stroke-linejoin: round; pointer-events: none; }
+.arrowhead.release { fill: var(--mat); }
 .pulse .flash { fill: none; stroke: var(--mat); stroke-width: 3; pointer-events: none; }
 .pulse .flash-core { fill: var(--mat); pointer-events: none; }
 .pulse .pulse-hit { fill: transparent; cursor: pointer; }
