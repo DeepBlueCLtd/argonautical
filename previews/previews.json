@@ -16,10 +16,10 @@
     "summary": "Capabilities (CAT-1, CAT-2) Two switches in the Control panel: Feature detector and 48 h. Each takes effect from the next run. The demo opens with both off; scenarios and tests default to the classic pipeline. Without a detector, runs…",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/23",
     "branch": "claude/catalogue",
-    "sha": "e58f7c79f73521415e5a2533ccfa54ff6c2b1da5",
+    "sha": "ffa8b4f0a02bc2a5112d14af8f3acc764609a1ae",
     "author": "IanMayo",
     "status": "open",
-    "updated": "2026-11-13T19:53:50.904Z"
+    "updated": "2026-11-13T20:15:49.143Z"
   },
   {
     "number": 22,
