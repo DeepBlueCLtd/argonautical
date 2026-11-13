@@ -209,7 +209,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
       {/* Ingestion: ours, not orchestrated (UI-4); presenter can stop/start it (FLT-3) */}
       <g filter={snap.ingestion.running ? undefined : 'url(#offline-halo)'}>
         <Box r={R.ingestion} style="ours" cls={snap.ingestion.running ? '' : 'stopped'}>
-          <T x={R.ingestion.x + 10} y={R.ingestion.y + 22} cls="title">
+          <T x={R.ingestion.x + 32} y={R.ingestion.y + 22} cls="title">
             Ingestion
           </T>
           <T x={R.ingestion.x + 10} y={R.ingestion.y + 38} cls="tag">
@@ -226,7 +226,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           </T>
         </Box>
       </g>
-      <PlayPause r={R.ingestion} running={snap.ingestion.running} what="ingestion (readings queue in the sensor broker)" onToggle={() => runner.apply({ type: 'ingestion', running: !snap.ingestion.running })} />
+      <PlayPause at={{ x: R.ingestion.x + 18, y: R.ingestion.y + 17 }} running={snap.ingestion.running} what="ingestion (readings queue in the sensor broker)" onToggle={() => runner.apply({ type: 'ingestion', running: !snap.ingestion.running })} />
 
       {/* Sensor broker: persistent queue between the DAQ gateway and ingestion (FLT-3) */}
       <Box r={R.sensorBroker} style="ots">
@@ -251,10 +251,10 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
       {/* Observations DB = the observations source asset (UI-8); presenter can stop/start it (FLT-3) */}
       <g filter={snap.stores.observationsUp ? undefined : 'url(#offline-halo)'}>
       <Store r={R.observationsDb} cls={snap.stores.observationsUp ? '' : 'stopped'}>
-        <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 26} cls="title">
+        <T x={R.observationsDb.x + 32} y={R.observationsDb.y + 26} cls="title">
           Observations
         </T>
-        <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 42} cls="title">
+        <T x={R.observationsDb.x + 32} y={R.observationsDb.y + 42} cls="title">
           DB
         </T>
         <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 62} cls="tag">
@@ -265,11 +265,11 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
         </T>
       </Store>
       </g>
-      <PlayPause r={R.observationsDb} running={snap.stores.observationsUp} what="the Observations DB (ingestion holds off, observation reads fail)" onToggle={() => runner.apply({ type: 'observationsDb', up: !snap.stores.observationsUp })} />
+      <PlayPause at={{ x: R.observationsDb.x + 19, y: R.observationsDb.y + 21 }} running={snap.stores.observationsUp} what="the Observations DB (ingestion holds off, observation reads fail)" onToggle={() => runner.apply({ type: 'observationsDb', up: !snap.stores.observationsUp })} />
 
       {/* Triggers */}
       <Box r={R.driftSensor} style="ots">
-        <T x={R.driftSensor.x + 10} y={R.driftSensor.y + 22} cls="title">
+        <T x={R.driftSensor.x + 32} y={R.driftSensor.y + 22} cls="title">
           Drift sensor
         </T>
         <T x={R.driftSensor.x + 10} y={R.driftSensor.y + 36} cls="muted small">
@@ -292,7 +292,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
         </T>
       </Box>
       </g>
-      <PlayPause r={R.driftSensor} running={!snap.offline.driftMonitor} what="the drift monitor (checks fail, no drift runs)" onToggle={() => runner.apply({ type: 'offline', module: 'driftMonitor', offline: !snap.offline.driftMonitor })} />
+      <PlayPause at={{ x: R.driftSensor.x + 18, y: R.driftSensor.y + 17 }} running={!snap.offline.driftMonitor} what="the drift monitor (checks fail, no drift runs)" onToggle={() => runner.apply({ type: 'offline', module: 'driftMonitor', offline: !snap.offline.driftMonitor })} />
       <Box r={R.stalenessSchedule} style="ots">
         <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 22} cls="title">
           Staleness schedule
@@ -360,7 +360,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
       </Box>
 
       <Box r={R.forecast} style="asset" cls={materialising('forecast')}>
-        <T x={R.forecast.x + 12} y={R.forecast.y + 24} cls="asset-title">
+        <T x={R.forecast.x + 34} y={R.forecast.y + 24} cls="asset-title">
           forecast
         </T>
         <T x={R.forecast.x + 12} y={R.forecast.y + 44} cls="small">
@@ -388,16 +388,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           {snap.assets.forecast !== undefined ? `materialised ${clockLabel(snap.assets.forecast)}` : ''}
         </T>
       </Box>
-      <PlayPause r={R.forecast} running={!snap.offline.modelRunner} what="the model runner (every run fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })} />
-      <SvgButton
-        x={R.forecast.x + 84}
-        y={R.forecast.y + 52}
-        w={72}
-        label={snap.failNextRun ? 'fail armed' : 'Fail once'}
-        title="Presenter: make the next model run fail once (then it retries)"
-        cls={`presenter ${snap.failNextRun ? 'armed' : ''}`}
-        onClick={() => runner.apply({ type: 'failNextRun' })}
-      />
+      <PlayPause at={{ x: R.forecast.x + 20, y: R.forecast.y + 19 }} running={!snap.offline.modelRunner} what="the model runner (every run fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })} />
       <Shim r={R.shimRun} name="run" retryIn={retryOn('run')} />
       <Module r={R.modelRunner} name="Model runner" offline={snap.offline.modelRunner}>
         <ExecLine r={R.modelRunner} label={executing('run')?.label ?? (retryOn('run') !== undefined ? 'waiting for retry' : '')} frac={smoothProgress('run', 8)} active={!!executing('run')} />
@@ -412,7 +403,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
       </Module>
 
       <Box r={R.features} style="asset" cls={materialising('features')}>
-        <T x={R.features.x + 12} y={R.features.y + 24} cls="asset-title">
+        <T x={R.features.x + 34} y={R.features.y + 24} cls="asset-title">
           features
         </T>
         <T x={R.features.x + 12} y={R.features.y + 44} cls="small">
@@ -422,7 +413,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
           {snap.assets.features !== undefined ? `materialised ${clockLabel(snap.assets.features)}` : ''}
         </T>
       </Box>
-      <PlayPause r={R.features} running={!snap.offline.featureDetector} what="the feature detector (detection fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })} />
+      <PlayPause at={{ x: R.features.x + 20, y: R.features.y + 19 }} running={!snap.offline.featureDetector} what="the feature detector (detection fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })} />
       <Shim r={R.shimDetect} name="detect" retryIn={retryOn('detect')} />
       <Module r={R.featureDetector} name="Feature detector" offline={snap.offline.featureDetector}>
         <ExecLine r={R.featureDetector} label={executing('detect')?.label ?? (retryOn('detect') !== undefined ? 'waiting for retry' : '')} frac={smoothProgress('detect', 5)} active={!!executing('detect')} />
@@ -617,21 +608,21 @@ function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: num
 }
 
 /**
- * Presenter control floating on a fragile component's bottom-right corner: pause takes it down
- * (red halo), play brings it back.
+ * Presenter control inline before a fragile component's title: pause takes it down (red halo),
+ * play brings it back.
  */
-function PlayPause({ r, running, what, onToggle }: { r: Rect; running: boolean; what: string; onToggle: () => void }) {
-  const cx = r.x + r.w - 2;
-  const cy = r.y + r.h - 2;
+function PlayPause({ at, running, what, onToggle }: { at: { x: number; y: number }; running: boolean; what: string; onToggle: () => void }) {
+  const cx = at.x;
+  const cy = at.y;
   const label = `${running ? 'Pause' : 'Resume'} ${what}`;
   return (
     <g className={`play-pause ${running ? '' : 'paused'}`} role="button" tabIndex={0} aria-label={label} onClick={onToggle} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onToggle()}>
       <title>{label}</title>
-      <circle cx={cx} cy={cy} r={11} />
+      <circle cx={cx} cy={cy} r={9} />
       {running ? (
-        <path className="glyph" d={`M${cx - 4},${cy - 5} v10 M${cx + 4},${cy - 5} v10`} />
+        <path className="glyph" d={`M${cx - 3},${cy - 4} v8 M${cx + 3},${cy - 4} v8`} />
       ) : (
-        <path className="glyph-fill" d={`M${cx - 3.5},${cy - 6} L${cx + 6},${cy} L${cx - 3.5},${cy + 6} Z`} />
+        <path className="glyph-fill" d={`M${cx - 3},${cy - 5} L${cx + 5},${cy} L${cx - 3},${cy + 5} Z`} />
       )}
     </g>
   );

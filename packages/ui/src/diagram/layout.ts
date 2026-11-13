@@ -24,11 +24,11 @@ export const REGIONS = {
 export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   ocean: { x: 20, y: 70, w: 190, h: 290 },
   sensors: { x: 20, y: 420, w: 190, h: 300 },
-  ingestion: { x: 258, y: 430, w: 150, h: 130 },
+  ingestion: { x: 248, y: 430, w: 150, h: 130 },
   // Persistent queue between the DAQ gateway and ingestion (FLT-3).
   sensorBroker: { x: 252, y: 612, w: 162, h: 104 },
   // UI-8: straddles the orchestrator's left edge (x = 470).
-  observationsDb: { x: 415, y: 270, w: 110, h: 120 },
+  observationsDb: { x: 404, y: 270, w: 128, h: 120 },
   orchestrator: REGIONS.orchestrator,
   driftSensor: { x: 560, y: 72, w: 250, h: 172 },
   shimCheck: { x: 574, y: 112, w: 222, h: 20 },
