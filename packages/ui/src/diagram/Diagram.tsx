@@ -107,7 +107,7 @@ export function Diagram({ snap, runner, onPick }: { snap: Snapshot; runner: Runn
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" className="arrowhead" />
         </marker>
-        <marker id="arrow-heavy" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
+        <marker id="arrow-heavy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" className="arrowhead heavy" />
         </marker>
         <filter id="offline-halo" x="-30%" y="-30%" width="160%" height="160%">

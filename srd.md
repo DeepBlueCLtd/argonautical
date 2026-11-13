@@ -155,7 +155,7 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 | ID | Requirement |
 |---|---|
 | UI-1 | Three labelled regions (World \| System \| Onboard consumers) separated by visible boundary lines, with the broker straddling the right-hand line. |
-| UI-2 | **The orchestrator is the dominant element** and is drawn as its asset graph. Assets are the primary visual objects; lineage is drawn as heavy, highlighted flows. |
+| UI-2 | **The orchestrator is the dominant element** and is drawn as its asset graph. Assets are the primary visual objects. Lineage is drawn as thin (2 px) lines in a distinct blue-grey, so the larger lineage tokens show each dependency being resolved; heavy lines were tried and hid the tokens. |
 | UI-3 | Each of our modules sits **inside** the asset or sensor it computes, with a shim strip above it. Our software is visually distinct from the off-the-shelf parts. Containment replaces arrows from the orchestrator to its shims. |
 | UI-4 | Ingestion sits outside the orchestrator and is marked "not orchestrated". |
 | UI-5 | The stores and pygeoapi sit below the orchestrator, except the Observations DB (UI-8). Read lines are labelled "read only", and their arrows show the direction the data moves. |
