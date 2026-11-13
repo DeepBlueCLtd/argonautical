@@ -1,5 +1,16 @@
 [
   {
+    "number": 20,
+    "title": "Control panel in the World column; remove the toolbar and banner",
+    "summary": "",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/20",
+    "branch": "claude/control-panel",
+    "sha": "b4bd0fe95c300bec5d7594c77e28f794acc745d6",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-13T16:51:30.556Z"
+  },
+  {
     "number": 19,
     "title": "Run and detect count down only once their inputs have arrived",
     "summary": "Job gains readDuration (TIMING.inputReadDuration = 6 ticks). That covers the slowest read, NetCDF: 2 + 3.5 + 3.5 + 2 s on screen ≈ 5.5 ticks at the default 0.5× rate. The orchestrator completes a step after readDuration + duration. The…",
