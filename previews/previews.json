@@ -1,5 +1,16 @@
 [
   {
+    "number": 21,
+    "title": "Say \"retrieving data\" until a step's inputs have arrived on screen",
+    "summary": "",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/21",
+    "branch": "claude/retrieving-data",
+    "sha": "f16e919cca3921506eacbd17cff5ebc667c4b94f",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-13T17:03:08.390Z"
+  },
+  {
     "number": 20,
     "title": "Control panel in the World column; remove the toolbar and banner",
     "summary": "",
