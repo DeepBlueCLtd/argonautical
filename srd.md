@@ -169,7 +169,7 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 
 | ID | Requirement |
 |---|---|
-| MOT-1 | Tokens travel along edges only when the simulation records an interaction. Lineage tokens are larger and stay visible for at least about 1.2 s of wall-clock time at any speed. |
+| MOT-1 | Tokens (drawn as small document icons) travel along edges only when the simulation records an interaction. Lineage tokens are larger and stay visible for at least about 1.2 s of wall-clock time at any speed. |
 | MOT-2 | A reduced-motion mode replaces tokens with an "n · last time" label per edge. The default follows the OS setting. When the OS asks for reduced motion, the toolbar shows a visible hint with a one-click switch to tokens, and `?motion=tokens` (or `?motion=reduced`) forces the mode for rehearsal. |
 | MOT-3 | Countdowns show what triggers things: a ring on the drift sensor (time to the next check), "stale in m:ss" rings on the staleness schedule and on forecast (showing "stale · replacing" once the scheduled run starts), an execution bar on the model runner ("replacing stale F2"), an execution bar on the feature detector, and a retry countdown on the shim. |
 | MOT-4 | **Retry state belongs to the orchestrator, not our code.** The retry countdown appears on the shim strip, which turns amber. A retry sends one amber token from the shim into the module. Lineage tokens are not re-sent on a retry. |

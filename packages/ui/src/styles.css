@@ -180,9 +180,10 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .diagram .edge-label { fill: var(--muted); font-style: italic; }
 .diagram .loop-label { fill: var(--lineage); font-style: italic; }
 
-.token { fill: var(--ink); stroke: #fff; stroke-width: 1.5; }
-.token.lineage { fill: var(--lineage); stroke-width: 2.5; }
-.token.retry { fill: var(--retry); }
+.token .page { fill: var(--ink); stroke: #fff; stroke-width: 1.2; stroke-linejoin: round; }
+.token .fold { fill: none; stroke: #fff; stroke-width: 1; stroke-linejoin: round; }
+.token.lineage .page { fill: var(--lineage); stroke-width: 1.5; }
+.token.retry .page { fill: var(--retry); }
 
 .counter rect { fill: #fff; stroke: var(--line); opacity: 0.92; }
 .counter.recent rect { stroke: var(--ink); }
@@ -202,7 +203,7 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 /* ---- token drill-down ---- */
 .tokens.inspectable .pickable { cursor: pointer; }
 .tokens .hit { fill: transparent; }
-.tokens .pickable:hover .token, .tokens .pickable:focus-visible .token { stroke: var(--ink); stroke-width: 3; }
+.tokens .pickable:hover .token .page, .tokens .pickable:focus-visible .token .page { stroke: var(--ink); stroke-width: 2.5; }
 .tokens .pickable:focus { outline: none; }
 .inspect-hint { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; font-size: 12px; padding: 4px 12px; border-radius: 12px; opacity: 0.88; pointer-events: none; }
 .token-popup { position: fixed; z-index: 20; width: min(440px, calc(100vw - 16px)); max-height: calc(100vh - 16px); display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22); font-size: 13px; }

@@ -544,6 +544,21 @@ export function Diagram({ snap, runner, motion, onPick }: { snap: Snapshot; runn
   );
 }
 
+/** A token drawn as a tiny document: a page with a folded top-right corner, centred on (x, y). */
+function DocToken({ x, y, size, cls }: { x: number; y: number; size: number; cls: string }) {
+  const w = 9 * size;
+  const h = 11 * size;
+  const f = 3 * size; // fold
+  const x0 = x - w / 2;
+  const y0 = y - h / 2;
+  return (
+    <g className={cls}>
+      <path className="page" d={`M${x0},${y0} H${x0 + w - f} L${x0 + w},${y0 + f} V${y0 + h} H${x0} Z`} />
+      <path className="fold" d={`M${x0 + w - f},${y0} V${y0 + f} H${x0 + w}`} />
+    </g>
+  );
+}
+
 /** A small clickable control drawn inside the diagram (keyboard accessible). */
 function SvgButton({ x, y, w, label, title, onClick }: { x: number; y: number; w: number; label: string; title: string; onClick: () => void }) {
   return (
@@ -655,7 +670,7 @@ function Tokens({ runner, byKey, loop, onPick }: { runner: Runner; byKey: Map<st
         if (!pts) return null;
         // Replies travel back along the line, against its arrow.
         const pt = pointAt(pts, tk.reverse ? 1 - p : p);
-        const dot = <circle className={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} cx={pt.x} cy={pt.y} r={v.lineage ? 8 : 4.5} />;
+        const dot = <DocToken x={pt.x} y={pt.y} size={v.lineage ? 1.6 : 1.25} cls={`token ${v.lineage ? 'lineage' : ''} ${tk.retry ? 'retry' : ''}`} />;
         if (!frozen) return <g key={tk.seq}>{dot}</g>;
         const pick = (e: { clientX: number; clientY: number }) => onPick({ token: tk, x: e.clientX, y: e.clientY });
         return (
