@@ -2,7 +2,7 @@
  * Owns the wall clock: run/pause, step, rate, and token animation timing.
  * It drives the simulation only through its control API and step() (ARC-4).
  */
-import { EDGES, Simulation, type ControlAction, type InputSlot, type Token } from '@argonautical/sim';
+import { EDGES, Simulation, type Capabilities, type ControlAction, type InputSlot, type Token } from '@argonautical/sim';
 
 /** CAT-1: the demo opens on the minimal system (no feature detector, 12 h); the presenter grows it. */
 const DEMO_CAPABILITIES = { featureDetector: false, longRange: false } as const;
@@ -35,6 +35,9 @@ export type SlotState = { state: 'awaiting' } | { state: 'filled'; token: Token 
 const SIGNAL_WALL = { release: 2.4, check: 1.4 } as const;
 /** When a release's sweep reaches the arrowhead (fraction of its time); what it releases starts then. */
 const RELEASE_LANDS = 0.65;
+
+/** The animation clock is a running sum of frame times: compare end times with a little tolerance. */
+const EPS = 1e-6;
 
 const LINEAGE = new Set(EDGES.filter((e) => e.kind === 'lineage').map((e) => e.id));
 /** Orchestrator → module calls (via a shim): the module's reads leave only once its call has arrived. */
@@ -73,8 +76,6 @@ function noticeOf(t: Token): string {
       return `▸ ${id} ready`;
     case 'features/new':
       return `▸ features of ${id}`;
-    case 'catalogue/changed':
-      return '▸ catalogue changed';
     default:
       return '▸ message';
   }
@@ -109,7 +110,84 @@ export class Runner {
     public seed: string,
     public inputs: number,
   ) {
-    this.sim = new Simulation({ seed, inputs, consumers: 3, capabilities: DEMO_CAPABILITIES });
+    this.sim = new Simulation({ seed, inputs, consumers: 3, capabilities: this.capabilities });
+    // CAT-5: the app opens on, with the power-on handshake already done (not animated).
+    this.lastSeq = this.sim.tokens.total;
+  }
+
+  /** CAT-1: the system is on (installed and serving) or off (capabilities can be changed). */
+  powered = true;
+  /** What the next power-on installs; the running system's are `sim.capabilities`. */
+  capabilities: Capabilities = { ...DEMO_CAPABILITIES };
+  /** Animation time until which the power-on handshake is still playing (Play waits for it). */
+  private handshakeUntil = 0;
+
+  /**
+   * CAT-5: after power-on the handshake waits for Play ('pending'); Play runs it ('playing'), Pause
+   * freezes it for inspection; it stops itself when done, and the next Play runs the simulation.
+   */
+  handshake: 'pending' | 'playing' | 'done' = 'done';
+  /** The handshake's tokens are moving (the clock stays at T+00:00). */
+  private handshakeRunning = false;
+
+  /** True until the power-on handshake has played to the end. */
+  get handshaking(): boolean {
+    return this.powered && this.handshake !== 'done';
+  }
+
+  /** Play/pause shows "playing" for the simulation or for the handshake. */
+  get playing(): boolean {
+    return this.running || this.handshakeRunning;
+  }
+
+  private checkHandshakeDone(): void {
+    // Tolerance: the animation clock is a running sum and can stop a hair short of the end time.
+    if (this.handshake !== 'done' && this.anim >= this.handshakeUntil - EPS) {
+      this.handshake = 'done';
+      this.handshakeRunning = false;
+      this.stepBudget = 0;
+      this.emit();
+    }
+  }
+
+  /** CAT-1: switch the system off. It stops, and the capabilities can be changed. */
+  powerOff(): void {
+    this.running = false;
+    this.handshakeRunning = false;
+    this.stepBudget = 0;
+    this.powered = false;
+    this.emit();
+  }
+
+  /** CAT-1: choose what the next power-on installs (only while off). */
+  setCapability(name: keyof Capabilities, on: boolean): void {
+    if (this.powered) return;
+    this.capabilities = { ...this.capabilities, [name]: on };
+    this.emit();
+  }
+
+  /**
+   * CAT-1, CAT-5: switch on. A fresh system is installed at T+00:00 with the chosen capabilities;
+   * the consumers' handshake plays with the clock held, and Play is available once it has.
+   */
+  powerOn(): void {
+    if (this.powered) return;
+    this.powered = true;
+    this.running = false;
+    this.sim = new Simulation({ seed: this.seed, inputs: this.inputs, consumers: 3, capabilities: this.capabilities });
+    this.visuals = [];
+    this.lastSeq = 0;
+    this.exchangesThisTick.clear();
+    this.gatherings.clear();
+    this.inbox.clear();
+    this.hold = { tick: -1, at: 0 };
+    this.frac = 0;
+    this.ingestTokens();
+    this.handshakeUntil = Math.max(this.anim, ...this.visuals.map((v) => v.born + v.dur));
+    this.stepBudget = 0;
+    this.handshakeRunning = false;
+    this.handshake = this.handshakeUntil > this.anim + EPS ? 'pending' : 'done';
+    this.emit();
   }
 
   subscribe(fn: () => void): () => void {
@@ -123,7 +201,7 @@ export class Runner {
   restart(seed: string, inputs: number): void {
     this.seed = seed;
     this.inputs = inputs;
-    this.sim = new Simulation({ seed, inputs, consumers: 3, capabilities: DEMO_CAPABILITIES });
+    this.sim = new Simulation({ seed, inputs, consumers: 3, capabilities: this.capabilities });
     this.visuals = [];
     this.lastSeq = 0;
     this.exchangesThisTick.clear();
@@ -141,6 +219,14 @@ export class Runner {
   }
 
   setRunning(on: boolean): void {
+    if (on && !this.powered) return;
+    // Until the power-on handshake has played, Play and Pause drive the handshake, not the clock.
+    if (this.handshaking) {
+      this.handshakeRunning = on;
+      if (on) this.handshake = 'playing';
+      this.emit();
+      return;
+    }
     this.running = on;
     this.emit();
   }
@@ -172,6 +258,15 @@ export class Runner {
 
   /** Advance exactly one tick and let its tokens fly part-way, then stay paused so they can be inspected. */
   step(): void {
+    if (!this.powered) return;
+    if (this.handshaking) {
+      // Nudge the handshake on a little, then hold it for inspection.
+      this.handshakeRunning = false;
+      this.handshake = 'playing';
+      this.stepBudget = MIN_WALL.other / 2;
+      this.emit();
+      return;
+    }
     this.running = false;
     this.sim.step();
     this.frac = 0;
@@ -193,11 +288,14 @@ export class Runner {
         this.sim.step();
         this.ingestTokens();
       }
+    } else if (this.handshakeRunning) {
+      animDt = dt;
     } else if (this.stepBudget > 0) {
       animDt = Math.min(dt, this.stepBudget);
       this.stepBudget -= animDt;
     }
     this.anim += animDt;
+    if (this.handshake !== 'done') this.checkHandshakeDone();
     this.visuals = this.visuals.filter((v) => this.anim - v.born < v.dur);
   }
 
@@ -215,6 +313,12 @@ export class Runner {
       let now = t.start === this.hold.tick ? Math.max(this.anim, this.hold.at) : this.anim;
       // A consumer acts on a broker message only once that message has landed on screen.
       if (t.instance && t.edge.startsWith('consumer>')) now = Math.max(now, this.inbox.get(t.instance)?.at ?? 0);
+      // CAT-5: a SUBSCRIBE follows the catalogue read it depends on: it leaves once that reply is back.
+      if (t.instance && t.edge === 'consumer>subscribe>broker') {
+        const list = this.gatherings.get(`consumer#${t.instance}`) ?? [];
+        const g = list[list.length - 1];
+        if (g && g.tick === t.start) now = Math.max(now, g.lastAt);
+      }
       let born = now;
       let abreast = 0;
       if (t.role) {
@@ -273,17 +377,17 @@ export class Runner {
    */
   notice(instance: string): string | undefined {
     const n = this.inbox.get(instance);
-    if (!n || this.anim < n.at) return undefined;
+    if (!n || this.anim < n.at - EPS) return undefined;
     if (this.anim - n.at < this.wall(4, 1.2)) return n.label;
     const list = this.gatherings.get(`consumer#${instance}`) ?? [];
     const g = list[list.length - 1];
-    return g && g.start >= n.at && this.anim < g.lastAt ? n.label : undefined;
+    return g && g.start >= n.at && this.anim < g.lastAt - EPS ? n.label : undefined;
   }
 
   readsPending(element: string, instance?: string): boolean {
     const list = this.gatherings.get(`${element}#${instance ?? ''}`) ?? [];
     const g = list[list.length - 1];
-    return !!g && this.anim < g.lastAt;
+    return !!g && this.anim < g.lastAt - EPS;
   }
 
   /** What a reader's input slot shows now: the document it last received, or pale while it waits for one. */
@@ -296,14 +400,14 @@ export class Runner {
     let f: { at: number; token: Token } | undefined;
     for (const x of list) {
       const y = x.fills.get(slot);
-      if (y && this.anim >= y.at && (!f || y.at > f.at)) f = y;
+      if (y && this.anim >= y.at - EPS && (!f || y.at > f.at)) f = y;
     }
-    return g && f && f.at >= g.start ? { state: 'filled', token: f.token } : { state: 'awaiting' };
+    return g && f && f.at >= g.start - EPS ? { state: 'filled', token: f.token } : { state: 'awaiting' };
   }
 
   /** Paused with nothing left to animate: tokens are frozen and can be clicked. */
   get frozen(): boolean {
-    return !this.running && this.stepBudget <= 0;
+    return !this.running && !this.handshakeRunning && this.stepBudget <= 0;
   }
 
   /** Tokens in flight with their progress 0–1. */

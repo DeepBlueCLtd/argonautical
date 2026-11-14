@@ -1,17 +1,12 @@
 {
   "name": "capabilities",
-  "description": "CAT-1..5: the system starts minimal (no feature detector, 12 h). Consumers discover what is offered and change status as capabilities arrive and leave.",
+  "description": "CAT-1..5: a system installed with a feature detector and 48 h forecasts. At power-on each consumer shakes hands (reads /collections), tailors itself and subscribes; then it fetches what is announced.",
   "seed": "capabilities",
   "consumers": 3,
-  "capabilities": { "featureDetector": false, "longRange": false },
-  "until": 270,
+  "capabilities": { "featureDetector": true, "longRange": true },
+  "until": 120,
   "steps": [
-    { "at": 0, "caption": "Three consumers discover the catalogue and subscribe: a chart display (LOW RES), a passage planner (12 h) and a basic display." },
-    { "at": 40, "action": { "type": "capability", "name": "featureDetector", "on": true }, "caption": "A feature detector is added. The catalogue lists features 'from next run'; the chart display shows HI RES pending." },
-    { "at": 45, "action": { "type": "requestRun" }, "caption": "The next run detects features; the chart display fetches them and goes HI RES." },
-    { "at": 120, "action": { "type": "capability", "name": "longRange", "on": true }, "caption": "48 h forecasts from the next run: the planner shows 48 h pending." },
-    { "at": 125, "action": { "type": "requestRun" }, "caption": "A 48 h forecast is published: the planner goes 48 h." },
-    { "at": 200, "action": { "type": "capability", "name": "featureDetector", "on": false }, "caption": "The feature detector is removed: features are 'no longer updated'." },
-    { "at": 205, "action": { "type": "requestRun" }, "caption": "The next forecast has no features: the chart display drops to LOW RES." }
+    { "at": 0, "caption": "Power-on: three consumers read the catalogue and tailor themselves: the chart display goes HI RES (features offered), the planner 48 h." },
+    { "at": 40, "action": { "type": "requestRun" }, "caption": "A second run: each consumer fetches only what it subscribed to." }
   ]
 }

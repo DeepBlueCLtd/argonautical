@@ -438,7 +438,7 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
         {snap.catalogue.map((c, i) => (
           <T key={c.id} x={R.pygeoapi.x + 10} y={R.pygeoapi.y + 58 + i * 14} cls="tiny">
             {c.id}
-            {c.status === 'available' ? '' : ` (${c.status})`}
+            {c.horizon ? ` · ${c.horizon} h` : ''}
           </T>
         ))}
       </Box>

@@ -1,11 +1,11 @@
 /**
  * Onboard consumer: CON-1..3 and CAT-5.
  *
- * On start, on Reconfigure and on `catalogue/changed`, it discovers what pygeoapi offers
- * (`GET /collections`) and subscribes to the topics it will use. It then fetches and verifies
- * what is announced. Its status says what level of service it can give with what is offered:
- * a chart display is LOW RES without features and HI RES with them; a passage planner works to
- * 12 h, or 48 h once the long-range forecast is served.
+ * When the system comes on (and on Reconfigure) it shakes hands: it reads what pygeoapi offers
+ * (`GET /collections`), tailors itself to it, and subscribes to the topics it will use. It then
+ * fetches and verifies what is announced. Its status is how it tailored itself: a chart display
+ * is HI RES if features are offered, else LOW RES; a passage planner works to the forecast's
+ * horizon (12 h or 48 h); a basic display just shows the forecast.
  */
 import { TIMING } from '../config.ts';
 import type { Announcement, BrokerMessage, CollectionInfo, FeaturesReady, Topic } from '../contracts.ts';
@@ -76,21 +76,13 @@ export class Consumer {
     return this.catalogue.find((c) => c.id === id);
   }
 
-  /** CAT-5: the level of service it can give now. */
+  /** CAT-5: how it tailored itself to what is offered. */
   get status(): string {
-    if (!this.coverage) return 'waiting';
     switch (this.profile) {
-      case 'chart': {
-        if (this.featuresFor === this.coverage.forecastId) return 'HI RES';
-        // Offered and being produced, but not yet in hand for this forecast.
-        const st = this.offered('features')?.status;
-        return st === 'from next run' || st === 'available' ? 'HI RES pending' : 'LOW RES';
-      }
-      case 'planner': {
-        if (this.coverage.horizon >= 48) return '48 h';
-        const fc = this.offered('forecast');
-        return fc?.horizon === 48 || fc?.nextHorizon === 48 ? '48 h pending' : '12 h';
-      }
+      case 'chart':
+        return this.offered('features') ? 'HI RES' : 'LOW RES';
+      case 'planner':
+        return `${this.offered('forecast')?.horizon ?? 12} h`;
       case 'basic':
         return 'OK';
     }
@@ -98,17 +90,17 @@ export class Consumer {
 
   /** Topics this profile uses, given what is offered. */
   private wantedTopics(): Topic[] {
-    const t: Topic[] = ['catalogue/changed', 'forecast/new'];
+    const t: Topic[] = ['forecast/new'];
     if (this.profile === 'chart' && this.offered('features')) t.push('features/new');
     return t;
   }
 
-  /** CAT-5: read the catalogue, then subscribe to (or drop) topics to match it. */
-  discover(t: number, why: 'start' | 'catalogue changed' | 'reconfigure'): void {
+  /** CAT-5: the handshake. Read the catalogue, then subscribe to (or drop) topics to match it. */
+  discover(t: number, why: 'start' | 'reconfigure'): void {
     this.catalogue = this.api.collections(this.caller, this.catalogueNow());
     const wanted = new Set(this.wantedTopics());
-    const offered = this.catalogue.map((c) => c.id + (c.status === 'available' ? '' : ` (${c.status})`)).join(', ');
-    this.log.append(t, 'consumer', `${this.id} discovers (${why}): ${offered}`);
+    const offered = this.catalogue.map((c) => c.id + (c.horizon ? ` ${c.horizon} h` : '')).join(', ');
+    this.log.append(t, 'consumer', `${this.id} handshake (${why}): ${offered} → ${this.status}`);
     for (const topic of [...this.topics]) {
       if (wanted.has(topic)) continue;
       this.topics.delete(topic);
@@ -126,10 +118,6 @@ export class Consumer {
 
   private onMessage(msg: BrokerMessage, trigger: ConsumerResult['trigger']): void {
     const t = this.now();
-    if (msg.topic === 'catalogue/changed') {
-      this.discover(t, 'catalogue changed');
-      return;
-    }
     const [lo, hi] = TIMING.consumerDelay;
     const due = trigger === 'catch-up' ? t : t + this.rng.int(lo, hi);
     if (msg.topic === 'forecast/new') this.pending.push({ due, kind: 'forecast', msg: msg.body, trigger });
