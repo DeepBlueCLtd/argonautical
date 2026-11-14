@@ -353,11 +353,11 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
       <InputSlots x={R.driftSensor.x + 150} y={R.driftSensor.y + 22} reader="driftMonitor" who="Drift monitor" inputs={INPUTS.driftMonitor} runner={runner} onPick={onPick} onTip={onTip} />
       <Shim r={R.shimCheck} name="check" />
       <g filter={snap.offline.driftMonitor ? 'url(#offline-halo)' : undefined}>
-      <Box r={R.driftMonitor} style="ours" cls={snap.offline.driftMonitor ? 'stopped' : ''}>
+      <Box r={R.driftMonitor} style="ours" cls={snap.offline.driftMonitor ? 'stopped' : runner.readsPending('driftMonitor') ? 'running' : ''}>
         <T x={R.driftMonitor.x + 8} y={R.driftMonitor.y + 16} cls="title small-title">
           Drift monitor
         </T>
-        <ResidualBars r={R.driftMonitor} snap={snap} />
+        <ResidualBars r={R.driftMonitor} snap={snap} arrived={!runner.readsPending('driftMonitor')} />
         <T x={R.driftMonitor.x + 8} y={R.driftMonitor.y + R.driftMonitor.h - 8} cls={`small status ${snap.drift.status.startsWith('drift') ? 'alert' : ''}`}>
           {snap.drift.status}
         </T>
@@ -457,7 +457,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
       <InputSlots x={R.forecast.x + 144} y={R.forecast.y + 22} reader="modelRunner" who="Model runner" inputs={INPUTS.modelRunner} runner={runner} onPick={onPick} onTip={onTip} />
       <PlayPause at={{ x: R.forecast.x + 20, y: R.forecast.y + 19 }} running={!snap.offline.modelRunner} what="the model runner (every run fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })} />
       <Shim r={R.shimRun} name="run" retryIn={retryOn('run')} />
-      <Module r={R.modelRunner} name="Model runner" offline={snap.offline.modelRunner}>
+      <Module r={R.modelRunner} name="Model runner" offline={snap.offline.modelRunner} running={!!executing('run') || reading('run') || runner.readsPending('modelRunner')}>
         <ExecLine r={R.modelRunner} label={execLabel('run')} frac={shownProgress('run', 8)} active={!!executing('run') && !retrieving('run')} />
         {retryOn('run') !== undefined && run?.lastFailure && (
           <T x={R.modelRunner.x + 8} y={R.modelRunner.y + 58} cls="tiny muted">
@@ -492,7 +492,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
       {detector && <PlayPause at={{ x: R.features.x + 20, y: R.features.y + 19 }} running={!snap.offline.featureDetector} what="the feature detector (detection fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'featureDetector', offline: !snap.offline.featureDetector })} />}
       <g className={detector ? '' : 'absent-part'}>
       <Shim r={R.shimDetect} name="detect" retryIn={retryOn('detect')} />
-      <Module r={R.featureDetector} name="Feature detector" offline={snap.offline.featureDetector}>
+      <Module r={R.featureDetector} name="Feature detector" offline={snap.offline.featureDetector} running={!!executing('detect') || reading('detect') || runner.readsPending('featureDetector')}>
         <ExecLine r={R.featureDetector} label={execLabel('detect')} frac={shownProgress('detect', 5)} active={!!executing('detect') && !retrieving('detect')} />
         <T x={R.featureDetector.x + 8} y={R.featureDetector.y + R.featureDetector.h - 10} cls="tiny muted">
           fronts &amp; eddies
@@ -1035,9 +1035,9 @@ function EdgePath({ r }: { r: Route }) {
   );
 }
 
-function Module({ r, name, offline, children }: { r: Rect; name: string; offline: boolean; children?: ReactNode }) {
+function Module({ r, name, offline, running = false, children }: { r: Rect; name: string; offline: boolean; running?: boolean; children?: ReactNode }) {
   return (
-    <g className={`box ours module ${offline ? 'offline' : ''}`} filter={offline ? 'url(#offline-halo)' : undefined}>
+    <g className={`box ours module ${offline ? 'offline' : running ? 'running' : ''}`} filter={offline ? 'url(#offline-halo)' : undefined}>
       <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={4} />
       <text x={r.x + 8} y={r.y + 18} className="title small-title">
         {name}
@@ -1078,27 +1078,64 @@ function Ring({ cx, cy, frac, label, r: rr = 13, cls = '' }: { cx: number; cy: n
   );
 }
 
-function ResidualBars({ r, snap }: { r: Rect; snap: Snapshot }) {
-  const n = snap.inputs.length;
-  const top = r.y + 26;
-  const h = r.h - 50;
-  const w = (r.w - 16) / n;
-  const scale = h / 2 / 6; // ±6σ
-  const mid = top + h / 2;
-  const th = snap.drift.threshold * scale;
+/**
+ * DRF-6: one composite graph, all inputs on a common scale (σ from each input's long-term mean),
+ * over the last two minutes. Per input, in its own colour: the measurements (solid; bold while the
+ * 10 s mean is beyond the threshold from the forecast) and the forecast (dashed steps). Entering a
+ * front, the measurements climb away from the forecast; a new forecast then steps up and the gap closes.
+ */
+function ResidualBars({ r, snap, arrived }: { r: Rect; snap: Snapshot; arrived: boolean }) {
+  const top = r.y + 30;
+  const bottom = r.y + r.h - 18;
+  const x0 = r.x + 40;
+  const x1 = r.x + r.w - 8;
+  const span = 120;
+  const th = snap.drift.threshold;
+  // The newest check's readings appear only once its replies have landed on screen.
+  const newest = Math.max(-Infinity, ...snap.inputs.map((s) => snap.drift.trace[s.key]?.at(-1)?.t ?? -Infinity));
+  const cutoff = arrived ? Infinity : newest - snap.drift.interval;
+  const traces = snap.inputs.map((s, i) => ({ s, i, pts: (snap.drift.trace[s.key] ?? []).filter((p) => p.t > snap.tick - span && p.t <= cutoff) }));
+  const n = traces.length;
+  // Scale: at least −2σ…+3σ, widened to fit the data, in whole σ.
+  let lo = -2;
+  let hi = 3;
+  for (const { pts } of traces) for (const p of pts) (lo = Math.min(lo, p.z, p.fz)), (hi = Math.max(hi, p.z, p.fz));
+  lo = Math.floor(Math.max(lo, -8));
+  hi = Math.ceil(Math.min(hi, 8));
+  const xOf = (t: number) => x1 - ((snap.tick - t) / span) * (x1 - x0);
+  const yOf = (v: number) => bottom - ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * (bottom - top);
+  const keyStep = Math.min(12, (bottom - top) / Math.max(1, traces.length));
   return (
     <g className="residuals">
-      <line className="threshold" x1={r.x + 8} x2={r.x + r.w - 8} y1={mid - th} y2={mid - th} />
-      <line className="threshold" x1={r.x + 8} x2={r.x + r.w - 8} y1={mid + th} y2={mid + th} />
-      <line className="axis" x1={r.x + 8} x2={r.x + r.w - 8} y1={mid} y2={mid} />
-      {snap.inputs.map((s, i) => {
-        const v = Math.max(-6, Math.min(6, s.residual ?? 0));
-        const over = Math.abs(v) > snap.drift.threshold;
-        const x = r.x + 8 + i * w + w * 0.25;
+      <text x={x1} y={top - 5} textAnchor="end" className="resid-scale">
+        <title>{`Last 2 minutes. Each input in σ from its long-term mean (scale ${lo}…+${hi}σ). Solid: measurements, bold while the 10 s mean is more than ${th}σ from the forecast. Dashed: the forecast.`}</title>
+        {`2 min · ${lo}…+${hi}σ · ─ obs ┄ fcst`}
+      </text>
+      <line className="axis" x1={x0} x2={x1} y1={yOf(0)} y2={yOf(0)} />
+      {traces.map(({ s, i, pts }) => {
+        // Measurements, split into runs by whether that check's mean is beyond the threshold.
+        const runs: { over: boolean; d: string }[] = [];
+        pts.forEach((p, j) => {
+          const at = `${xOf(p.t).toFixed(1)},${yOf(p.z).toFixed(1)}`;
+          const over = Math.abs(p.m) > th;
+          const joined = j > 0 && pts[j - 1]!.t === p.t - 1;
+          const last = runs[runs.length - 1];
+          if (last && joined && last.over === over) last.d += ` L${at}`;
+          else runs.push({ over, d: `M${joined ? `${xOf(pts[j - 1]!.t).toFixed(1)},${yOf(pts[j - 1]!.z).toFixed(1)}` : at} L${at}` });
+        });
+        // The forecast as steps: flat while a forecast holds, a step when a new one is issued.
+        const fc = pts.map((p, j) => `${j ? 'L' : 'M'}${xOf(p.t).toFixed(1)},${yOf(p.fz).toFixed(1)}`).join(' ');
         return (
-          <g key={s.key}>
-            <rect className={`resid ${over ? 'over' : ''}`} x={x} width={w * 0.5} y={v > 0 ? mid - v * scale : mid} height={Math.abs(v) * scale} />
-            <title>{`${s.label}: ${s.residual === undefined ? '—' : s.residual.toFixed(2)}σ`}</title>
+          <g key={s.key} className={`trace in-${i}`}>
+            <title>{`${s.label}: latest 10 s mean ${s.residual === undefined ? '—' : `${s.residual >= 0 ? '+' : ''}${s.residual.toFixed(2)}σ`} from the forecast`}</title>
+            <text x={r.x + 8} y={top + 7 + i * keyStep} className="trace-key">
+              {s.key}
+            </text>
+            {/* Interleaved dashes: where forecasts coincide (often, near 0σ), every input's colour still shows. */}
+            {fc && <path className="trace-forecast" d={fc} strokeDasharray={`6 ${6 * (n - 1)}`} strokeDashoffset={-6 * i} />}
+            {runs.map((run, j) => (
+              <path key={j} className={`trace-obs ${run.over ? 'over' : ''}`} d={run.d} />
+            ))}
           </g>
         );
       })}

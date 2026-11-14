@@ -3,7 +3,7 @@
  * reads them. The UI draws one document slot per input; a pygeoapi response fills the slot named
  * by its `slot`. Kept beside the topology so the diagram never decides what a component depends on.
  */
-import { NUMERICS } from '../config.ts';
+import { NUMERICS, TIMING } from '../config.ts';
 import type { StandardCode } from '../payloads.ts';
 
 export type InputSlot = 'forecast' | 'observations' | 'climatology' | 'features';
@@ -50,7 +50,7 @@ const consumerForecast: InputDecl = {
 export const INPUTS = {
   driftMonitor: [
     { slot: 'forecast', label: 'current forecast', standard: 'C', what: `The latest forecast's value for each input. ${EDR}`, use: 'The expected value: each observation is compared with it.', whenEmpty: 'No forecast has been issued yet, so the check stops here.' },
-    { slot: 'observations', label: 'latest observations', standard: 'S', what: `The latest reading of each input. ${ST}`, use: 'Compared with the forecast to give each residual in σ; drift is when enough residuals pass the threshold for long enough.', whenEmpty: 'Not read when there is no forecast; refused (503) while the Observations DB is stopped.' },
+    { slot: 'observations', label: 'recent observations (last 10 s)', standard: 'S', what: `The last ${TIMING.driftSensorInterval} readings of each input: every reading since the previous check. ${ST}`, use: 'Averaged per input, then compared with the forecast to give each residual in σ; drift is when enough residuals pass the threshold for long enough. Averaging uses all the data and damps sensor noise.', whenEmpty: 'Not read when there is no forecast; refused (503) while the Observations DB is stopped.' },
   ],
   modelRunner: [
     { slot: 'climatology', label: 'climatology', standard: 'C', what: `The long-term mean of each input at the ship. ${EDR}`, use: 'The fallback: stands in for the background or the observations when either is missing.' },

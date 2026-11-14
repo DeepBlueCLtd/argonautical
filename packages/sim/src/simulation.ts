@@ -102,7 +102,7 @@ export class Simulation {
     const api = this.pygeoapi;
     this.ingestion = new Ingestion(this.inputs, this.observationsDb);
     const monitor = new DriftMonitor(this.inputs, {
-      latestObservations: () => api.latestObservations({ element: 'driftMonitor' }),
+      recentObservations: (n) => api.recentObservations({ element: 'driftMonitor' }, n),
       currentForecast: () => api.forecast({ element: 'driftMonitor' }),
     });
     const tokens = this.tokens;
@@ -427,7 +427,7 @@ export class Simulation {
       },
       forecast: this.netcdf.latest,
       background: this.netcdf.background,
-      drift: { ...o.params, status: o.cursor.status, streak: o.cursor.streak, nextCheckIn: o.nextCheckTick - this.t, interval: TIMING.driftSensorInterval },
+      drift: { ...o.params, status: o.cursor.status, streak: o.cursor.streak, nextCheckIn: o.nextCheckTick - this.t, interval: TIMING.driftSensorInterval, trace: o.cursor.trace },
       schedule: { staleAfter: TIMING.staleAfter, staleIn: o.staleIn },
       run,
       queued: o.pending ? o.pending.causes.join(' + ') : undefined,
