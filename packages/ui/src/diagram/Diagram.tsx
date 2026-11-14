@@ -691,7 +691,11 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
       )}
       {runner.handshaking && (
         <text x={(REGIONS.worldRight + REGIONS.consumersLeft) / 2} y={VIEW.h - 18} textAnchor="middle" className="handshake-note">
-          Power-on: consumers are shaking hands (GET /collections, then SUBSCRIBE)…
+          {runner.handshake === 'pending'
+            ? 'Powered on at T+00:00 · press play to run the consumers’ handshake (GET /collections, then SUBSCRIBE)'
+            : runner.playing
+              ? 'Consumers are shaking hands… (pause to inspect the messages)'
+              : 'Handshake paused · click a message to inspect it, or press play to continue'}
         </text>
       )}
 
@@ -741,9 +745,9 @@ function CtlButton(props: { x: number; y: number; w: number; h: number; title: s
  */
 function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runner; controls: Controls }) {
   const c = CONTROL;
-  const playing = runner.running;
+  const playing = runner.playing;
   const on = runner.powered;
-  const canPlay = on && !runner.handshaking;
+  const canPlay = on;
   const px = c.x + 27;
   const cx = c.x + 70;
   const cy = c.y + 50;
@@ -791,7 +795,7 @@ function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runn
           }
         }}
       >
-        <title>{!on ? 'Switch the system on first' : runner.handshaking ? 'Consumers are shaking hands…' : playing ? 'Pause (Space)' : 'Run (Space)'}</title>
+        <title>{!on ? 'Switch the system on first' : runner.handshaking ? (playing ? 'Pause the handshake (Space)' : 'Run the consumers’ handshake (Space)') : playing ? 'Pause (Space)' : 'Run (Space)'}</title>
         <circle cx={cx} cy={cy} r={22} />
         {playing ? (
           <path className="glyph" d={`M${cx - 8},${cy - 10} v20 h5 v-20 z M${cx + 3},${cy - 10} v20 h5 v-20 z`} />

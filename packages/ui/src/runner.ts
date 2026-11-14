@@ -122,15 +122,38 @@ export class Runner {
   /** Animation time until which the power-on handshake is still playing (Play waits for it). */
   private handshakeUntil = 0;
 
-  /** True while the power-on handshake is still on screen. */
+  /**
+   * CAT-5: after power-on the handshake waits for Play ('pending'); Play runs it ('playing'), Pause
+   * freezes it for inspection; it stops itself when done, and the next Play runs the simulation.
+   */
+  handshake: 'pending' | 'playing' | 'done' = 'done';
+  /** The handshake's tokens are moving (the clock stays at T+00:00). */
+  private handshakeRunning = false;
+
+  /** True until the power-on handshake has played to the end. */
   get handshaking(): boolean {
+    return this.powered && this.handshake !== 'done';
+  }
+
+  /** Play/pause shows "playing" for the simulation or for the handshake. */
+  get playing(): boolean {
+    return this.running || this.handshakeRunning;
+  }
+
+  private checkHandshakeDone(): void {
     // Tolerance: the animation clock is a running sum and can stop a hair short of the end time.
-    return this.powered && this.stepBudget > 0 && this.anim < this.handshakeUntil - EPS;
+    if (this.handshake !== 'done' && this.anim >= this.handshakeUntil - EPS) {
+      this.handshake = 'done';
+      this.handshakeRunning = false;
+      this.stepBudget = 0;
+      this.emit();
+    }
   }
 
   /** CAT-1: switch the system off. It stops, and the capabilities can be changed. */
   powerOff(): void {
     this.running = false;
+    this.handshakeRunning = false;
     this.stepBudget = 0;
     this.powered = false;
     this.emit();
@@ -161,7 +184,9 @@ export class Runner {
     this.frac = 0;
     this.ingestTokens();
     this.handshakeUntil = Math.max(this.anim, ...this.visuals.map((v) => v.born + v.dur));
-    this.stepBudget = this.handshakeUntil - this.anim;
+    this.stepBudget = 0;
+    this.handshakeRunning = false;
+    this.handshake = this.handshakeUntil > this.anim + EPS ? 'pending' : 'done';
     this.emit();
   }
 
@@ -194,8 +219,14 @@ export class Runner {
   }
 
   setRunning(on: boolean): void {
-    // Nothing runs while the system is off, or until the power-on handshake has played.
-    if (on && (!this.powered || this.handshaking)) return;
+    if (on && !this.powered) return;
+    // Until the power-on handshake has played, Play and Pause drive the handshake, not the clock.
+    if (this.handshaking) {
+      this.handshakeRunning = on;
+      if (on) this.handshake = 'playing';
+      this.emit();
+      return;
+    }
     this.running = on;
     this.emit();
   }
@@ -227,7 +258,15 @@ export class Runner {
 
   /** Advance exactly one tick and let its tokens fly part-way, then stay paused so they can be inspected. */
   step(): void {
-    if (!this.powered || this.handshaking) return;
+    if (!this.powered) return;
+    if (this.handshaking) {
+      // Nudge the handshake on a little, then hold it for inspection.
+      this.handshakeRunning = false;
+      this.handshake = 'playing';
+      this.stepBudget = MIN_WALL.other / 2;
+      this.emit();
+      return;
+    }
     this.running = false;
     this.sim.step();
     this.frac = 0;
@@ -249,11 +288,14 @@ export class Runner {
         this.sim.step();
         this.ingestTokens();
       }
+    } else if (this.handshakeRunning) {
+      animDt = dt;
     } else if (this.stepBudget > 0) {
       animDt = Math.min(dt, this.stepBudget);
       this.stepBudget -= animDt;
     }
     this.anim += animDt;
+    if (this.handshake !== 'done') this.checkHandshakeDone();
     this.visuals = this.visuals.filter((v) => this.anim - v.born < v.dur);
   }
 
@@ -271,6 +313,12 @@ export class Runner {
       let now = t.start === this.hold.tick ? Math.max(this.anim, this.hold.at) : this.anim;
       // A consumer acts on a broker message only once that message has landed on screen.
       if (t.instance && t.edge.startsWith('consumer>')) now = Math.max(now, this.inbox.get(t.instance)?.at ?? 0);
+      // CAT-5: a SUBSCRIBE follows the catalogue read it depends on: it leaves once that reply is back.
+      if (t.instance && t.edge === 'consumer>subscribe>broker') {
+        const list = this.gatherings.get(`consumer#${t.instance}`) ?? [];
+        const g = list[list.length - 1];
+        if (g && g.tick === t.start) now = Math.max(now, g.lastAt);
+      }
       let born = now;
       let abreast = 0;
       if (t.role) {
@@ -359,7 +407,7 @@ export class Runner {
 
   /** Paused with nothing left to animate: tokens are frozen and can be clicked. */
   get frozen(): boolean {
-    return !this.running && this.stepBudget <= 0;
+    return !this.running && !this.handshakeRunning && this.stepBudget <= 0;
   }
 
   /** Tokens in flight with their progress 0–1. */

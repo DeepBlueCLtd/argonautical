@@ -28,7 +28,7 @@ export const WALKTHROUGH: readonly WalkStep[] = [
     id: 'control',
     kind: 'Overview',
     title: 'Control',
-    body: 'Run or pause (also Space), the simulated clock, and the speed: ½× is the default so each step can be followed. Step advances one second and leaves its tokens part-way so you can click them. + Consumer adds an onboard app; ? reopens this walkthrough; the list icon opens the event log. The power button switches the system off and on. While it is off you choose what to install (a feature detector, 48 h forecasts); switching on installs a fresh system, the consumers shake hands with it, and then you press play.',
+    body: 'Run or pause (also Space), the simulated clock, and the speed: ½× is the default so each step can be followed. Step advances one second and leaves its tokens part-way so you can click them. + Consumer adds an onboard app; ? reopens this walkthrough; the list icon opens the event log. The power button switches the system off and on. While it is off you choose what to install (a feature detector, 48 h forecasts); switching on installs a fresh system; press play to run the consumers’ handshake (pause it to inspect the messages), then play again to run the simulation.',
     rect: () => pad(CONTROL, 4),
   },
   // ---- regions ----
