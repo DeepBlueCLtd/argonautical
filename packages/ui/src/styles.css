@@ -380,3 +380,6 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 /* DRF-1: residual bar labels and scale */
 .diagram .resid-label { font: 600 9px var(--mono); fill: var(--muted); }
 .diagram .resid-scale { font: 9px var(--mono); fill: var(--muted); }
+.resid-raw { fill: none; stroke: #8fb3d1; stroke-width: 0.9; }
+.resid-mean { fill: none; stroke: var(--ours); stroke-width: 2.2; stroke-linejoin: round; }
+.resid-mean.over { stroke: var(--offline); }

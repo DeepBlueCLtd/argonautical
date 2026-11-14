@@ -93,7 +93,7 @@ The screen and the simulation share one model, in three regions separated by two
 
 | ID | Requirement |
 |---|---|
-| DRF-1 | On each sensor tick (every 10 s), read the observations since the previous tick (SensorThings, last 10 per input), average them per input, and compute each residual (mean − forecast) in σ. Averaging uses every reading and damps sensor noise by about √10; a real shift shows up about half a window later. The drift monitor draws one bar per input, labelled, clipped at ±6σ, with the ±threshold as dashed lines. |
+| DRF-1 | On each sensor tick (every 10 s), read the observations since the previous tick (SensorThings, last 10 per input), average them per input, and compute each residual (mean − forecast) in σ. Averaging uses every reading and damps sensor noise by about √10; a real shift shows up about half a window later. The drift monitor draws one small line graph per input over the last two minutes (DRF-6): each reading's residual as a thin line and the 10 s mean as a bold line (red beyond the threshold), clipped at ±6σ, with the ±threshold dashed. Entering a front shows as a ramp climbing through the dashed line; a new forecast then re-baselines it. |
 | DRF-2 | Declare drift when at least *quorum* inputs exceed ±*threshold*σ for *persistence* consecutive checks. |
 | DRF-3 | Operator-tunable, within declared bounds: threshold 1–6σ (step 0.5), quorum 1–N inputs, persistence 1–5 checks. The value actually in force is always displayed. |
 | DRF-4 | Report a status line: no forecast yet / nothing out of range / below quorum / quorum met, persistence k of n / drift declared / drift persists, drift run already queued / drift persists, drift run in progress. |

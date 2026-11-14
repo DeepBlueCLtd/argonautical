@@ -1078,34 +1078,58 @@ function Ring({ cx, cy, frac, label, r: rr = 13, cls = '' }: { cx: number; cy: n
   );
 }
 
+/**
+ * DRF-6: one small line graph per input over the last two minutes: each reading's residual (thin)
+ * and the 10 s mean the monitor judges by (bold, red beyond the threshold), against the dashed
+ * ±threshold. Entering a front shows as a ramp climbing through the dashed line.
+ */
 function ResidualBars({ r, snap }: { r: Rect; snap: Snapshot }) {
   const n = snap.inputs.length;
   const top = r.y + 26;
-  const h = r.h - 60;
-  const w = (r.w - 16) / n;
-  const scale = h / 2 / 6; // ±6σ
-  const mid = top + h / 2;
-  const th = snap.drift.threshold * scale;
+  const bottom = r.y + r.h - 18;
+  const rowH = (bottom - top) / n;
+  const x0 = r.x + 34;
+  const x1 = r.x + r.w - 8;
+  const span = 120;
+  const th = snap.drift.threshold;
+  const xOf = (t: number) => x1 - ((snap.tick - t) / span) * (x1 - x0);
   return (
     <g className="residuals">
-      <line className="threshold" x1={r.x + 8} x2={r.x + r.w - 8} y1={mid - th} y2={mid - th} />
-      <line className="threshold" x1={r.x + 8} x2={r.x + r.w - 8} y1={mid + th} y2={mid + th} />
-      <line className="axis" x1={r.x + 8} x2={r.x + r.w - 8} y1={mid} y2={mid} />
-      {/* Scale: bars are clipped at ±6σ; dashed lines are ±threshold */}
-      <text x={r.x + r.w - 8} y={top - 2} textAnchor="end" className="resid-scale">
-        ±6σ · dashed ±{snap.drift.threshold}σ
+      <text x={x1} y={top - 3} textAnchor="end" className="resid-scale">
+        last 2 min · ±6σ · dashed ±{th}σ
       </text>
       {snap.inputs.map((s, i) => {
-        const v = Math.max(-6, Math.min(6, s.residual ?? 0));
-        const over = Math.abs(v) > snap.drift.threshold;
-        const x = r.x + 8 + i * w + w * 0.25;
+        const mid = top + rowH * (i + 0.5);
+        const k = (rowH / 2 - 1) / 6;
+        const yOf = (v: number) => mid - Math.max(-6, Math.min(6, v)) * k;
+        const pts = (snap.drift.trace[s.key] ?? []).filter((p) => p.t > snap.tick - span);
+        const raw = pts.map((p, j) => `${j ? 'L' : 'M'}${xOf(p.t).toFixed(1)},${yOf(p.r).toFixed(1)}`).join(' ');
+        // The mean as a line, split where it is beyond the threshold so those stretches can be red.
+        const runs: { over: boolean; d: string }[] = [];
+        pts.forEach((p, j) => {
+          const at = `${xOf(p.t).toFixed(1)},${yOf(p.m).toFixed(1)}`;
+          const over = Math.abs(p.m) > th;
+          const last = runs[runs.length - 1];
+          const joined = j > 0 && pts[j - 1]!.t === p.t - 1;
+          if (last && joined && last.over === over) last.d += ` L${at}`;
+          else {
+            const prev = joined ? `${xOf(pts[j - 1]!.t).toFixed(1)},${yOf(pts[j - 1]!.m).toFixed(1)}` : at;
+            runs.push({ over, d: `M${prev} L${at}` });
+          }
+        });
         return (
           <g key={s.key}>
-            <rect className={`resid ${over ? 'over' : ''}`} x={x} width={w * 0.5} y={v > 0 ? mid - v * scale : mid} height={Math.abs(v) * scale} />
-            <text x={x + w * 0.25} y={top + h + 9} textAnchor="middle" className="resid-label">
+            <text x={r.x + 8} y={mid + 3} className="resid-label">
               {s.key}
             </text>
-            <title>{`${s.label}: ${s.residual === undefined ? '—' : s.residual.toFixed(2)}σ (mean of the last 10 s − forecast)`}</title>
+            <line className="threshold" x1={x0} x2={x1} y1={yOf(th)} y2={yOf(th)} />
+            <line className="threshold" x1={x0} x2={x1} y1={yOf(-th)} y2={yOf(-th)} />
+            <line className="axis" x1={x0} x2={x1} y1={mid} y2={mid} />
+            {raw && <path className="resid-raw" d={raw} />}
+            {runs.map((run, j) => (
+              <path key={j} className={`resid-mean ${run.over ? 'over' : ''}`} d={run.d} />
+            ))}
+            <title>{`${s.label}: latest 10 s mean ${s.residual === undefined ? '—' : s.residual.toFixed(2)}σ from the forecast`}</title>
           </g>
         );
       })}

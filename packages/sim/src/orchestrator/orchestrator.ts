@@ -16,6 +16,9 @@ import type { TokenRecorder } from '../tokens.ts';
 import { edgeId, type ElementId } from '../topology/elements.ts';
 import * as shims from './shims.ts';
 
+/** DRF-6: two minutes of readings at one per second. */
+const TRACE_POINTS = 120;
+
 export type AssetId = 'climatology' | 'forecast' | 'features' | 'announcement';
 export type StepName = 'run' | 'detect' | 'announce';
 export type Cause = 'drift' | 'schedule' | 'manual';
@@ -59,6 +62,8 @@ export interface SensorCursor {
   status: string;
   lastCheck?: number;
   residuals: DriftCheckResult['residuals'];
+  /** DRF-6: per input, the recent readings' residuals (r) with the mean of their check (m), for the trace. */
+  trace: Record<string, { t: number; r: number; m: number }[]>;
   exceeding: readonly string[];
 }
 
@@ -84,7 +89,7 @@ export class Orchestrator {
   readonly materialisedAt: Record<AssetId, number | undefined> = { climatology: undefined, forecast: undefined, features: undefined, announcement: undefined };
   /** Private store: run history, schedule, sensor state. */
   readonly history: RunRecord[] = [];
-  readonly cursor: SensorCursor = { streak: 0, status: 'no forecast yet', residuals: {}, exceeding: [] };
+  readonly cursor: SensorCursor = { streak: 0, status: 'no forecast yet', residuals: {}, exceeding: [], trace: {} };
   params: DriftParams;
   pending: { causes: Cause[]; since: number } | null = null;
   active: ActiveRun | null = null;
@@ -164,6 +169,14 @@ export class Orchestrator {
     }
     const changed = res.status !== before;
     Object.assign(this.cursor, { streak: res.streak, status: res.status, lastCheck: t, residuals: res.residuals, exceeding: res.exceeding });
+    // DRF-6: keep the last two minutes of readings for the drift monitor's trace.
+    for (const [k, rs] of Object.entries(res.readings ?? {})) {
+      const m = res.residuals[k];
+      if (!rs || m === undefined) continue;
+      const list = (this.cursor.trace[k] ??= []);
+      rs.forEach((r, i) => list.push({ t: t - (rs.length - 1 - i), r, m }));
+      if (list.length > TRACE_POINTS) list.splice(0, list.length - TRACE_POINTS);
+    }
     if (res.requestRun) {
       const list = res.exceeding.join(', ');
       this.d.log.append(t, 'drift', `drift declared: ${list} beyond ±${this.params.threshold}σ for ${this.params.persistence} check(s)`);

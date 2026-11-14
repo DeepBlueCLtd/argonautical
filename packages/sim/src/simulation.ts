@@ -427,7 +427,7 @@ export class Simulation {
       },
       forecast: this.netcdf.latest,
       background: this.netcdf.background,
-      drift: { ...o.params, status: o.cursor.status, streak: o.cursor.streak, nextCheckIn: o.nextCheckTick - this.t, interval: TIMING.driftSensorInterval },
+      drift: { ...o.params, status: o.cursor.status, streak: o.cursor.streak, nextCheckIn: o.nextCheckTick - this.t, interval: TIMING.driftSensorInterval, trace: o.cursor.trace },
       schedule: { staleAfter: TIMING.staleAfter, staleIn: o.staleIn },
       run,
       queued: o.pending ? o.pending.causes.join(' + ') : undefined,
