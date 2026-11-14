@@ -26,6 +26,8 @@
   --std-D: #5f7d95; /* Dagster: slate */
   --std-H: #e03131; /* HTTP status: red */
   --std-O: #2b8a3e; /* OGC API – Common catalogue: green */
+  --std-J: #e8590c; /* JSON over HTTPS (run-request API): orange */
+  --std-B: #5c940d; /* Export bundle: olive */
   --lineage-track: #6f8599; /* lineage lines: thin, a darker blue-grey than data lines */
 
   --mat: #22a05a; /* green: materialising */
@@ -178,6 +180,8 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .token.std-D { --tc: var(--std-D); }
 .token.std-H { --tc: var(--std-H); }
 .token.std-O { --tc: var(--std-O); }
+.token.std-J { --tc: var(--std-J); }
+.token.std-B { --tc: var(--std-B); }
 .token.retry .page { fill: var(--retry-fill); stroke: var(--retry); }
 
 
@@ -240,6 +244,8 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .token-popup .std-badge.std-D { color: var(--std-D); border-color: var(--std-D); }
 .token-popup .std-badge.std-H { color: var(--std-H); border-color: var(--std-H); }
 .token-popup .std-badge.std-O { color: var(--std-O); border-color: var(--std-O); }
+.token-popup .std-badge.std-J { color: var(--std-J); border-color: var(--std-J); }
+.token-popup .std-badge.std-B { color: var(--std-B); border-color: var(--std-B); }
 .token-popup .std-badge { display: inline-block; min-width: 16px; text-align: center; font: 800 11px var(--mono); font-style: normal; color: var(--ink); border: 1px solid var(--ink); border-radius: 3px; padding: 0 3px; }
 .token-popup .note { margin: 6px 10px 8px; color: var(--muted); font-size: 11px; }
 
@@ -394,3 +400,7 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .trace-obs { fill: none; stroke: var(--ic); stroke-width: 1; stroke-linejoin: round; }
 .trace-obs.over { stroke-width: 2.6; }
 .trace-forecast { fill: none; stroke: var(--ic); stroke-width: 2.4; }
+
+/* UI-12: a neutral frame grouping the sync agent and the transfer area */
+.diagram .group-frame { fill: none; stroke: var(--line, #adb5bd); stroke-dasharray: 3 3; }
+.diagram .small-asset { font-size: 13px; }

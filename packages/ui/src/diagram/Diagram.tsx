@@ -1,7 +1,7 @@
 import { DRIFT_BOUNDS, EDGES, INPUTS, NOISE_BOUNDS, PROFILES, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, useRef, type ReactNode } from 'react';
 import { topicTag, type Rate, type Runner } from '../runner.ts';
-import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
+import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, SHORE_TRANSFER, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
 
 
 const MATERIALISING_TICKS = 3;
@@ -391,16 +391,36 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 22} cls="title">
           Manual request
         </T>
-        <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 42} cls="small">
-          {snap.queued ? `queued: ${snap.queued}` : 'nothing queued'}
+        <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 40} cls="muted tiny">
+          polls the run-request API · 5 s
         </T>
-        {/* Operator control (violet, §5.4): the operator asks for a run from here */}
+        <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 62} cls="small">
+          {snap.queued ? `queued: ${snap.queued}` : snap.runRequests.pending ? `next poll in ${snap.runRequests.nextPollIn}s` : 'nothing queued'}
+        </T>
+      </Box>
+      {/* UI-11: the run-request API (ours, distribution zone) and the watchkeeper (mission network) */}
+      <Box r={R.runRequestApi} style="ours">
+        <T x={R.runRequestApi.x + 8} y={R.runRequestApi.y + 18} cls="small title-sm">
+          Run-request API
+        </T>
+        <T x={R.runRequestApi.x + 8} y={R.runRequestApi.y + 34} cls="muted tiny">
+          distribution zone
+        </T>
+        <T x={R.runRequestApi.x + 8} y={R.runRequestApi.y + 48} cls="tiny mono">
+          {snap.runRequests.pending ? `${snap.runRequests.pending} pending` : `${snap.runRequests.total} requests`}
+        </T>
+      </Box>
+      <Box r={R.watchkeeper} style="world">
+        <T x={R.watchkeeper.x + 8} y={R.watchkeeper.y + 18} cls="small title-sm">
+          Watchkeeper
+        </T>
+        {/* Operator control (violet, §5.4): the watchkeeper asks for a run, through the run-request API */}
         <SvgButton
-          x={R.manualRequest.x + 10}
-          y={R.manualRequest.y + 52}
+          x={R.watchkeeper.x + 8}
+          y={R.watchkeeper.y + 28}
           w={104}
           label="Request a run"
-          title="Operator: request a forecast run"
+          title="Watchkeeper: request a forecast run (through the run-request API)"
           cls="operator"
           onClick={() => runner.apply({ type: 'requestRun' })}
         />
@@ -426,8 +446,41 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.climatology.x + 10} y={R.climatology.y + 24} cls="asset-title">
           climatology
         </T>
-        <T x={R.climatology.x + 10} y={R.climatology.y + 48} cls="muted small">
-          from NetCDF store
+        <T x={R.climatology.x + 10} y={R.climatology.y + 42} cls="muted tiny">
+          v{snap.shore.climatologyVersion} in NetCDF store
+        </T>
+      </Box>
+      <Shim r={R.shimImport} name="import" />
+      <Box r={R.climatologyImporter} style="ours">
+        <T x={R.climatologyImporter.x + 8} y={R.climatologyImporter.y + 18} cls="small title-sm">
+          Climatology
+        </T>
+        <T x={R.climatologyImporter.x + 8} y={R.climatologyImporter.y + 32} cls="small title-sm">
+          importer
+        </T>
+        <T x={R.climatologyImporter.x + 8} y={R.climatologyImporter.y + 54} cls="muted tiny">
+          {snap.shore.inbox ? `${snap.shore.inbox} in inbox` : 'inbox empty'}
+        </T>
+      </Box>
+      {/* SHR-4: scheduled export for shore */}
+      <Box r={R.shoreExport} style="asset" cls={materialising('shoreExport')}>
+        <T x={R.shoreExport.x + 8} y={R.shoreExport.y + 24} cls="asset-title small-asset">
+          shore_export
+        </T>
+        <T x={R.shoreExport.x + 8} y={R.shoreExport.y + 42} cls="muted tiny">
+          every 120 s
+        </T>
+      </Box>
+      <Shim r={R.shimExport} name="export" />
+      <Box r={R.shoreExporter} style="ours">
+        <T x={R.shoreExporter.x + 8} y={R.shoreExporter.y + 18} cls="small title-sm">
+          Shore
+        </T>
+        <T x={R.shoreExporter.x + 8} y={R.shoreExporter.y + 32} cls="small title-sm">
+          exporter
+        </T>
+        <T x={R.shoreExporter.x + 8} y={R.shoreExporter.y + 54} cls="muted tiny">
+          → outbox
         </T>
       </Box>
 
@@ -652,6 +705,41 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         </T>
       )}
 
+      {/* UI-12: shore, minimal. Shore support and the link at the foot of the World column. */}
+      <Box r={R.shore} style="world">
+        <T x={R.shore.x + 10} y={R.shore.y + 20} cls="title">
+          Shore support
+        </T>
+        <T x={R.shore.x + 10} y={R.shore.y + 38} cls={`small ${snap.shore.linkUp ? '' : 'offline-label'}`}>
+          link {snap.shore.linkUp ? 'up' : 'down'} · {snap.shore.linkUp ? 'down' : 'up'} in {mmss(snap.shore.linkChangeIn)}
+        </T>
+        <T x={R.shore.x + 10} y={R.shore.y + 56} cls="muted tiny">
+          {snap.shore.waiting ? `climatology waiting: ${snap.shore.waiting}` : 'nothing waiting to send'}
+        </T>
+        <T x={R.shore.x + 10} y={R.shore.y + 72} cls="muted tiny">
+          bundles received: {snap.shore.received}
+        </T>
+      </Box>
+      <g className="shore-transfer">
+        <rect className="group-frame" x={SHORE_TRANSFER.x} y={SHORE_TRANSFER.y} width={SHORE_TRANSFER.w} height={SHORE_TRANSFER.h} rx={6} />
+        <T x={SHORE_TRANSFER.x + 8} y={SHORE_TRANSFER.y + 17} cls="small title-sm">
+          Shore transfer
+        </T>
+      </g>
+      <Box r={R.shoreSync} style="ours">
+        <T x={R.shoreSync.x + 8} y={R.shoreSync.y + 19} cls="small">
+          Shore sync agent
+        </T>
+      </Box>
+      <Store r={R.transferArea} ours={false}>
+        <T x={R.transferArea.x + 8} y={R.transferArea.y + 15} cls="small">
+          Transfer area
+        </T>
+        <T x={R.transferArea.x + 8} y={R.transferArea.y + 29} cls="tiny mono">
+          inbox {snap.shore.inbox} · outbox {snap.shore.outbox}
+        </T>
+      </Store>
+
       {/* Token key: the standard each document's letter stands for */}
       <g className="token-key" aria-label="Token key">
         <rect x={TOKEN_KEY.x} y={TOKEN_KEY.y} width={TOKEN_KEY.w} height={TOKEN_KEY.h} rx={6} />
@@ -663,8 +751,8 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         </T>
         {Object.entries(STANDARDS).map(([code, name], i) => (
           <g key={code}>
-            <DocToken x={TOKEN_KEY.x + 22} y={TOKEN_KEY.y + 58 + i * 21} size={1.4} letter={code} cls="token" />
-            <T x={TOKEN_KEY.x + 40} y={TOKEN_KEY.y + 63 + i * 21} cls="small">
+            <DocToken x={TOKEN_KEY.x + 22} y={TOKEN_KEY.y + 56 + i * 17.5} size={1.25} letter={code} cls="token" />
+            <T x={TOKEN_KEY.x + 40} y={TOKEN_KEY.y + 61 + i * 17.5} cls="small">
               {name}
             </T>
           </g>
@@ -1026,7 +1114,7 @@ function EdgePath({ r }: { r: Route }) {
   return (
     <g>
       <path className={`edge ${k}`} d={pathD(r.points)} markerEnd={heavy ? 'url(#arrow-heavy)' : 'url(#arrow)'} />
-      {k === 'read' && (
+      {k === 'read' && r.edge.to === 'pygeoapi' && (
         <T x={m.x} y={m.y - 5} cls="tiny edge-label" anchor="middle">
           read only
         </T>
