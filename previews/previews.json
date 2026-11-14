@@ -1,5 +1,16 @@
 [
   {
+    "number": 26,
+    "title": "Power on/off with a consumer handshake at power-on",
+    "summary": "Power button beside play/pause. While off: nothing runs, the System and Consumers regions are dimmed, the clock reads OFF, and the presenter chooses what to install (Feature detector, 48 h). While on: the capability switches are locked…",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/26",
+    "branch": "claude/power-handshake",
+    "sha": "a20c77b14d337a8abb612ccf84a77e193f9198b7",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-14T05:51:14.356Z"
+  },
+  {
     "number": 25,
     "title": "Show how consumers learn about new data",
     "summary": "Broker tokens carry a topic tag (forecast / features / catalogue; +/− topic for subscription changes), so the messages can be told apart without hovering. A consumer card shows what it just heard (\"▸ F3 ready\", \"▸ features of F3\", \"▸…",
