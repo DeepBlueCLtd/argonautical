@@ -4,7 +4,7 @@
  * mock data object filled with the simulation's actual values. Payloads never affect the event
  * log or its digest. They are plain JSON: non-finite numbers become strings.
  */
-import type { BrokerMessage, CollectionInfo, Feature, Forecast, InputKey, Observation, SensorMessage, Topic } from './contracts.ts';
+import type { BrokerMessage, ClimatologyFile, CollectionInfo, ExportBundle, Feature, Forecast, InputKey, Observation, RunRequestRecord, SensorMessage, Topic } from './contracts.ts';
 
 /** The standard (or format) a token's content follows, shown as a letter on the token. */
 export const STANDARDS = {
@@ -19,6 +19,8 @@ export const STANDARDS = {
   D: 'Dagster',
   H: 'HTTP status',
   O: 'OGC API – Common',
+  J: 'JSON over HTTPS',
+  B: 'Export bundle',
 } as const;
 export type StandardCode = keyof typeof STANDARDS;
 
@@ -42,6 +44,8 @@ const lonlat = (x: number, y: number) => [num(SHIP.lon - 0.5 + x), num(SHIP.lat 
 /** Classify by what the content is: SQL text or rows, SensorThings entities, an EDR/Features request, etc. */
 export function standardOf(format: string): StandardCode | undefined {
   const rules: [RegExp, StandardCode][] = [
+    [/^Export bundle/, 'B'],
+    [/^HTTPS JSON/, 'J'],
     [/^HTTP \d{3}/, 'H'],
     [/^OGC API – Common/, 'O'],
     [/^SQL|SQL from|Database connection/, 'Q'],
@@ -292,3 +296,53 @@ export const collectionsResponse = (cols: readonly CollectionInfo[]) =>
       ...(c.nextHorizon !== undefined ? { 'x-next-run': { horizon_hours: c.nextHorizon } } : {}),
     })),
   });
+
+// ---- run requests (RRQ) ----
+
+export const runRequestPost = (r: RunRequestRecord) =>
+  p(`Watchkeeper requests a run (${r.id})`, 'HTTPS JSON POST to the run-request API', { method: 'POST', url: '/run-requests', body: { id: r.id, requested_by: r.by, requested_at: iso(r.requestedAt) } });
+
+export const runRequestPoll = () => p('Any pending run requests?', 'HTTPS JSON GET from the run-request sensor', { method: 'GET', url: '/run-requests?status=pending' });
+
+export const runRequestBatch = (rs: readonly RunRequestRecord[]) =>
+  p(`${rs.length} pending run request(s): ${rs.map((r) => r.id).join(', ')}`, 'HTTPS JSON response: pending run requests', { requests: rs.map((r) => ({ id: r.id, requested_by: r.by, requested_at: iso(r.requestedAt) })) });
+
+export const runStatusPost = (ids: readonly string[], runId: string, forecastId: string, tick: number) =>
+  p(`${runId} complete: ${forecastId} (for ${ids.join(', ')})`, 'HTTPS JSON PATCH: run status for the watchkeeper', { method: 'PATCH', url: '/run-requests', body: { ids, status: 'complete', run_id: runId, forecast_id: forecastId, at: iso(tick) } });
+
+// ---- shore transfer (SHR) ----
+
+const climFile = (f: ClimatologyFile) => `climatology_v${f.version}.nc`;
+
+export const climatologyTransfer = (f: ClimatologyFile) =>
+  p(`Climatology v${f.version} from shore`, 'NetCDF file over the shore link (signed, checksummed)', { file: climFile(f), issued: iso(f.issuedAt), variables: Object.fromEntries(Object.entries(f.values).map(([k, v]) => [k, { value: num(v) }])) });
+
+export const inboxWrite = (f: ClimatologyFile) =>
+  p(`Verified climatology v${f.version} into the inbox`, 'NetCDF file written to the transfer area inbox', { path: `inbox/${climFile(f)}`, signature: 'verified', issued: iso(f.issuedAt) });
+
+export const inboxRead = (f: ClimatologyFile) => p(`Climatology v${f.version} read from the inbox`, 'NetCDF file read from the transfer area inbox', { path: `inbox/${climFile(f)}` });
+
+export const climatologyCommit = (f: ClimatologyFile) =>
+  p(`Atomic commit of climatology v${f.version}`, 'NetCDF file, written to staging then the manifest swapped', { file: 'climatology.nc', version: f.version, source: climFile(f), variables: Object.fromEntries(Object.entries(f.values).map(([k, v]) => [k, { value: num(v) }])) });
+
+export const observationsSinceRequest = (from: number) => request(`Observations since ${iso(from)}`, 'SensorThings', `/v1.1/Observations?$filter=phenomenonTime gt ${iso(from)}&$orderby=phenomenonTime`);
+
+export const observationsSinceQuery = (from: number) => dbQuery('Observations DB', `SELECT ${'datastream_id, phenomenon_time_start, result_number'} FROM observations WHERE phenomenon_time_start > '${iso(from)}' ORDER BY phenomenon_time_start`);
+
+export const observationsSinceResponse = (rows: readonly Observation[]) =>
+  p(`${rows.length} observation(s)`, 'SensorThings Observations (JSON)', { '@iot.count': rows.length, value: rows.slice(-6).map((r) => ({ 'Datastream@iot.id': `ship-1:${r.input}`, phenomenonTime: iso(r.tick), result: num(r.value) })), ...(rows.length > 6 ? { more: rows.length - 6 } : {}) });
+
+const bundleBody = (b: ExportBundle) => ({
+  bundle: `${b.id}.tar`,
+  created: iso(b.createdAt),
+  contents: [
+    { file: 'observations.json', format: 'SensorThings', count: b.observations, from: iso(b.fromTick), to: iso(b.toTick) },
+    ...(b.forecastId ? [{ file: `forecast_${b.forecastId}.nc`, format: 'NetCDF' }] : []),
+    ...(b.featureCount !== undefined ? [{ file: `features_${b.forecastId}.geojson`, format: 'GeoJSON', count: b.featureCount }] : []),
+  ],
+  signature: `sha256:${b.digest}`,
+});
+
+export const bundleWrite = (b: ExportBundle) => p(`Export bundle ${b.id} into the outbox`, 'Export bundle (signed tar) written to the transfer area outbox', bundleBody(b));
+export const bundleRead = (b: ExportBundle) => p(`Export bundle ${b.id} taken from the outbox`, 'Export bundle (signed tar) read from the transfer area outbox', bundleBody(b));
+export const bundleSend = (b: ExportBundle) => p(`Export bundle ${b.id} to shore`, 'Export bundle (signed tar) over the shore link', bundleBody(b));

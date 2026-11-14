@@ -3,11 +3,13 @@
  * run queue with merge, and retry with backoff. ORC-1..6, DRF-5.
  */
 import { TIMING } from '../config.ts';
-import { ServiceUnavailable, type Capabilities, type Feature, type Forecast, type Job } from '../contracts.ts';
+import { ServiceUnavailable, type Capabilities, type Feature, type Forecast, type Job, type RunRequestRecord } from '../contracts.ts';
 import type { EventLog } from '../events.ts';
 import { clockLabel } from '../events.ts';
 import { ModuleFailure } from '../faults.ts';
 import type { Announcer } from '../modules/announcer.ts';
+import type { ClimatologyImporter } from '../modules/climatologyImporter.ts';
+import type { ShoreExporter } from '../modules/shoreExporter.ts';
 import type { DriftCheckResult, DriftMonitor, DriftParams } from '../modules/driftMonitor.ts';
 import type { FeatureDetector } from '../modules/featureDetector.ts';
 import type { ModelRunner } from '../modules/modelRunner.ts';
@@ -19,7 +21,7 @@ import * as shims from './shims.ts';
 /** DRF-6: two minutes of readings at one per second. */
 const TRACE_POINTS = 120;
 
-export type AssetId = 'climatology' | 'forecast' | 'features' | 'announcement';
+export type AssetId = 'climatology' | 'forecast' | 'features' | 'announcement' | 'shoreExport';
 export type StepName = 'run' | 'detect' | 'announce';
 export type Cause = 'drift' | 'schedule' | 'manual';
 
@@ -27,6 +29,8 @@ export interface ActiveRun {
   readonly id: string;
   readonly forecastId: string;
   readonly causes: readonly Cause[];
+  /** RRQ-3: the run-request API requests this run serves. */
+  readonly requestIds: readonly string[];
   readonly startedAt: number;
   step: StepName;
   /** Attempts of the current step. */
@@ -81,6 +85,13 @@ export interface OrchestratorDeps {
   readonly params: DriftParams;
   /** CAT-1: read when a run starts. */
   readonly capabilities: () => Capabilities;
+  /** RRQ-2/3: the run-request API, as the run-request sensor sees it. */
+  readonly runRequests?: { poll(t: number): readonly RunRequestRecord[]; postStatus(ids: readonly string[], runId: string, forecastId: string, t: number): void };
+  /** SHR-3 */
+  readonly importer?: Pick<ClimatologyImporter, 'import'>;
+  readonly inboxReady?: () => boolean;
+  /** SHR-4 */
+  readonly exporter?: Pick<ShoreExporter, 'export'>;
 }
 
 const STEP_MODULE: Record<'run' | 'detect', { shim: ElementId; module: ElementId; name: string }> = {
@@ -89,12 +100,14 @@ const STEP_MODULE: Record<'run' | 'detect', { shim: ElementId; module: ElementId
 };
 
 export class Orchestrator {
-  readonly materialisedAt: Record<AssetId, number | undefined> = { climatology: undefined, forecast: undefined, features: undefined, announcement: undefined };
+  readonly materialisedAt: Record<AssetId, number | undefined> = { climatology: undefined, forecast: undefined, features: undefined, announcement: undefined, shoreExport: undefined };
+  /** SHR-4: when shore_export last ran (materialised or failed). */
+  private lastExport = 0;
   /** Private store: run history, schedule, sensor state. */
   readonly history: RunRecord[] = [];
   readonly cursor: SensorCursor = { streak: 0, status: 'no forecast yet', residuals: {}, exceeding: [], trace: {} };
   params: DriftParams;
-  pending: { causes: Cause[]; since: number } | null = null;
+  pending: { causes: Cause[]; since: number; requestIds: string[] } | null = null;
   active: ActiveRun | null = null;
   current: { id: string; validUntil: number; digest: string; cause: string } | undefined;
   private runSeq = 0;
@@ -130,18 +143,20 @@ export class Orchestrator {
   }
 
   /** Manual request from the operator (and the entry point for all triggers). */
-  request(cause: Cause, from: ElementId, note = ''): void {
+  request(cause: Cause, from: ElementId, note = '', requestId?: string): void {
     const t = this.d.now();
     this.d.tokens.emit(edgeId(from, 'trigger', 'forecast'), { payload: P.runRequest(cause, from, note, t) });
     const why = note ? ` (${note})` : '';
+    const ids = requestId ? [requestId] : [];
     if (this.pending) {
       this.pending.causes.push(cause);
+      this.pending.requestIds.push(...ids);
       this.d.log.append(t, 'request', `${cause} request${why} merged into queued run: ${this.pending.causes.join(' + ')}`);
     } else if (this.active) {
-      this.pending = { causes: [cause], since: t };
+      this.pending = { causes: [cause], since: t, requestIds: ids };
       this.d.log.append(t, 'request', `${cause} request${why} queued behind ${this.active.id}`);
     } else {
-      this.pending = { causes: [cause], since: t };
+      this.pending = { causes: [cause], since: t, requestIds: ids };
       this.d.log.append(t, 'request', `${cause} request${why}`);
     }
   }
@@ -150,8 +165,43 @@ export class Orchestrator {
   tick(t: number): void {
     this.advance(t);
     if (t % TIMING.driftSensorInterval === 0) this.driftCheck(t);
+    if (t % TIMING.runRequestPoll === 0) this.pollRunRequests(t);
     this.staleness(t);
+    // SHR-3/4: between runs only, so climatology never swaps mid-run.
+    if (!this.active) {
+      if (this.d.inboxReady?.()) this.importClimatology(t);
+      if (this.d.exporter && t - this.lastExport >= TIMING.exportInterval) this.exportForShore(t);
+    }
     if (!this.active && this.pending) this.startRun(t);
+  }
+
+  /** RRQ-2: the run-request sensor. Each pending request enters the queue as a manual request. */
+  private pollRunRequests(t: number): void {
+    const got = this.d.runRequests?.poll(t) ?? [];
+    for (const r of got) this.request('manual', 'manualRequest', `${r.id} via run-request API`, r.id);
+  }
+
+  /** SHR-3: climatology materialises from the inbox via the import shim. */
+  private importClimatology(t: number): void {
+    this.d.tokens.emit(edgeId('shimImport', 'call', 'climatologyImporter'), { payload: P.shimCall('climatology_importer.import', 'Python call inside the Dagster asset', {}) });
+    const f = shims.importClimatology(this.d.importer!);
+    if (!f) return;
+    this.d.log.append(t, 'commit', `climatology v${f.version} committed from the inbox`);
+    this.materialise('climatology', t);
+  }
+
+  /** SHR-4: scheduled export for shore. A failed read waits for the next schedule. */
+  private exportForShore(t: number): void {
+    this.lastExport = t;
+    this.d.tokens.emit(edgeId('shimExport', 'call', 'shoreExporter'), { payload: P.shimCall('shore_exporter.export', 'Python call inside the Dagster asset (scheduled)', {}) });
+    try {
+      const b = shims.exportForShore(this.d.exporter!, t);
+      this.d.log.append(t, 'export', `${b.id}: ${b.observations} observation(s)${b.forecastId ? `, ${b.forecastId}` : ''}${b.featureCount !== undefined ? `, ${b.featureCount} feature(s)` : ''} → outbox`);
+      this.materialise('shoreExport', t);
+    } catch (e) {
+      if (!(e instanceof ServiceUnavailable)) throw e;
+      this.d.log.append(t, 'export', `shore export skipped: ${e.message}; next in ${TIMING.exportInterval}s`);
+    }
   }
 
   private driftCheck(t: number): void {
@@ -203,7 +253,7 @@ export class Orchestrator {
     const p = this.pending!;
     this.pending = null;
     const n = ++this.runSeq;
-    this.active = { id: `R${n}`, forecastId: `F${n}`, causes: p.causes, startedAt: t, step: 'run', attempt: 0, failures: 0, label: '', totalFailures: 0, caps: this.d.capabilities() };
+    this.active = { id: `R${n}`, forecastId: `F${n}`, causes: p.causes, requestIds: p.requestIds, startedAt: t, step: 'run', attempt: 0, failures: 0, label: '', totalFailures: 0, caps: this.d.capabilities() };
     this.d.log.append(t, 'run', `${this.active.id} started (${p.causes.join(' + ')}) → ${this.active.forecastId}`);
     this.beginAttempt(t);
   }
@@ -320,6 +370,7 @@ export class Orchestrator {
     this.materialise('announcement', t);
     this.history.push({ id: a.id, forecastId: f.id, causes: a.causes.join(' + '), startedAt: a.startedAt, endedAt: t, failures: a.totalFailures, ...(msg.featureCount !== undefined ? { featureCount: msg.featureCount } : {}) });
     this.d.log.append(t, 'run', `${a.id} complete in ${t - a.startedAt}s`);
+    this.d.runRequests?.postStatus(a.requestIds, a.id, f.id, t);
     this.active = null;
   }
 

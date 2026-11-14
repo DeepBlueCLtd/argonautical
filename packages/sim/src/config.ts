@@ -46,7 +46,29 @@ export const TIMING = {
   /** Scenario shift: +5σ reached over 20 s. */
   shiftSigma: 5,
   shiftRampTicks: 20,
+  /** RRQ-2: the run-request sensor polls the API this often (production ≥30 s). */
+  runRequestPoll: 5,
+  /** SHR-1: the shore link is up for `upFor` ticks in every `period`, from `upFrom`. */
+  shoreLink: { period: 180, upFrom: 30, upFor: 60 },
+  /** SHR-2: shore issues a new climatology version at `first`, then every `every` ticks. */
+  climatologyIssue: { first: 120, every: 600 },
+  /** SHR-4: shore_export materialises this often (when no run is active). */
+  exportInterval: 120,
 } as const;
+
+/** SHR-1: is the shore link up at tick `t`? */
+export function shoreLinkUp(t: number): boolean {
+  const l = TIMING.shoreLink;
+  const m = (((t - l.upFrom) % l.period) + l.period) % l.period;
+  return t >= l.upFrom && m < l.upFor;
+}
+
+/** Ticks until the shore link next changes state. */
+export function shoreLinkChangeIn(t: number): number {
+  const up = shoreLinkUp(t);
+  for (let d = 1; d <= TIMING.shoreLink.period; d++) if (shoreLinkUp(t + d) !== up) return d;
+  return TIMING.shoreLink.period;
+}
 
 export const NUMERICS = {
   /** MOD: fraction of the way from background towards recent observations. */

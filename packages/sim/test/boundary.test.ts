@@ -9,7 +9,7 @@ describe('module boundary (ARC-1)', () => {
   it('our modules import nothing from the orchestrator, shims or deployment model', () => {
     const r = checkBoundary();
     expect(r.violations).toEqual([]);
-    expect(r.checkedFiles).toBe(5);
+    expect(r.checkedFiles).toBe(8);
   });
 
   it('the check catches a violation', () => {

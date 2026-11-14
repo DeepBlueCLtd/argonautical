@@ -20,7 +20,8 @@ export type ElementKind =
   | 'asset'
   | 'shim'
   | 'service'
-  | 'consumer';
+  | 'consumer'
+  | 'person';
 
 export type RelationKind =
   | 'sends'
@@ -81,6 +82,17 @@ export const ELEMENT_IDS = [
   'pygeoapi',
   'broker',
   'consumer',
+  // §3.7: run requests (RRQ) and shore transfer (SHR)
+  'watchkeeper',
+  'runRequestApi',
+  'shore',
+  'shoreSync',
+  'transferArea',
+  'shimImport',
+  'climatologyImporter',
+  'shoreExport',
+  'shimExport',
+  'shoreExporter',
 ] as const;
 
 export type ElementId = (typeof ELEMENT_IDS)[number];
@@ -114,8 +126,16 @@ export const ELEMENTS: readonly ElementDecl[] = [
   { id: 'shimCheck', label: 'check', kind: 'shim', provenance: 'ours', region: 'system', parent: 'driftSensor', relations: [r('calls', 'driftMonitor')] },
   { id: 'driftMonitor', label: 'Drift monitor', kind: 'module', provenance: 'ours', region: 'system', parent: 'driftSensor', relations: [r('queries', 'pygeoapi')] },
   { id: 'stalenessSchedule', label: 'Staleness schedule', kind: 'schedule', provenance: 'off-the-shelf', region: 'system', parent: 'orchestrator', relations: [r('triggers', 'forecast')] },
-  { id: 'manualRequest', label: 'Manual request', kind: 'trigger', provenance: 'off-the-shelf', region: 'system', parent: 'orchestrator', relations: [r('triggers', 'forecast')] },
+  // RRQ-2/3: the run-request sensor polls the run-request API and posts run status back to it.
+  { id: 'manualRequest', label: 'Manual request', kind: 'trigger', provenance: 'off-the-shelf', region: 'system', parent: 'orchestrator', relations: [r('triggers', 'forecast'), r('queries', 'runRequestApi'), r('sends', 'runRequestApi')] },
   { id: 'climatology', label: 'climatology', kind: 'asset', provenance: 'off-the-shelf', region: 'system', parent: 'orchestrator', relations: [r('lineage', 'forecast')] },
+  // SHR-3: climatology materialises from the transfer area's inbox.
+  { id: 'shimImport', label: 'import', kind: 'shim', provenance: 'ours', region: 'system', parent: 'climatology', relations: [r('calls', 'climatologyImporter')] },
+  { id: 'climatologyImporter', label: 'Climatology importer', kind: 'module', provenance: 'ours', region: 'system', parent: 'climatology', relations: [r('reads', 'transferArea'), r('writes', 'netcdfStore')] },
+  // SHR-4: a scheduled export of new data for shore, read through pygeoapi.
+  { id: 'shoreExport', label: 'shore_export', kind: 'asset', provenance: 'off-the-shelf', region: 'system', parent: 'orchestrator', relations: [] },
+  { id: 'shimExport', label: 'export', kind: 'shim', provenance: 'ours', region: 'system', parent: 'shoreExport', relations: [r('calls', 'shoreExporter')] },
+  { id: 'shoreExporter', label: 'Shore exporter', kind: 'module', provenance: 'ours', region: 'system', parent: 'shoreExport', relations: [r('queries', 'pygeoapi'), r('writes', 'transferArea')] },
   {
     id: 'forecast',
     label: 'forecast',
@@ -150,8 +170,17 @@ export const ELEMENTS: readonly ElementDecl[] = [
   },
   { id: 'broker', label: 'Broker', kind: 'service', provenance: 'off-the-shelf', region: 'boundary', relations: [] },
 
+  // RRQ-1: the run-request API in the distribution zone; the watchkeeper never reaches the enclave.
+  { id: 'runRequestApi', label: 'Run-request API', kind: 'service', provenance: 'ours', region: 'boundary', relations: [] },
+
+  // SHR: shore transfer. The sync agent moves files only; it writes no store but the transfer area.
+  { id: 'shore', label: 'Shore support', kind: 'environment', provenance: 'world', region: 'world', relations: [r('sends', 'shoreSync')], note: 'off ship, over an intermittent link' },
+  { id: 'shoreSync', label: 'Shore sync agent', kind: 'module', provenance: 'ours', region: 'system', relations: [r('writes', 'transferArea'), r('reads', 'transferArea'), r('sends', 'shore')], note: 'not orchestrated' },
+  { id: 'transferArea', label: 'Transfer area', kind: 'store', provenance: 'off-the-shelf', region: 'system', relations: [], note: 'inbox · outbox' },
+
   // Onboard consumers
   { id: 'consumer', label: 'Consumer', kind: 'consumer', provenance: 'world', region: 'consumers', template: true, relations: [r('subscribes', 'broker'), r('registers', 'broker'), r('queries', 'pygeoapi')] },
+  { id: 'watchkeeper', label: 'Watchkeeper', kind: 'person', provenance: 'world', region: 'consumers', relations: [r('sends', 'runRequestApi')] },
 ];
 
 export type EdgeKind = 'send' | 'call' | 'write' | 'read' | 'publish' | 'deliver' | 'subscribe' | 'query' | 'lineage' | 'trigger';
