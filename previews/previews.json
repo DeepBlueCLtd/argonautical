@@ -1,5 +1,16 @@
 [
   {
+    "number": 27,
+    "title": "Drift monitor averages the last 10 s; labelled bars; working shading for modules",
+    "summary": "",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/27",
+    "branch": "claude/drift-average",
+    "sha": "6cf80ac4c8d66270e833adebb06a4d31573305e5",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-14T06:56:01.132Z"
+  },
+  {
     "number": 26,
     "title": "Power on/off with a consumer handshake at power-on",
     "summary": "Power button beside play/pause. While off: nothing runs, the System and Consumers regions are dimmed, the clock reads OFF, and the presenter chooses what to install (Feature detector, 48 h). While on: the capability switches are locked…",
