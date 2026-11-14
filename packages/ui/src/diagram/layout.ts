@@ -34,9 +34,9 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   orchestrator: REGIONS.orchestrator,
   // Reaches left into the orchestrator's empty top-left corner: room for the operator's drift controls
   // in a column right of the drift monitor.
-  driftSensor: { x: 486, y: 72, w: 324, h: 172 },
+  driftSensor: { x: 486, y: 72, w: 324, h: 196 },
   shimCheck: { x: 500, y: 112, w: 222, h: 20 },
-  driftMonitor: { x: 500, y: 138, w: 222, h: 96 },
+  driftMonitor: { x: 500, y: 138, w: 222, h: 120 },
   stalenessSchedule: { x: 830, y: 72, w: 180, h: 78 },
   manualRequest: { x: 830, y: 176, w: 180, h: 78 },
   privateStore: { x: 1160, y: 72, w: 138, h: 92 },

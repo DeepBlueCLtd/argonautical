@@ -388,3 +388,24 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .diagram .power-off-sub { font-size: 15px; fill: var(--muted); }
 .diagram .handshake-note { font-size: 14px; font-weight: 600; fill: var(--std-O); }
 .diagram .ctl-phase { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; fill: var(--std-O); }
+/* A module (or the drift monitor) at work: its own shading, distinct from the green asset around it */
+.box.ours.running > rect { fill: #dcecfb; stroke: #1c63a5; stroke-width: 2.5; animation: module-working 1.6s ease-in-out infinite; }
+@keyframes module-working { 50% { fill: #c6e0f8; } }
+@media (prefers-reduced-motion: reduce) { .box.ours.running > rect { animation: none; } }
+/* DRF-1: residual bar labels and scale */
+.diagram .resid-label { font: 600 9px var(--mono); fill: var(--muted); }
+.diagram .resid-scale { font: 9px var(--mono); fill: var(--muted); }
+.resid-raw { fill: none; stroke: #8fb3d1; stroke-width: 0.9; }
+.resid-mean { fill: none; stroke: var(--ours); stroke-width: 2.2; stroke-linejoin: round; }
+.resid-mean.over { stroke: var(--offline); }
+/* DRF-6: composite drift trace, one colour per input (the labels are the key) */
+.trace.in-0 { --ic: #e8590c; }
+.trace.in-1 { --ic: #1c4fd6; }
+.trace.in-2 { --ic: #2b8a3e; }
+.trace.in-3 { --ic: #c2255c; }
+.trace.in-4 { --ic: #e69f00; }
+.trace.in-5 { --ic: #56b4e9; }
+.diagram .trace-key { font: 700 9px var(--mono); fill: var(--ic); }
+.trace-obs { fill: none; stroke: var(--ic); stroke-width: 1; stroke-linejoin: round; }
+.trace-obs.over { stroke-width: 2.6; }
+.trace-forecast { fill: none; stroke: var(--ic); stroke-width: 2.4; }

@@ -7,11 +7,18 @@ const inputs = inputsFor(3);
 const forecast: Forecast = { id: 'F1', cause: 'schedule', issuedAt: 0, validUntil: 180, inputs: ['temp', 'sal', 'snd'], values: { temp: 12, sal: 35, snd: 1500 }, digest: 'x', horizon: 12 };
 const params: DriftParams = { threshold: 3, quorum: 2, persistence: 2 };
 
-function monitor(obs: Record<string, number>, f: Forecast | null = forecast) {
-  return new DriftMonitor(inputs, { latestObservations: () => obs, currentForecast: () => f ?? undefined });
+function monitor(obs: Record<string, number | number[]>, f: Forecast | null = forecast) {
+  const recent = Object.fromEntries(Object.entries(obs).map(([k, v]) => [k, Array.isArray(v) ? v : [v]]));
+  return new DriftMonitor(inputs, { recentObservations: () => recent, currentForecast: () => f ?? undefined });
 }
 
 describe('drift monitor', () => {
+  it('DRF-1 averages the readings since the last check before comparing with the forecast', () => {
+    // temp (σ 0.5) readings alternate 12.5 / 13.5: the latest alone would say +3σ; their mean (13.0) says +2σ.
+    const r = monitor({ temp: [12.5, 13.5, 12.5, 13.5, 12.5, 13.5, 12.5, 13.5, 12.5, 13.5], sal: 35, snd: 1500 }).check({ params, streak: 0 });
+    expect(r.residuals.temp).toBeCloseTo(2);
+  });
+
   it('DRF-1 computes residuals in σ', () => {
     const r = monitor({ temp: 13, sal: 34.8, snd: 1500 }).check({ params, streak: 0 });
     expect(r.residuals.temp).toBeCloseTo(2);
