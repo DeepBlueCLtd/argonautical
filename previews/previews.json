@@ -1,5 +1,16 @@
 [
   {
+    "number": 28,
+    "title": "Physical view with live store inspector",
+    "summary": "Adds a physical view: the same running simulation, drawn on the candidate production deployment from docs/c4-model.md §6.1 (with decisions D1–D7). Stores can be opened in a live inspector.",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/28",
+    "branch": "claude/eloquent-archimedes-0zerkv",
+    "sha": "7904e55d2522253f3cc6ab32ea76ef96e14f36ad",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-14T08:42:38.882Z"
+  },
+  {
     "number": 27,
     "title": "Drift monitor averages the last 10 s; labelled bars; working shading for modules",
     "summary": "",
