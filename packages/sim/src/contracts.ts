@@ -108,7 +108,8 @@ export function forecastDigest(f: Pick<Forecast, 'id' | 'validUntil' | 'inputs' 
 
 /** Read ports. Our modules see only these; the simulation wires them to pygeoapi (the only read path). */
 export interface DriftReader {
-  latestObservations(): Partial<Record<InputKey, number>>;
+  /** The last `n` observations of each input, oldest first (DRF-1: averaged over the check window). */
+  recentObservations(n: number): Partial<Record<InputKey, number[]>>;
   currentForecast(): Forecast | undefined;
 }
 

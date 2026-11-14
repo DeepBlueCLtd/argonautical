@@ -372,3 +372,11 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 /* CAT-4: topic tags on broker tokens; a consumer's latest notice */
 .diagram .topic-tag { font: 700 9px var(--mono); fill: var(--std-M); paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
 .diagram .notice { fill: var(--std-M); font-weight: 700; }
+
+/* A module (or the drift monitor) at work: its own shading, distinct from the green asset around it */
+.box.ours.running > rect { fill: #dcecfb; stroke: #1c63a5; stroke-width: 2.5; animation: module-working 1.6s ease-in-out infinite; }
+@keyframes module-working { 50% { fill: #c6e0f8; } }
+@media (prefers-reduced-motion: reduce) { .box.ours.running > rect { animation: none; } }
+/* DRF-1: residual bar labels and scale */
+.diagram .resid-label { font: 600 9px var(--mono); fill: var(--muted); }
+.diagram .resid-scale { font: 9px var(--mono); fill: var(--muted); }

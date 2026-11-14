@@ -102,7 +102,7 @@ export class Simulation {
     const api = this.pygeoapi;
     this.ingestion = new Ingestion(this.inputs, this.observationsDb);
     const monitor = new DriftMonitor(this.inputs, {
-      latestObservations: () => api.latestObservations({ element: 'driftMonitor' }),
+      recentObservations: (n) => api.recentObservations({ element: 'driftMonitor' }, n),
       currentForecast: () => api.forecast({ element: 'driftMonitor' }),
     });
     const tokens = this.tokens;

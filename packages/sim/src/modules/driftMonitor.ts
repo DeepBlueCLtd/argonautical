@@ -1,5 +1,5 @@
 /** Drift monitor (ours, inside the drift sensor): DRF-1..5. */
-import type { InputSpec } from '../config.ts';
+import { TIMING, type InputSpec } from '../config.ts';
 import type { DriftReader, InputKey } from '../contracts.ts';
 
 export interface DriftParams {
@@ -39,7 +39,11 @@ export class DriftMonitor {
     if (!forecast) {
       return { residuals: {}, exceeding: [], quorumMet: false, streak: 0, requestRun: false, status: 'no forecast yet' };
     }
-    const obs = this.reader.latestObservations();
+    // DRF-1: average every reading since the last check, not just the latest: uses all the data and
+    // cuts sensor noise by about √n (a real shift shows up about half a window later).
+    const recent = this.reader.recentObservations(TIMING.driftSensorInterval);
+    const obs: Partial<Record<InputKey, number>> = {};
+    for (const [k, vs] of Object.entries(recent)) if (vs && vs.length) obs[k] = vs.reduce((a, b) => a + b, 0) / vs.length;
     const residuals: Partial<Record<InputKey, number>> = {};
     const exceeding: InputKey[] = [];
     for (const spec of this.inputs) {
