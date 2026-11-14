@@ -5,10 +5,10 @@
     "summary": "Adds a physical view: the same running simulation, drawn on the candidate production deployment from docs/c4-model.md §6.1 (with decisions D1–D7). Stores can be opened in a live inspector.",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/28",
     "branch": "claude/eloquent-archimedes-0zerkv",
-    "sha": "7904e55d2522253f3cc6ab32ea76ef96e14f36ad",
+    "sha": "b2a591010ed9851402dc20da3cdf162c439bac4c",
     "author": "IanMayo",
     "status": "open",
-    "updated": "2026-11-14T08:42:38.882Z"
+    "updated": "2026-11-14T18:17:48.702Z"
   },
   {
     "number": 27,
