@@ -803,6 +803,12 @@ function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runn
           <path className="glyph" d={`M${cx - 6},${cy - 12} L${cx + 12},${cy} L${cx - 6},${cy + 12} z`} />
         )}
       </g>
+      {/* CAT-5: a clear marker while the power-on handshake is the thing that plays */}
+      {on && runner.handshaking && (
+        <text x={c.x + 100} y={c.y + 32} className="ctl-phase mono">
+          [HANDSHAKE]
+        </text>
+      )}
       <text x={c.x + 100} y={c.y + 58} className="ctl-clock mono">
         {on ? snap.clock : 'OFF'}
       </text>

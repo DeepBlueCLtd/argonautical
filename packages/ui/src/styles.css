@@ -387,3 +387,4 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .diagram .power-off-title { font-size: 28px; font-weight: 700; fill: var(--ink); }
 .diagram .power-off-sub { font-size: 15px; fill: var(--muted); }
 .diagram .handshake-note { font-size: 14px; font-weight: 600; fill: var(--std-O); }
+.diagram .ctl-phase { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; fill: var(--std-O); }
