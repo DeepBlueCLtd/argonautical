@@ -36,6 +36,9 @@ const SIGNAL_WALL = { release: 2.4, check: 1.4 } as const;
 /** When a release's sweep reaches the arrowhead (fraction of its time); what it releases starts then. */
 const RELEASE_LANDS = 0.65;
 
+/** The animation clock is a running sum of frame times: compare end times with a little tolerance. */
+const EPS = 1e-6;
+
 const LINEAGE = new Set(EDGES.filter((e) => e.kind === 'lineage').map((e) => e.id));
 /** Orchestrator → module calls (via a shim): the module's reads leave only once its call has arrived. */
 const CALLS = new Set(EDGES.filter((e) => e.kind === 'call').map((e) => e.id));
@@ -121,7 +124,8 @@ export class Runner {
 
   /** True while the power-on handshake is still on screen. */
   get handshaking(): boolean {
-    return this.powered && this.anim < this.handshakeUntil;
+    // Tolerance: the animation clock is a running sum and can stop a hair short of the end time.
+    return this.powered && this.stepBudget > 0 && this.anim < this.handshakeUntil - EPS;
   }
 
   /** CAT-1: switch the system off. It stops, and the capabilities can be changed. */
@@ -325,17 +329,17 @@ export class Runner {
    */
   notice(instance: string): string | undefined {
     const n = this.inbox.get(instance);
-    if (!n || this.anim < n.at) return undefined;
+    if (!n || this.anim < n.at - EPS) return undefined;
     if (this.anim - n.at < this.wall(4, 1.2)) return n.label;
     const list = this.gatherings.get(`consumer#${instance}`) ?? [];
     const g = list[list.length - 1];
-    return g && g.start >= n.at && this.anim < g.lastAt ? n.label : undefined;
+    return g && g.start >= n.at && this.anim < g.lastAt - EPS ? n.label : undefined;
   }
 
   readsPending(element: string, instance?: string): boolean {
     const list = this.gatherings.get(`${element}#${instance ?? ''}`) ?? [];
     const g = list[list.length - 1];
-    return !!g && this.anim < g.lastAt;
+    return !!g && this.anim < g.lastAt - EPS;
   }
 
   /** What a reader's input slot shows now: the document it last received, or pale while it waits for one. */
@@ -348,9 +352,9 @@ export class Runner {
     let f: { at: number; token: Token } | undefined;
     for (const x of list) {
       const y = x.fills.get(slot);
-      if (y && this.anim >= y.at && (!f || y.at > f.at)) f = y;
+      if (y && this.anim >= y.at - EPS && (!f || y.at > f.at)) f = y;
     }
-    return g && f && f.at >= g.start ? { state: 'filled', token: f.token } : { state: 'awaiting' };
+    return g && f && f.at >= g.start - EPS ? { state: 'filled', token: f.token } : { state: 'awaiting' };
   }
 
   /** Paused with nothing left to animate: tokens are frozen and can be clicked. */
