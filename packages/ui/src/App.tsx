@@ -7,7 +7,7 @@ import { SlotTipPanel, TokenTipPanel } from './SlotTip.tsx';
 import { TokenPopup } from './TokenPopup.tsx';
 import { Runner } from './runner.ts';
 import { WalkCard } from './Walkthrough.tsx';
-import { WALKTHROUGH } from './walkthrough.ts';
+import { PHYSICAL_WALKTHROUGH, WALKTHROUGH } from './walkthrough.ts';
 
 const params = new URLSearchParams(location.search);
 
@@ -60,6 +60,7 @@ export function App() {
   const [inspecting, setInspecting] = useState<InspectId | null>(null);
   const changeView = (v: 'logical' | 'physical') => {
     setView(v);
+    setWalk(null);
     setInspecting(null);
     setTip(null);
     setTokenTip(null);
@@ -68,12 +69,13 @@ export function App() {
     else u.searchParams.delete('view');
     history.replaceState(null, '', u);
   };
-  const walkStep = walk === null ? undefined : WALKTHROUGH[walk];
+  const steps = view === 'physical' ? PHYSICAL_WALKTHROUGH : WALKTHROUGH;
+  const walkStep = walk === null ? undefined : steps[walk];
   const spotlight = walkStep ? (walkStep.rect?.(runner.sim.consumers.length) ?? null) : undefined;
+  // Each view has its own walkthrough; the physical one starts only from the Walkthrough button.
   const startWalk = () => {
-    // The walkthrough introduces the logical view.
-    if (view !== 'logical') changeView('logical');
     runner.setRunning(false);
+    setInspecting(null);
     setPicked(null);
     setWalk(0);
   };
@@ -102,14 +104,14 @@ export function App() {
         {view === 'logical' ? (
           <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} spotlight={spotlight} controls={controls} />
         ) : (
-          <PhysicalDiagram snap={snap} runner={runner} onPick={setPicked} onTokenTip={setTokenTip} controls={controls} inspecting={inspecting} onInspect={(id) => setInspecting(inspecting === id ? null : id)} />
+          <PhysicalDiagram snap={snap} runner={runner} onPick={setPicked} onTokenTip={setTokenTip} spotlight={spotlight} controls={controls} inspecting={inspecting} onInspect={(id) => setInspecting(inspecting === id ? null : id)} />
         )}
         {runner.frozen && !picked && walk === null && (
           <div className="inspect-hint">{runner.tokens.length ? 'Paused · click a dot to see what it carries' : 'Paused · press Step to send one tick of tokens, then click a dot'}</div>
         )}
         <Legend />
       </main>
-      {walk !== null && <WalkCard index={walk} rect={spotlight ?? undefined} onGo={setWalk} onClose={endWalk} />}
+      {walk !== null && <WalkCard steps={steps} index={walk} rect={spotlight ?? undefined} onGo={setWalk} onClose={endWalk} />}
       {logOpen && <EventLogPanel runner={runner} onClose={() => setLogOpen(false)} />}
       {view === 'physical' && inspecting && <StoreInspector id={inspecting} sim={runner.sim} onClose={() => setInspecting(null)} />}
       {tip && !picked && <SlotTipPanel tip={tip} runner={runner} />}

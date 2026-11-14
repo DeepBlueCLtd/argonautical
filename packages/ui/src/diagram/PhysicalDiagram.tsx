@@ -30,8 +30,8 @@ const NODE_LABELS: Record<keyof typeof NODE_RECTS, string> = {
   shore: '',
 };
 
-export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTokenTip: (t: TokenTip | null) => void; controls: Controls; inspecting: InspectId | null; onInspect: (id: InspectId) => void }) {
-  const { snap, runner, onPick, onTokenTip, controls, inspecting, onInspect } = props;
+export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTokenTip: (t: TokenTip | null) => void; controls: Controls; spotlight?: Rect | null; inspecting: InspectId | null; onInspect: (id: InspectId) => void }) {
+  const { snap, runner, onPick, onTokenTip, controls, spotlight, inspecting, onInspect } = props;
   const consumerIds = snap.consumers.map((c) => c.id);
   const routes = useMemo(() => routePhysical(EDGES, consumerIds), [consumerIds.join(',')]);
   const byKey = useMemo(() => new Map(routes.map((r) => [r.key, r])), [routes]);
@@ -553,6 +553,14 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
       </g>
 
       <Tokens runner={runner} byKey={byKey} loop={loop as Pt[]} onPick={onPick} onTokenTip={onTokenTip} />
+
+      {/* The physical walkthrough dims everything but the current zone or part. */}
+      {spotlight !== undefined && (
+        <g className="spotlight">
+          <path className="dim" fillRule="evenodd" d={`M0,0 H${VIEW.w} V${VIEW.h} H0 Z${spotlight ? ` M${spotlight.x},${spotlight.y} v${spotlight.h} h${spotlight.w} v${-spotlight.h} Z` : ''}`} />
+          {spotlight && <rect className="ring" x={spotlight.x} y={spotlight.y} width={spotlight.w} height={spotlight.h} rx={8} />}
+        </g>
+      )}
     </svg>
   );
 }

@@ -250,6 +250,7 @@ Rewritten Nov 14, 2026. The standard view is information flow (§5.1), the *logi
 | SYS-7 | **Controls.** The Control panel is the same as in the logical view. Fault toggles (ingestion, Observations DB, model runner, feature detector) are play/pause buttons on their process boxes. Scenario and operator controls stay in the logical view. |
 | SYS-8 | **Store inspector.** Clicking a store in the physical view opens a side panel that stays open and updates live while the simulation runs (Esc closes it). It shows the store in its native form: **Observations DB** as a SensorThings table (Datastream, phenomenonTime, result), newest first; **NetCDF store** as a file list (climatology versions, `F1.nc`…) with an `ncdump -h`-style header and a small grid heatmap of the selected file; **Features DB** as a PostGIS-style table with a mini map of fronts and eddies; **sensor broker** as its queue; **broker** as the retained messages and subscribers; **Dagster metadata DB** as run history; **transfer area** as inbox and outbox. |
 | SYS-9 | The inspector reads stored rows only (acceptance 12) and never mutates the simulation. It is not available in the logical view. |
+| SYS-10 | **Physical walkthrough.** The physical view has its own walkthrough (zones, firewall gates, each node, the store inspector, the token key), declared beside WALK-5's list. It starts only when the presenter clicks Walkthrough in that view; it never opens by itself (WALK-1 applies to the logical view only). |
 
 ### 5.7 Tour mode
 
