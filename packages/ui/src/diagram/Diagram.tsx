@@ -17,7 +17,7 @@ const fmt = (v: number | undefined, d = 2) => (v === undefined ? '—' : Number.
 
 type Style = 'ours' | 'ots' | 'world' | 'asset';
 
-function Box({ r, style, cls = '', children, title }: { r: Rect; style: Style; cls?: string; children?: ReactNode; title?: string }) {
+export function Box({ r, style, cls = '', children, title }: { r: Rect; style: Style; cls?: string; children?: ReactNode; title?: string }) {
   return (
     <g className={`box ${style} ${cls}`}>
       {title && <title>{title}</title>}
@@ -28,7 +28,7 @@ function Box({ r, style, cls = '', children, title }: { r: Rect; style: Style; c
 }
 
 /** Our data store: double border (§5.3). */
-function Store({ r, ours = true, cls = '', children }: { r: Rect; ours?: boolean; cls?: string; children?: ReactNode }) {
+export function Store({ r, ours = true, cls = '', children }: { r: Rect; ours?: boolean; cls?: string; children?: ReactNode }) {
   return (
     <g className={`store ${ours ? 'ours' : 'ots'} ${cls}`}>
       <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={6} />
@@ -38,7 +38,7 @@ function Store({ r, ours = true, cls = '', children }: { r: Rect; ours?: boolean
   );
 }
 
-function T({ x, y, children, cls = '', anchor = 'start' }: { x: number; y: number; children: ReactNode; cls?: string; anchor?: 'start' | 'middle' | 'end' }) {
+export function T({ x, y, children, cls = '', anchor = 'start' }: { x: number; y: number; children: ReactNode; cls?: string; anchor?: 'start' | 'middle' | 'end' }) {
   return (
     <text x={x} y={y} className={cls} textAnchor={anchor}>
       {children}
@@ -55,7 +55,7 @@ function Bar({ x, y, w, frac, cls = '' }: { x: number; y: number; w: number; fra
   );
 }
 
-function Shim({ r, name, retryIn }: { r: Rect; name: string; retryIn?: number }) {
+export function Shim({ r, name, retryIn }: { r: Rect; name: string; retryIn?: number }) {
   const retry = retryIn !== undefined;
   return (
     <g className={`shim ${retry ? 'retry' : ''}`}>
@@ -103,6 +103,9 @@ export interface Controls {
   readonly logOpen: boolean;
   readonly onLog: () => void;
   readonly onWalkthrough: () => void;
+  /** SYS-1: which view is showing, and the toggle. */
+  readonly view: 'logical' | 'physical';
+  readonly onView: (v: 'logical' | 'physical') => void;
 }
 
 export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; onTokenTip: (t: TokenTip | null) => void; spotlight?: Rect | null; controls: Controls }) {
@@ -181,7 +184,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <rect className="region consumers" x={REGIONS.consumersLeft} y={0} width={VIEW.w - REGIONS.consumersLeft} height={VIEW.h} />
         <line className="boundary" x1={REGIONS.worldRight} y1={0} x2={REGIONS.worldRight} y2={VIEW.h} />
         <line className="boundary" x1={REGIONS.consumersLeft} y1={0} x2={REGIONS.consumersLeft} y2={VIEW.h} />
-        <T x={REGIONS.worldRight / 2} y={222} cls="region-label" anchor="middle">
+        <T x={REGIONS.worldRight / 2} y={237} cls="region-label" anchor="middle">
           WORLD
         </T>
         <T x={(REGIONS.worldRight + REGIONS.consumersLeft) / 2} y={24} cls="region-label" anchor="middle">
@@ -806,7 +809,7 @@ function CtlButton(props: { x: number; y: number; w: number; h: number; title: s
  * §5.4 Presenter controls, in the top fifth of the World column: a large play/pause, the clock,
  * Step, the rate (½×/1×/10×/60× as a radio group), Add consumer, Walkthrough and the event log.
  */
-function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runner; controls: Controls }) {
+export function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runner; controls: Controls }) {
   const c = CONTROL;
   const playing = runner.running;
   const cx = c.x + 34;
@@ -890,6 +893,16 @@ function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runn
           {snap.capabilities.longRange ? '✓ ' : ''}48 h
         </text>
       </CtlButton>
+      {/* SYS-1: view toggle (radio group) */}
+      <g role="radiogroup" aria-label="View">
+        {(['logical', 'physical'] as const).map((v, i) => (
+          <CtlButton key={v} role="radio" x={c.x + 12 + i * 96} y={c.y + 198} w={92} h={18} title={v === 'logical' ? 'Logical view: information flow' : 'Physical view: the candidate production deployment'} pressed={controls.view === v} onClick={() => controls.onView(v)} cls="cap">
+            <text x={c.x + 12 + i * 96 + 46} y={c.y + 211} textAnchor="middle" className="ctl-text cap-text">
+              {v === 'logical' ? 'Logical view' : 'Physical view'}
+            </text>
+          </CtlButton>
+        ))}
+      </g>
       {/* Event count, as a badge on the log icon */}
       <g className="ctl-badge" aria-hidden>
         <rect x={c.x + 187} y={c.y + 112} width={22} height={13} rx={6.5} />
@@ -982,7 +995,7 @@ function InputSlots(props: { x: number; y: number; reader: string; instance?: st
   );
 }
 
-function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: number; w: number; label: string; h?: number; r?: number }) {
+export function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: number; w: number; label: string; h?: number; r?: number }) {
   const top = edgeY - h;
   const d = `M${x},${edgeY} L${x},${top + r} Q${x},${top} ${x + r},${top} L${x + w - r},${top} Q${x + w},${top} ${x + w},${top + r} L${x + w},${edgeY} Z`;
   return (
@@ -999,7 +1012,7 @@ function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: num
  * Presenter control inline before a fragile component's title: pause takes it down (red halo),
  * play brings it back.
  */
-function PlayPause({ at, running, what, onToggle }: { at: { x: number; y: number }; running: boolean; what: string; onToggle: () => void }) {
+export function PlayPause({ at, running, what, onToggle }: { at: { x: number; y: number }; running: boolean; what: string; onToggle: () => void }) {
   const cx = at.x;
   const cy = at.y;
   const label = `${running ? 'Pause' : 'Resume'} ${what}`;
@@ -1123,7 +1136,7 @@ function EdgePath({ r }: { r: Route }) {
   );
 }
 
-function Module({ r, name, offline, running = false, children }: { r: Rect; name: string; offline: boolean; running?: boolean; children?: ReactNode }) {
+export function Module({ r, name, offline, running = false, children }: { r: Rect; name: string; offline: boolean; running?: boolean; children?: ReactNode }) {
   return (
     <g className={`box ours module ${offline ? 'offline' : running ? 'running' : ''}`} filter={offline ? 'url(#offline-halo)' : undefined}>
       <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={4} />
@@ -1152,7 +1165,7 @@ function ExecLine({ r, label, frac, active }: { r: Rect; label: string; frac: nu
   );
 }
 
-function Ring({ cx, cy, frac, label, r: rr = 13, cls = '' }: { cx: number; cy: number; frac: number; label: string; r?: number; cls?: string }) {
+export function Ring({ cx, cy, frac, label, r: rr = 13, cls = '' }: { cx: number; cy: number; frac: number; label: string; r?: number; cls?: string }) {
   const c = 2 * Math.PI * rr;
   const f = Math.max(0, Math.min(1, frac));
   return (
@@ -1276,7 +1289,7 @@ function Pulse({ pts, p, token, frozen, onPick }: { pts: Pt[]; p: number; token:
   );
 }
 
-function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void; onTokenTip: (t: TokenTip | null) => void }) {
+export function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void; onTokenTip: (t: TokenTip | null) => void }) {
   // Drill-down: once paused, frozen tokens get a larger hit area and open a popup on click.
   const frozen = runner.frozen;
   return (
@@ -1285,7 +1298,8 @@ function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; b
         const tk = v.token;
         // A SUBSCRIBE travels back along the consumer's delivery line: one MQTT connection, both ways (CAT-4).
         const sub = tk.edge === 'consumer>subscribe>broker';
-        const routeKey = sub ? `broker>deliver>consumer#${tk.instance}` : tk.instance ? `${tk.edge}#${tk.instance}` : tk.edge;
+        // Only consumer edges have a line per consumer; a consumer read's database legs ride the shared store line.
+        const routeKey = sub ? `broker>deliver>consumer#${tk.instance}` : tk.instance && tk.edge.includes('consumer') ? `${tk.edge}#${tk.instance}` : tk.edge;
         const pts = tk.edge === 'forecast>lineage>forecast' ? loop : byKey.get(routeKey)?.points;
         if (!pts) return null;
         if (tk.signal) return <Pulse key={tk.seq} pts={pts} p={p} token={tk} frozen={frozen} onPick={onPick} />;

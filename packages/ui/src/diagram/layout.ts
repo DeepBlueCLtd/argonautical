@@ -24,8 +24,8 @@ export const REGIONS = {
 
 export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   // The top fifth of the World column is the presenter's Control panel (CONTROL below).
-  ocean: { x: 20, y: 232, w: 190, h: 228 },
-  sensors: { x: 20, y: 470, w: 190, h: 272 },
+  ocean: { x: 20, y: 242, w: 190, h: 226 },
+  sensors: { x: 20, y: 476, w: 190, h: 266 },
   ingestion: { x: 248, y: 430, w: 150, h: 130 },
   // Persistent queue between the DAQ gateway and ingestion (FLT-3).
   sensorBroker: { x: 252, y: 612, w: 162, h: 104 },
@@ -71,7 +71,7 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
 };
 
 /** Presenter controls (§5.4): the top fifth of the World column. */
-export const CONTROL: Rect = { x: 10, y: 8, w: 210, h: 196 };
+export const CONTROL: Rect = { x: 10, y: 8, w: 210, h: 216 };
 
 export const CONSUMER_AREA = { x: 1430, y: 216, w: 160, cardH: 94, gap: 10, max: 3 } as const;
 
@@ -269,6 +269,12 @@ function orthogonal(a: Pt, sa: Side, b: Pt, sb: Side, drop?: number): Pt[] {
   }
   // one horizontal, one vertical: single elbow
   return horizontal(sa) ? [a, { x: b.x, y: a.y }, b] : [a, { x: a.x, y: b.y }, b];
+}
+
+/** A plain orthogonal route between two rectangles, sides chosen by their relative position. */
+export function orthogonalRoute(a: Rect, b: Rect): Pt[] {
+  const s = chooseSides(a, b);
+  return orthogonal(port(a, s.from, 0.5), s.from, port(b, s.to, 0.5), s.to);
 }
 
 export interface Route {
