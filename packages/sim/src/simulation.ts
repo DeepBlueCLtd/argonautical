@@ -4,13 +4,18 @@
  * way to mutate state, ARC-4) and a read-only snapshot.
  */
 import type { InputSpec } from './config.ts';
-import { DEFAULT_CONSUMERS, DRIFT_BOUNDS, NOISE_BOUNDS, NUMERICS, TIMING, inputsFor } from './config.ts';
+import { DEFAULT_CONSUMERS, DRIFT_BOUNDS, NOISE_BOUNDS, NUMERICS, TIMING, inputsFor, shoreLinkChangeIn, shoreLinkUp } from './config.ts';
 import type { Capabilities, CollectionInfo, Values } from './contracts.ts';
 import { Consumer } from './consumers/consumer.ts';
 import { consumerProfile } from './topology/inputs.ts';
 import { EventLog, clockLabel } from './events.ts';
 import { Faults, type FaultTarget } from './faults.ts';
 import { Announcer } from './modules/announcer.ts';
+import { ClimatologyImporter } from './modules/climatologyImporter.ts';
+import { ShoreExporter } from './modules/shoreExporter.ts';
+import { ShoreSync } from './modules/shoreSync.ts';
+import { RunRequestApi } from './platform/runRequestApi.ts';
+import { Shore } from './world/shore.ts';
 import { DriftMonitor } from './modules/driftMonitor.ts';
 import { FeatureDetector } from './modules/featureDetector.ts';
 import { Ingestion } from './modules/ingestion.ts';
@@ -21,7 +26,7 @@ import { SensorBroker } from './platform/sensorBroker.ts';
 import { PygeoApi } from './platform/pygeoapi.ts';
 import * as P from './payloads.ts';
 import { Streams } from './rng.ts';
-import { FeaturesDb, NetcdfStore, ObservationsDb } from './stores/stores.ts';
+import { FeaturesDb, NetcdfStore, ObservationsDb, TransferArea } from './stores/stores.ts';
 import { TokenRecorder } from './tokens.ts';
 import { edgeId } from './topology/elements.ts';
 import { Ocean } from './world/ocean.ts';
@@ -67,6 +72,12 @@ export class Simulation {
   readonly pygeoapi: PygeoApi;
   readonly broker: Broker;
   readonly sensorBroker: SensorBroker;
+  /** §3.7 */
+  readonly runRequests: RunRequestApi;
+  readonly transferArea = new TransferArea();
+  readonly shore: Shore;
+  readonly shoreSync: ShoreSync;
+  private linkWasUp = false;
   /** Presenter can stop and start ingestion (FLT-3). */
   ingestionRunning = true;
   private backlogPeak = 0;
@@ -97,6 +108,9 @@ export class Simulation {
     this.broker = new Broker(this.tokens);
     this.sensorBroker = new SensorBroker(this.tokens, this.units);
     this.faults = new Faults(this.streams.get('failures'));
+    this.runRequests = new RunRequestApi(this.tokens);
+    // SHR-2: in the demonstrator a new climatology version keeps the same values (illustrative).
+    this.shore = new Shore(() => this.netcdf.climatology);
 
     // Our modules, wired to the read path (pygeoapi) and to our stores. They never see the orchestrator.
     const api = this.pygeoapi;
@@ -134,6 +148,63 @@ export class Simulation {
       },
     );
 
+    const area = this.transferArea;
+    const importer = new ClimatologyImporter(
+      {
+        take: () => {
+          const f = area.inbox.shift();
+          if (f) tokens.emit(edgeId('transferArea', 'read', 'climatologyImporter'), { payload: P.inboxRead(f) });
+          return f;
+        },
+      },
+      {
+        commitClimatology: (f) => {
+          tokens.emit(edgeId('climatologyImporter', 'write', 'netcdfStore'), { payload: P.climatologyCommit(f) });
+          this.netcdf.commitClimatology(f, this.t);
+        },
+      },
+    );
+    const exporter = new ShoreExporter(
+      {
+        observationsSince: (tick) => api.observationsSince({ element: 'shoreExporter', noSlots: true }, tick),
+        latestForecast: () => (this.netcdf.latest ? api.forecast({ element: 'shoreExporter', noSlots: true }) : undefined),
+        features: (id) => (this.featuresDb.latestForecastId === id ? api.features({ element: 'shoreExporter', noSlots: true }, id) : undefined),
+      },
+      {
+        put: (b) => {
+          tokens.emit(edgeId('shoreExporter', 'write', 'transferArea'), { payload: P.bundleWrite(b) });
+          area.outbox.push(b);
+        },
+      },
+    );
+    this.shoreSync = new ShoreSync(
+      {
+        collect: () => {
+          const fs = this.shore.collect();
+          for (const f of fs) tokens.emit(edgeId('shore', 'send', 'shoreSync'), { payload: P.climatologyTransfer(f) });
+          return fs;
+        },
+        receive: (b) => {
+          tokens.emit(edgeId('shoreSync', 'send', 'shore'), { payload: P.bundleSend(b) });
+          this.shore.receive(b);
+        },
+      },
+      {
+        putInbox: (f) => {
+          tokens.emit(edgeId('shoreSync', 'write', 'transferArea'), { payload: P.inboxWrite(f) });
+          area.inbox.push(f);
+        },
+        takeOutbox: () => {
+          const b = area.outbox.shift();
+          if (b) {
+            tokens.emit(edgeId('transferArea', 'read', 'shoreSync'), { payload: P.bundleRead(b) });
+            area.sent.push({ id: b.id, at: this.t });
+          }
+          return b;
+        },
+      },
+    );
+
     this.orchestrator = new Orchestrator({
       log: this.log,
       tokens: this.tokens,
@@ -144,6 +215,10 @@ export class Simulation {
       announcer: new Announcer({ publish: (msg) => this.broker.publish('announcer', msg) }),
       params: { threshold: DRIFT_BOUNDS.threshold.default, quorum: Math.min(DRIFT_BOUNDS.quorum.default, this.inputs.length), persistence: DRIFT_BOUNDS.persistence.default },
       capabilities: () => this.capabilities,
+      runRequests: this.runRequests,
+      importer,
+      inboxReady: () => area.inbox.length > 0,
+      exporter,
     });
 
     this.capabilities = { featureDetector: true, longRange: false, ...opts.capabilities };
@@ -174,6 +249,7 @@ export class Simulation {
     this.ocean.step();
     this.sensorBroker.publish(t, this.sensors.sample());
     this.ingest(t);
+    this.shoreTick(t);
     this.orchestrator.tick(t);
     this.publishCatalogueChange();
     for (const c of this.consumers) c.tick(t);
@@ -202,6 +278,21 @@ export class Simulation {
       this.log.append(t, 'ingest', `sensor broker backlog drained (peak ${this.backlogPeak} messages, none lost)`);
       this.backlogPeak = 0;
     }
+  }
+
+  /** SHR-1, SHR-2, SHR-5: shore issues on schedule; the sync agent moves files while the link is up. */
+  private shoreTick(t: number): void {
+    const issued = this.shore.tick(t);
+    if (issued) this.log.append(t, 'shore', `shore issued climatology v${issued.version}`);
+    const up = shoreLinkUp(t);
+    if (up !== this.linkWasUp) {
+      this.linkWasUp = up;
+      this.log.append(t, 'shore', `shore link ${up ? 'up' : 'down'}`);
+    }
+    if (!up) return;
+    const moved = this.shoreSync.sync();
+    for (const f of moved.received) this.log.append(t, 'shore', `climatology v${f.version} received into the inbox`);
+    if (moved.sent) this.log.append(t, 'shore', `${moved.sent.id} sent to shore`);
   }
 
   /** Readable state of ingestion for the UI. */
@@ -289,9 +380,10 @@ export class Simulation {
   }
 
   /** Operator: request a run. */
+  /** Operator (watchkeeper): request a run, through the run-request API (RRQ-1). */
   requestRun(): void {
-    this.control('operator: request a run');
-    this.orchestrator.request('manual', 'manualRequest');
+    const r = this.runRequests.post(this.t);
+    this.control(`operator: request a run (${r.id})`);
   }
 
   /** Presenter: FLT-1. */
@@ -419,6 +511,17 @@ export class Simulation {
       })),
       ingestion: { accepted: this.ingestion.acceptedCount, rejected: this.ingestion.rejectedCount, running: this.ingestionRunning, status: this.ingestionStatus },
       sensorBroker: { queued: this.sensorBroker.queued, oldestAge: this.sensorBroker.oldest === undefined ? 0 : this.t - this.sensorBroker.oldest, published: this.sensorBroker.published, delivered: this.sensorBroker.delivered },
+      runRequests: { pending: this.runRequests.pending.length, total: this.runRequests.requests.length, nextPollIn: TIMING.runRequestPoll - (this.t % TIMING.runRequestPoll) },
+      shore: {
+        linkUp: shoreLinkUp(this.t),
+        linkChangeIn: shoreLinkChangeIn(this.t),
+        waiting: this.shore.waiting.length,
+        received: this.shore.received.length,
+        inbox: this.transferArea.inbox.length,
+        outbox: this.transferArea.outbox.length,
+        climatologyVersion: this.netcdf.climatologyVersion,
+        nextExportIn: Math.max(0, TIMING.exportInterval - (this.t % TIMING.exportInterval)),
+      },
       stores: {
         observations: this.observationsDb.count,
         observationsUp: this.observationsDb.up,

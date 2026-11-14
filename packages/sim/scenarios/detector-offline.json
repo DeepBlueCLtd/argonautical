@@ -5,7 +5,7 @@
   "until": 92,
   "steps": [
     { "at": 32, "action": { "type": "offline", "module": "featureDetector", "offline": true }, "caption": "The feature detector goes offline." },
-    { "at": 32, "action": { "type": "requestRun" }, "caption": "F2 is still produced and committed; detection then fails and retries on the detect shim." },
+    { "at": 29, "action": { "type": "requestRun" }, "caption": "F2 is still produced and committed; detection then fails and retries on the detect shim." },
     { "at": 62, "action": { "type": "offline", "module": "featureDetector", "offline": false }, "caption": "The detector is back: features are detected, F2 is announced." }
   ]
 }

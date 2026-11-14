@@ -11,8 +11,8 @@
     "prebuild": "npm run boundary",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "npm run boundary && tsc --noEmit -p .",
-    "test": "echo 'ui: no unit tests yet'"
+    "typecheck": "npm run boundary && tsc --noEmit -p . && tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "@argonautical/sim": "0.1.0",

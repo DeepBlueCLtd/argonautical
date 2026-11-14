@@ -26,6 +26,8 @@
   --std-D: #5f7d95; /* Dagster: slate */
   --std-H: #e03131; /* HTTP status: red */
   --std-O: #2b8a3e; /* OGC API – Common catalogue: green */
+  --std-J: #e8590c; /* JSON over HTTPS (run-request API): orange */
+  --std-B: #5c940d; /* Export bundle: olive */
   --lineage-track: #6f8599; /* lineage lines: thin, a darker blue-grey than data lines */
 
   --mat: #22a05a; /* green: materialising */
@@ -178,6 +180,8 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .token.std-D { --tc: var(--std-D); }
 .token.std-H { --tc: var(--std-H); }
 .token.std-O { --tc: var(--std-O); }
+.token.std-J { --tc: var(--std-J); }
+.token.std-B { --tc: var(--std-B); }
 .token.retry .page { fill: var(--retry-fill); stroke: var(--retry); }
 
 
@@ -240,6 +244,8 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .token-popup .std-badge.std-D { color: var(--std-D); border-color: var(--std-D); }
 .token-popup .std-badge.std-H { color: var(--std-H); border-color: var(--std-H); }
 .token-popup .std-badge.std-O { color: var(--std-O); border-color: var(--std-O); }
+.token-popup .std-badge.std-J { color: var(--std-J); border-color: var(--std-J); }
+.token-popup .std-badge.std-B { color: var(--std-B); border-color: var(--std-B); }
 .token-popup .std-badge { display: inline-block; min-width: 16px; text-align: center; font: 800 11px var(--mono); font-style: normal; color: var(--ink); border: 1px solid var(--ink); border-radius: 3px; padding: 0 3px; }
 .token-popup .note { margin: 6px 10px 8px; color: var(--muted); font-size: 11px; }
 
@@ -394,3 +400,68 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .trace-obs { fill: none; stroke: var(--ic); stroke-width: 1; stroke-linejoin: round; }
 .trace-obs.over { stroke-width: 2.6; }
 .trace-forecast { fill: none; stroke: var(--ic); stroke-width: 2.4; }
+
+/* UI-12: a neutral frame grouping the sync agent and the transfer area */
+.diagram .group-frame { fill: none; stroke: var(--line, #adb5bd); stroke-dasharray: 3 3; }
+.diagram .small-asset { font-size: 13px; }
+
+/* ---- Physical view (SYS-1–9) ---- */
+.physical .zone-band.z0 { fill: #f4f6f8; }
+.physical .zone-band.z1 { fill: #eef1f4; }
+.physical .zone-shore { fill: #f7f4ee; stroke: #b9a98a; stroke-dasharray: 6 4; }
+.physical .node > rect { fill: rgba(255, 255, 255, 0.72); stroke: #8b97a3; stroke-width: 1.4; }
+.physical .node.offline > rect { stroke: var(--offline); stroke-width: 2.2; }
+.physical .node.degraded > rect { stroke: #e8590c; stroke-dasharray: 4 3; }
+.physical .node-label { font-size: 11px; font-weight: 600; fill: #495057; letter-spacing: 0.02em; }
+.physical .process rect { fill: none; stroke: #a8b3bd; stroke-dasharray: 2 3; }
+.physical .process-label { fill: #5c6873; font-style: italic; }
+.physical .link { fill: none; stroke: #9aa5b1; stroke-width: 4; stroke-linejoin: round; opacity: 0.55; }
+.physical .link.satcom { stroke-dasharray: 8 6; }
+.physical .link.satcom.down { stroke: var(--offline); opacity: 0.35; }
+.physical .track { fill: none; stroke: #b6c0ca; stroke-width: 1; opacity: 0.9; }
+.physical .gate rect { fill: #fff; stroke: #495057; stroke-width: 1.2; }
+.physical .gate .gate-text { font-size: 7px; font-weight: 700; fill: #495057; }
+.physical .gate.lit rect { fill: #fff3bf; stroke: #f08c00; stroke-width: 2; }
+.physical .chip rect { fill: var(--ots-fill); stroke: var(--ots); stroke-dasharray: 4 3; }
+.physical .chip.asset rect { fill: #fff; stroke: #6b7280; stroke-dasharray: 4 3; }
+.physical .chip.asset.materialising rect { fill: var(--mat-fill); stroke: var(--mat); }
+.physical .chip.absent { opacity: 0.45; }
+.physical .chip-title { font-weight: 600; }
+.physical .static-part rect { fill: #f1f3f5; stroke: #adb5bd; stroke-dasharray: 2 2; }
+.physical .static-part text { fill: #868e96; }
+.physical .terminal rect { fill: #fff; stroke: #495057; }
+.physical .terminal.down rect { stroke: var(--offline); }
+.physical .store-mat .store > rect:first-of-type { fill: var(--mat-fill); stroke: var(--mat); }
+.physical .inspectable-store { cursor: pointer; }
+.physical .inspectable-store:hover .store > rect:first-of-type, .physical .inspectable-store:focus .store > rect:first-of-type { stroke-width: 2.5; }
+.physical .inspectable-store.inspecting .store > rect:first-of-type { stroke: #f08c00; stroke-width: 2.5; }
+.physical .inspect-glyph { font-size: 13px; fill: #868e96; }
+
+/* ---- Store inspector (SYS-8) ---- */
+.inspector { position: fixed; right: 12px; top: 12px; bottom: 44px; width: 460px; background: var(--panel, #fff); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18); display: flex; flex-direction: column; z-index: 12; font-size: 13px; }
+.inspector header { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.inspector header > div { flex: 1; }
+.inspector header strong { font-size: 15px; }
+.inspector .live::before { content: '●'; color: #2b8a3e; margin-right: 4px; }
+.inspector .body { overflow: auto; padding: 8px 12px; flex: 1; }
+.inspector footer { padding: 6px 12px; border-top: 1px solid var(--line); }
+.inspector h4 { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #495057; }
+.inspector .grid { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.inspector .grid th, .inspector .grid td { text-align: left; padding: 2px 6px; border-bottom: 1px solid #eef0f2; white-space: nowrap; }
+.inspector .grid th { position: sticky; top: 0; background: #f8f9fa; font-weight: 600; }
+.inspector .grid .num { text-align: right; }
+.inspector .grid tr.fresh td { background: #ebfbee; }
+.inspector pre { background: #f8f9fa; border: 1px solid #eef0f2; border-radius: 4px; padding: 6px 8px; font-size: 11px; overflow: auto; white-space: pre-wrap; }
+.inspector .files { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.inspector .files button { font-family: var(--mono, monospace); font-size: 11px; padding: 2px 6px; }
+.inspector .files button.on { background: #1c7ed6; color: #fff; border-color: #1c7ed6; }
+.inspector .heatmaps { display: flex; flex-wrap: wrap; gap: 10px; }
+.inspector figure { margin: 0; text-align: center; }
+.inspector .minimap { width: 100%; height: auto; border: 1px solid #dee2e6; border-radius: 4px; }
+.inspector .minimap .sea { fill: #e7f5ff; }
+.inspector .minimap .front { fill: none; stroke: #d6336c; stroke-width: 2.5; }
+.inspector .minimap .eddy { fill: rgba(28, 126, 214, 0.15); stroke: #1c7ed6; stroke-width: 1.5; }
+.inspector .minimap .ship { fill: #212529; }
+.inspector .files-list { margin: 0; padding-left: 16px; }
+.physical .static-part text, .physical .terminal text { font-size: 10px; }
+.physical .chip text { font-size: 10.5px; }

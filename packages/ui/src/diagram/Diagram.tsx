@@ -1,7 +1,7 @@
 import { DRIFT_BOUNDS, EDGES, INPUTS, NOISE_BOUNDS, PROFILES, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, useRef, type ReactNode } from 'react';
 import { topicTag, type Rate, type Runner } from '../runner.ts';
-import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
+import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, SHORE_TRANSFER, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
 
 
 const MATERIALISING_TICKS = 3;
@@ -17,7 +17,7 @@ const fmt = (v: number | undefined, d = 2) => (v === undefined ? '—' : Number.
 
 type Style = 'ours' | 'ots' | 'world' | 'asset';
 
-function Box({ r, style, cls = '', children, title }: { r: Rect; style: Style; cls?: string; children?: ReactNode; title?: string }) {
+export function Box({ r, style, cls = '', children, title }: { r: Rect; style: Style; cls?: string; children?: ReactNode; title?: string }) {
   return (
     <g className={`box ${style} ${cls}`}>
       {title && <title>{title}</title>}
@@ -28,7 +28,7 @@ function Box({ r, style, cls = '', children, title }: { r: Rect; style: Style; c
 }
 
 /** Our data store: double border (§5.3). */
-function Store({ r, ours = true, cls = '', children }: { r: Rect; ours?: boolean; cls?: string; children?: ReactNode }) {
+export function Store({ r, ours = true, cls = '', children }: { r: Rect; ours?: boolean; cls?: string; children?: ReactNode }) {
   return (
     <g className={`store ${ours ? 'ours' : 'ots'} ${cls}`}>
       <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={6} />
@@ -38,7 +38,7 @@ function Store({ r, ours = true, cls = '', children }: { r: Rect; ours?: boolean
   );
 }
 
-function T({ x, y, children, cls = '', anchor = 'start' }: { x: number; y: number; children: ReactNode; cls?: string; anchor?: 'start' | 'middle' | 'end' }) {
+export function T({ x, y, children, cls = '', anchor = 'start' }: { x: number; y: number; children: ReactNode; cls?: string; anchor?: 'start' | 'middle' | 'end' }) {
   return (
     <text x={x} y={y} className={cls} textAnchor={anchor}>
       {children}
@@ -55,7 +55,7 @@ function Bar({ x, y, w, frac, cls = '' }: { x: number; y: number; w: number; fra
   );
 }
 
-function Shim({ r, name, retryIn }: { r: Rect; name: string; retryIn?: number }) {
+export function Shim({ r, name, retryIn }: { r: Rect; name: string; retryIn?: number }) {
   const retry = retryIn !== undefined;
   return (
     <g className={`shim ${retry ? 'retry' : ''}`}>
@@ -103,6 +103,9 @@ export interface Controls {
   readonly logOpen: boolean;
   readonly onLog: () => void;
   readonly onWalkthrough: () => void;
+  /** SYS-1: which view is showing, and the toggle. */
+  readonly view: 'logical' | 'physical';
+  readonly onView: (v: 'logical' | 'physical') => void;
 }
 
 export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; onTokenTip: (t: TokenTip | null) => void; spotlight?: Rect | null; controls: Controls }) {
@@ -181,7 +184,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <rect className="region consumers" x={REGIONS.consumersLeft} y={0} width={VIEW.w - REGIONS.consumersLeft} height={VIEW.h} />
         <line className="boundary" x1={REGIONS.worldRight} y1={0} x2={REGIONS.worldRight} y2={VIEW.h} />
         <line className="boundary" x1={REGIONS.consumersLeft} y1={0} x2={REGIONS.consumersLeft} y2={VIEW.h} />
-        <T x={REGIONS.worldRight / 2} y={222} cls="region-label" anchor="middle">
+        <T x={REGIONS.worldRight / 2} y={237} cls="region-label" anchor="middle">
           WORLD
         </T>
         <T x={(REGIONS.worldRight + REGIONS.consumersLeft) / 2} y={24} cls="region-label" anchor="middle">
@@ -391,16 +394,36 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 22} cls="title">
           Manual request
         </T>
-        <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 42} cls="small">
-          {snap.queued ? `queued: ${snap.queued}` : 'nothing queued'}
+        <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 40} cls="muted tiny">
+          polls the run-request API · 5 s
         </T>
-        {/* Operator control (violet, §5.4): the operator asks for a run from here */}
+        <T x={R.manualRequest.x + 10} y={R.manualRequest.y + 62} cls="small">
+          {snap.queued ? `queued: ${snap.queued}` : snap.runRequests.pending ? `next poll in ${snap.runRequests.nextPollIn}s` : 'nothing queued'}
+        </T>
+      </Box>
+      {/* UI-11: the run-request API (ours, distribution zone) and the watchkeeper (mission network) */}
+      <Box r={R.runRequestApi} style="ours">
+        <T x={R.runRequestApi.x + 8} y={R.runRequestApi.y + 18} cls="small title-sm">
+          Run-request API
+        </T>
+        <T x={R.runRequestApi.x + 8} y={R.runRequestApi.y + 34} cls="muted tiny">
+          distribution zone
+        </T>
+        <T x={R.runRequestApi.x + 8} y={R.runRequestApi.y + 48} cls="tiny mono">
+          {snap.runRequests.pending ? `${snap.runRequests.pending} pending` : `${snap.runRequests.total} requests`}
+        </T>
+      </Box>
+      <Box r={R.watchkeeper} style="world">
+        <T x={R.watchkeeper.x + 8} y={R.watchkeeper.y + 18} cls="small title-sm">
+          Watchkeeper
+        </T>
+        {/* Operator control (violet, §5.4): the watchkeeper asks for a run, through the run-request API */}
         <SvgButton
-          x={R.manualRequest.x + 10}
-          y={R.manualRequest.y + 52}
+          x={R.watchkeeper.x + 8}
+          y={R.watchkeeper.y + 28}
           w={104}
           label="Request a run"
-          title="Operator: request a forecast run"
+          title="Watchkeeper: request a forecast run (through the run-request API)"
           cls="operator"
           onClick={() => runner.apply({ type: 'requestRun' })}
         />
@@ -426,8 +449,41 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.climatology.x + 10} y={R.climatology.y + 24} cls="asset-title">
           climatology
         </T>
-        <T x={R.climatology.x + 10} y={R.climatology.y + 48} cls="muted small">
-          from NetCDF store
+        <T x={R.climatology.x + 10} y={R.climatology.y + 42} cls="muted tiny">
+          v{snap.shore.climatologyVersion} in NetCDF store
+        </T>
+      </Box>
+      <Shim r={R.shimImport} name="import" />
+      <Box r={R.climatologyImporter} style="ours">
+        <T x={R.climatologyImporter.x + 8} y={R.climatologyImporter.y + 18} cls="small title-sm">
+          Climatology
+        </T>
+        <T x={R.climatologyImporter.x + 8} y={R.climatologyImporter.y + 32} cls="small title-sm">
+          importer
+        </T>
+        <T x={R.climatologyImporter.x + 8} y={R.climatologyImporter.y + 54} cls="muted tiny">
+          {snap.shore.inbox ? `${snap.shore.inbox} in inbox` : 'inbox empty'}
+        </T>
+      </Box>
+      {/* SHR-4: scheduled export for shore */}
+      <Box r={R.shoreExport} style="asset" cls={materialising('shoreExport')}>
+        <T x={R.shoreExport.x + 8} y={R.shoreExport.y + 24} cls="asset-title small-asset">
+          shore_export
+        </T>
+        <T x={R.shoreExport.x + 8} y={R.shoreExport.y + 42} cls="muted tiny">
+          every 120 s
+        </T>
+      </Box>
+      <Shim r={R.shimExport} name="export" />
+      <Box r={R.shoreExporter} style="ours">
+        <T x={R.shoreExporter.x + 8} y={R.shoreExporter.y + 18} cls="small title-sm">
+          Shore
+        </T>
+        <T x={R.shoreExporter.x + 8} y={R.shoreExporter.y + 32} cls="small title-sm">
+          exporter
+        </T>
+        <T x={R.shoreExporter.x + 8} y={R.shoreExporter.y + 54} cls="muted tiny">
+          → outbox
         </T>
       </Box>
 
@@ -652,6 +708,41 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         </T>
       )}
 
+      {/* UI-12: shore, minimal. Shore support and the link at the foot of the World column. */}
+      <Box r={R.shore} style="world">
+        <T x={R.shore.x + 10} y={R.shore.y + 20} cls="title">
+          Shore support
+        </T>
+        <T x={R.shore.x + 10} y={R.shore.y + 38} cls={`small ${snap.shore.linkUp ? '' : 'offline-label'}`}>
+          link {snap.shore.linkUp ? 'up' : 'down'} · {snap.shore.linkUp ? 'down' : 'up'} in {mmss(snap.shore.linkChangeIn)}
+        </T>
+        <T x={R.shore.x + 10} y={R.shore.y + 56} cls="muted tiny">
+          {snap.shore.waiting ? `climatology waiting: ${snap.shore.waiting}` : 'nothing waiting to send'}
+        </T>
+        <T x={R.shore.x + 10} y={R.shore.y + 72} cls="muted tiny">
+          bundles received: {snap.shore.received}
+        </T>
+      </Box>
+      <g className="shore-transfer">
+        <rect className="group-frame" x={SHORE_TRANSFER.x} y={SHORE_TRANSFER.y} width={SHORE_TRANSFER.w} height={SHORE_TRANSFER.h} rx={6} />
+        <T x={SHORE_TRANSFER.x + 8} y={SHORE_TRANSFER.y + 17} cls="small title-sm">
+          Shore transfer
+        </T>
+      </g>
+      <Box r={R.shoreSync} style="ours">
+        <T x={R.shoreSync.x + 8} y={R.shoreSync.y + 19} cls="small">
+          Shore sync agent
+        </T>
+      </Box>
+      <Store r={R.transferArea} ours={false}>
+        <T x={R.transferArea.x + 8} y={R.transferArea.y + 15} cls="small">
+          Transfer area
+        </T>
+        <T x={R.transferArea.x + 8} y={R.transferArea.y + 29} cls="tiny mono">
+          inbox {snap.shore.inbox} · outbox {snap.shore.outbox}
+        </T>
+      </Store>
+
       {/* Token key: the standard each document's letter stands for */}
       <g className="token-key" aria-label="Token key">
         <rect x={TOKEN_KEY.x} y={TOKEN_KEY.y} width={TOKEN_KEY.w} height={TOKEN_KEY.h} rx={6} />
@@ -663,8 +754,8 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         </T>
         {Object.entries(STANDARDS).map(([code, name], i) => (
           <g key={code}>
-            <DocToken x={TOKEN_KEY.x + 22} y={TOKEN_KEY.y + 58 + i * 21} size={1.4} letter={code} cls="token" />
-            <T x={TOKEN_KEY.x + 40} y={TOKEN_KEY.y + 63 + i * 21} cls="small">
+            <DocToken x={TOKEN_KEY.x + 22} y={TOKEN_KEY.y + 56 + i * 17.5} size={1.25} letter={code} cls="token" />
+            <T x={TOKEN_KEY.x + 40} y={TOKEN_KEY.y + 61 + i * 17.5} cls="small">
               {name}
             </T>
           </g>
@@ -718,7 +809,7 @@ function CtlButton(props: { x: number; y: number; w: number; h: number; title: s
  * §5.4 Presenter controls, in the top fifth of the World column: a large play/pause, the clock,
  * Step, the rate (½×/1×/10×/60× as a radio group), Add consumer, Walkthrough and the event log.
  */
-function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runner; controls: Controls }) {
+export function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runner; controls: Controls }) {
   const c = CONTROL;
   const playing = runner.running;
   const cx = c.x + 34;
@@ -802,6 +893,16 @@ function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runn
           {snap.capabilities.longRange ? '✓ ' : ''}48 h
         </text>
       </CtlButton>
+      {/* SYS-1: view toggle (radio group) */}
+      <g role="radiogroup" aria-label="View">
+        {(['logical', 'physical'] as const).map((v, i) => (
+          <CtlButton key={v} role="radio" x={c.x + 12 + i * 96} y={c.y + 198} w={92} h={18} title={v === 'logical' ? 'Logical view: information flow' : 'Physical view: the candidate production deployment'} pressed={controls.view === v} onClick={() => controls.onView(v)} cls="cap">
+            <text x={c.x + 12 + i * 96 + 46} y={c.y + 211} textAnchor="middle" className="ctl-text cap-text">
+              {v === 'logical' ? 'Logical view' : 'Physical view'}
+            </text>
+          </CtlButton>
+        ))}
+      </g>
       {/* Event count, as a badge on the log icon */}
       <g className="ctl-badge" aria-hidden>
         <rect x={c.x + 187} y={c.y + 112} width={22} height={13} rx={6.5} />
@@ -894,7 +995,7 @@ function InputSlots(props: { x: number; y: number; reader: string; instance?: st
   );
 }
 
-function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: number; w: number; label: string; h?: number; r?: number }) {
+export function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: number; w: number; label: string; h?: number; r?: number }) {
   const top = edgeY - h;
   const d = `M${x},${edgeY} L${x},${top + r} Q${x},${top} ${x + r},${top} L${x + w - r},${top} Q${x + w},${top} ${x + w},${top + r} L${x + w},${edgeY} Z`;
   return (
@@ -911,7 +1012,7 @@ function QueueTab({ x, edgeY, w, label, h = 20, r = 6 }: { x: number; edgeY: num
  * Presenter control inline before a fragile component's title: pause takes it down (red halo),
  * play brings it back.
  */
-function PlayPause({ at, running, what, onToggle }: { at: { x: number; y: number }; running: boolean; what: string; onToggle: () => void }) {
+export function PlayPause({ at, running, what, onToggle }: { at: { x: number; y: number }; running: boolean; what: string; onToggle: () => void }) {
   const cx = at.x;
   const cy = at.y;
   const label = `${running ? 'Pause' : 'Resume'} ${what}`;
@@ -1026,7 +1127,7 @@ function EdgePath({ r }: { r: Route }) {
   return (
     <g>
       <path className={`edge ${k}`} d={pathD(r.points)} markerEnd={heavy ? 'url(#arrow-heavy)' : 'url(#arrow)'} />
-      {k === 'read' && (
+      {k === 'read' && r.edge.to === 'pygeoapi' && (
         <T x={m.x} y={m.y - 5} cls="tiny edge-label" anchor="middle">
           read only
         </T>
@@ -1035,7 +1136,7 @@ function EdgePath({ r }: { r: Route }) {
   );
 }
 
-function Module({ r, name, offline, running = false, children }: { r: Rect; name: string; offline: boolean; running?: boolean; children?: ReactNode }) {
+export function Module({ r, name, offline, running = false, children }: { r: Rect; name: string; offline: boolean; running?: boolean; children?: ReactNode }) {
   return (
     <g className={`box ours module ${offline ? 'offline' : running ? 'running' : ''}`} filter={offline ? 'url(#offline-halo)' : undefined}>
       <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={4} />
@@ -1064,7 +1165,7 @@ function ExecLine({ r, label, frac, active }: { r: Rect; label: string; frac: nu
   );
 }
 
-function Ring({ cx, cy, frac, label, r: rr = 13, cls = '' }: { cx: number; cy: number; frac: number; label: string; r?: number; cls?: string }) {
+export function Ring({ cx, cy, frac, label, r: rr = 13, cls = '' }: { cx: number; cy: number; frac: number; label: string; r?: number; cls?: string }) {
   const c = 2 * Math.PI * rr;
   const f = Math.max(0, Math.min(1, frac));
   return (
@@ -1188,7 +1289,7 @@ function Pulse({ pts, p, token, frozen, onPick }: { pts: Pt[]; p: number; token:
   );
 }
 
-function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void; onTokenTip: (t: TokenTip | null) => void }) {
+export function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void; onTokenTip: (t: TokenTip | null) => void }) {
   // Drill-down: once paused, frozen tokens get a larger hit area and open a popup on click.
   const frozen = runner.frozen;
   return (
@@ -1197,7 +1298,8 @@ function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; b
         const tk = v.token;
         // A SUBSCRIBE travels back along the consumer's delivery line: one MQTT connection, both ways (CAT-4).
         const sub = tk.edge === 'consumer>subscribe>broker';
-        const routeKey = sub ? `broker>deliver>consumer#${tk.instance}` : tk.instance ? `${tk.edge}#${tk.instance}` : tk.edge;
+        // Only consumer edges have a line per consumer; a consumer read's database legs ride the shared store line.
+        const routeKey = sub ? `broker>deliver>consumer#${tk.instance}` : tk.instance && tk.edge.includes('consumer') ? `${tk.edge}#${tk.instance}` : tk.edge;
         const pts = tk.edge === 'forecast>lineage>forecast' ? loop : byKey.get(routeKey)?.points;
         if (!pts) return null;
         if (tk.signal) return <Pulse key={tk.seq} pts={pts} p={p} token={tk} frozen={frozen} onPick={onPick} />;

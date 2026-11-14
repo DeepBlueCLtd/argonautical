@@ -140,6 +140,22 @@ The screen and the simulation share one model, in three regions separated by two
 | CAT-4 | The broker has topics: `forecast/new` (the whole run is complete), `features/new` (that run's features are ready) and `catalogue/changed`. It delivers only to a topic's subscribers and retains the latest announcement on each announcement topic. Whenever the catalogue changes, a deployment hook (pygeoapi itself does not announce its configuration) publishes `catalogue/changed`. A SUBSCRIBE travels back along the consumer's delivery line. The broker card shows each topic's subscriber count. Every broker token carries a small tag naming its topic (forecast, features, catalogue; +topic / −topic for a subscription change). When a message lands at a consumer, its card shows what it heard ("▸ F3 ready", "▸ features of F3", "▸ catalogue changed") until the fetch it triggered is back; the consumer's reads leave only once the message has landed, and its badge changes only when the data has arrived on screen. |
 | CAT-5 | Each consumer discovers the catalogue at start, on Reconfigure and on `catalogue/changed`, then subscribes to (or drops) topics to match its profile. Its status badge says what it can do with what is offered: **chart display**, which needs the forecast and uses features if offered, shows LOW RES, then HI RES pending while features are offered but not yet in hand for its forecast, then HI RES; **passage planner** shows 12 h, 48 h pending, then 48 h; **basic** shows OK. Its card shows its profile, status, needs (features marked optional) and topics. |
 
+### 3.7 Run requests and shore transfer
+
+Added Nov 14, 2026, from the C4 decisions D1–D3 (`docs/c4-model.md` §7). Timings are demo time-compression, like ORC-1.
+
+| ID | Requirement |
+|---|---|
+| RRQ-1 | The **watchkeeper** (on the mission network) requests runs through the **run-request API** (ours, in the distribution zone). *Request a run* sends the request to the API; it does not reach the orchestrator directly. |
+| RRQ-2 | The **run-request sensor** (the Manual request trigger) polls the API every 5 s (production ≥30 s). A poll that returns requests is drawn as a request and a response token and enters each request into the run queue as cause `manual`, merging as ORC-2. Empty polls are neither drawn nor logged. |
+| RRQ-3 | When a run with a `manual` cause completes, the sensor posts its status (run id, forecast id) to the API, one token. |
+| SHR-1 | The **shore link** is up for 60 s in every 180 s, starting at T+00:30 (a fixed demo schedule, not random). Each change is logged. |
+| SHR-2 | **Shore support** issues a new climatology version at T+02:00 and every 10 min after. It crosses only while the link is up: shore → **shore sync agent** → **transfer area** inbox. In the demonstrator a new version keeps the same values (illustrative). |
+| SHR-3 | When the inbox holds a climatology file and no run is active, `climatology` materialises: shim `import` → **climatology importer** reads the inbox and commits to the NetCDF store (stage + manifest swap). It never swaps during a run. |
+| SHR-4 | Every 120 s, when no run is active and there is new data, the **`shore_export`** asset materialises: shim `export` → **shore exporter** reads through pygeoapi (observations since its cursor, the latest forecast, its features if any) and writes one bundle to the transfer area outbox. |
+| SHR-5 | While the link is up, the sync agent sends outbox bundles to shore, oldest first, one per tick. While it is down they wait in the outbox. |
+| SHR-6 | The sync agent writes no store other than the transfer area; the importer and exporter are our modules, reached only through shims (ARC-1, ARC-2). |
+
 ---
 
 ## 4. Architecture requirements
@@ -174,6 +190,8 @@ Suggested stack (not mandated): TypeScript, Vite, a pure `sim` package with Vite
 | UI-8 | **The Observations DB is the `observations` source asset; it is drawn once.** It is a store (double border, our data) straddling the orchestrator frame's left edge, as the broker straddles the consumer boundary. Ingestion writes into its outer half; the lineage flow to `forecast` leaves its inner half. It has one name: "Observations DB", with the subtitle "source asset". |
 | UI-9 | The orchestrator's private store is drawn as a small off-the-shelf store (dashed border) inside the orchestrator frame, labelled "run history · schedule · sensor state", with its run count read from stored rows. It is internal to the orchestrator, so it has no external edges and no tokens. It must not compete with the asset graph (UI-2) or break UI-6. |
 | UI-10 | `background` is drawn as a loop arrow on `forecast`, labelled "background = previous forecast", not as a separate node. When a forecast commits (MOD-2), one lineage token runs round the loop. |
+| UI-11 | **Run requests, minimal.** The watchkeeper and the run-request API (RRQ-1–3) are drawn compactly beside the Manual request card; their tokens run on short lines there. |
+| UI-12 | **Shore, minimal.** Shore support and the link state are one card at the foot of the World column; the sync agent and transfer area are one *Shore transfer* card below the orchestrator. The `shore_export` asset (with its shim and the shore exporter) is a small asset card; the climatology importer and its shim sit inside `climatology`. Every token of §3.7 has a visible line in this view. |
 
 ### 5.2 Motion and state cues
 
@@ -210,25 +228,28 @@ Controls fall into three kinds, and each kind looks different so the audience ca
 | Kind | Who would really have it | Controls |
 |---|---|---|
 | **Scenario** | Nobody (the sea, the sensors) | Teal, on the World cards: per-input shift (+5σ over 20 s, toggle; the button names what a click does) in **Ocean**; per-input sensor noise (0–3σ, − / + stepper) in **Sensors** |
-| **Operator** | The ship's operator | Violet: drift threshold, quorum, persistence (− / + steppers along the bottom of the **Drift sensor** card, greyed at their bounds); Request a run (a violet button on the Manual request card). There is no separate control strip. |
-| **Presenter** | The person giving the demo | In a **Control panel** occupying the top fifth of the World column (there is no toolbar): a large run/pause button (also Space), the clock, step, rate ½×/1×/10×/60× as a radio group (default ½×), add consumer, walkthrough and event log (with the event count). Elsewhere: play/pause buttons inline before the titles of fragile components (forecast, features, drift sensor, Ingestion, Observations DB) and view (information flow / system). Seed and number of inputs are URL parameters only (`?seed=`, `?inputs=`); F5 restarts. |
+| **Operator** | The ship's operator | Violet: drift threshold, quorum, persistence (− / + steppers along the bottom of the **Drift sensor** card, greyed at their bounds); Request a run (a violet button on the Watchkeeper card; the request goes through the run-request API, RRQ-1). There is no separate control strip. |
+| **Presenter** | The person giving the demo | In a **Control panel** occupying the top fifth of the World column (there is no toolbar): a large run/pause button (also Space), the clock, step, rate ½×/1×/10×/60× as a radio group (default ½×), add consumer, walkthrough and event log (with the event count). Elsewhere: play/pause buttons inline before the titles of fragile components (forecast, features, drift sensor, Ingestion, Observations DB) and view (logical / physical). Seed and number of inputs are URL parameters only (`?seed=`, `?inputs=`); F5 restarts. |
 
 ### 5.5 Banner
 
 ~~A permanent banner line~~ **Withdrawn (Nov 13, 2026).** The banner was removed to give the diagram the height. The honesty statement (synthetic data, illustrative numerics, mocked engines) opens the walkthrough instead; the module-boundary check still runs in CI and at build time, and the event-log digest is in the event log and replay tests.
 
-### 5.6 System-architecture view (optional)
+### 5.6 Physical view
 
-The standard view is information flow (§5.1). A second, optional view shows the same running simulation as a candidate production deployment. Rationale, the production mapping and its critical analysis are in `docs/system-architecture.md`.
+Rewritten Nov 14, 2026. The standard view is information flow (§5.1), the *logical* view. The **physical view** shows the same running simulation on the candidate production deployment of `docs/c4-model.md` §6.1 (with decisions D1–D7).
 
 | ID | Requirement |
 |---|---|
-| SYS-1 | A presenter toggle (and `?view=system`) switches between the information-flow view (default) and the system-architecture view. Switching does not pause, reset, reseed or otherwise alter the simulation. |
-| SYS-2 | The system view is a projection of the same token records (SIM-6). It introduces no new simulation events or token kinds. One interaction is one token, routed element → process → node → link → node → process → element. MOT-1's minimum on-screen duration applies to the whole route. |
-| SYS-3 | Zones are drawn left to right, mirroring World \| System \| Consumers: instrument network (OT), processing enclave, distribution zone (pygeoapi, broker), mission network. Zone boundaries use neutral labelled rules, not a semantic colour. |
-| SYS-4 | Orchestrator internals are shown on the orchestration node: webserver, daemon, code location and metadata DB (its private store). The shims, drift monitor and feature detector sit in the code-location process. The model runner sits in its own process (Dagster Pipes) on the compute node. |
-| SYS-5 | Node state is derived from existing state only: an offline module shows the offline state on its process and node. No node- or link-level faults are simulated. A static note states that the shore link is not simulated. |
-| SYS-6 | The system view meets UI-6 (fits 1920×1080, no overflow, tested in its longest states) and the colour semantics of §5.3. Materialising (green) applies to the store that received the write. |
+| SYS-1 | A presenter toggle in the Control panel (and `?view=physical`) switches between the logical view (default) and the physical view. Switching does not pause, reset, reseed or otherwise alter the simulation. |
+| SYS-2 | The physical view is a projection of the same token records (SIM-6); it introduces no token kinds of its own. A token between nodes leaves its process, runs along the drawn network link and passes through a **firewall gate** wherever it crosses a zone boundary (the gate lights while a token is in it). Within one node it takes a short hop. Lineage and trigger tokens stay inside the orchestration node. MOT-1's minimum on-screen duration applies to the whole route. |
+| SYS-3 | Zones are drawn left to right: instrument network (OT), processing enclave, distribution zone, mission network. Zone boundaries are neutral labelled rules. The shore (link terminal in the enclave, *Shore support* off-ship) is drawn at the foot. |
+| SYS-4 | Nodes and processes follow `deployment.ts`: DAQ gateways and ingestion host (OT); orchestration node (Dagster webserver, daemon, code location with the shims and our in-process modules, metadata DB), compute node (model runner, Dagster Pipes), data node (Observations DB, NetCDF store, Features DB) and ops node (shore sync agent, transfer area, registry, observability, backup) in the enclave; distribution host (pygeoapi, broker, run-request API); watchkeeper workstation and consumers (mission). |
+| SYS-5 | Node and process state is derived from existing state only: an offline module shows the offline state on its process and node; a stopped ingestion or Observations DB shows on its process; the shore link shows up or down. Parts with no simulated behaviour (registry, observability, backup, time source, Dagster webserver) are drawn greyed with "not simulated". |
+| SYS-6 | The physical view meets UI-6 (fits 1920×1080, no overflow, tested in its longest states) and the colour semantics of §5.3. Materialising (green) applies to the store that received the write. |
+| SYS-7 | **Controls.** The Control panel is the same as in the logical view. Fault toggles (ingestion, Observations DB, model runner, feature detector) are play/pause buttons on their process boxes. Scenario and operator controls stay in the logical view. |
+| SYS-8 | **Store inspector.** Clicking a store in the physical view opens a side panel that stays open and updates live while the simulation runs (Esc closes it). It shows the store in its native form: **Observations DB** as a SensorThings table (Datastream, phenomenonTime, result), newest first; **NetCDF store** as a file list (climatology versions, `F1.nc`…) with an `ncdump -h`-style header and a small grid heatmap of the selected file; **Features DB** as a PostGIS-style table with a mini map of fronts and eddies; **sensor broker** as its queue; **broker** as the retained messages and subscribers; **Dagster metadata DB** as run history; **transfer area** as inbox and outbox. |
+| SYS-9 | The inspector reads stored rows only (acceptance 12) and never mutates the simulation. It is not available in the logical view. |
 
 ### 5.7 Tour mode
 
@@ -266,11 +287,16 @@ The standard view is information flow (§5.1). A second, optional view shows the
 11. At 1920×1080 and above, the whole diagram is visible without scrolling and no text overflows its box.
 12. Store counts are read from the stored rows and never kept as separate counters.
 13. Running the same seed and script while toggling the view at arbitrary ticks gives the same event-log digest as running without toggling.
-14. With the model runner offline, the system view shows the compute node offline, and the run token's route ends at the orchestration→compute link, with the amber retry on the shim.
+14. With the model runner offline, the physical view shows the compute node offline, and the run token's route ends at the orchestration→compute link, with the amber retry on the shim.
 15. Removing any element's placement, or a link that a cross-node edge needs, fails the test suite.
 16. Each tour, run headless to completion, produces the same golden event-log digest as its replay test.
 17. *(Withdrawn with MOT-2.)*
 18. Stop ingestion for 30 s: the sensor broker's queued count grows by one per input per second. Start it: the queue drains to zero, and every observation is in the DB once, in measurement-time order. Stop the DB and request a run: the run retries until the DB is back, then commits.
+19. *Request a run* produces no run until the next run-request poll; two requests before that poll merge into one queued run with both causes logged.
+20. Climatology issued while the link is down waits on shore; it reaches the inbox when the link is next up and is committed only when no run is active.
+21. Export bundles written while the link is down wait in the outbox and are all sent, oldest first, once it is up.
+22. In the physical view, every token of a scripted run follows a route that exists, and every cross-zone route passes a gate (a test).
+23. The store inspector's row counts equal the stored rows and update while it is open.
 
 ---
 

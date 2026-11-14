@@ -151,3 +151,33 @@ export interface Job<R> {
   /** Called once `readDuration + duration` ticks have elapsed. Performs the atomic write. */
   complete(): R;
 }
+
+/** RRQ-1: a run request held by the run-request API until the sensor polls it. */
+export interface RunRequestRecord {
+  readonly id: string;
+  readonly requestedAt: number;
+  readonly by: string;
+  /** Set when the sensor has taken it into the run queue. */
+  polledAt?: number;
+  /** RRQ-3: posted back when the run completes. */
+  status?: { readonly runId: string; readonly forecastId: string; readonly at: number };
+}
+
+/** SHR-2/3: a climatology file in transit or in the inbox. */
+export interface ClimatologyFile {
+  readonly version: number;
+  readonly issuedAt: number;
+  readonly values: Values;
+}
+
+/** SHR-4: one signed export bundle for shore. */
+export interface ExportBundle {
+  readonly id: string;
+  readonly createdAt: number;
+  readonly fromTick: number;
+  readonly toTick: number;
+  readonly observations: number;
+  readonly forecastId?: string;
+  readonly featureCount?: number;
+  readonly digest: string;
+}

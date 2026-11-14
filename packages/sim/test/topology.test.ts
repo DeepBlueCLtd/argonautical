@@ -27,7 +27,7 @@ describe('declared wiring (ARC-3)', () => {
   });
 
   it('UI-3: each of our modules and each shim sits inside an asset or sensor', () => {
-    for (const id of ['driftMonitor', 'modelRunner', 'featureDetector', 'announcer', 'shimCheck', 'shimRun', 'shimDetect', 'shimAnnounce'] as const) {
+    for (const id of ['driftMonitor', 'modelRunner', 'featureDetector', 'announcer', 'climatologyImporter', 'shoreExporter', 'shimCheck', 'shimRun', 'shimDetect', 'shimAnnounce', 'shimImport', 'shimExport'] as const) {
       const parent = ELEMENTS.find((e) => e.id === id)!.parent;
       const kind = ELEMENTS.find((e) => e.id === parent)?.kind;
       expect(['asset', 'sensor']).toContain(kind);
@@ -35,8 +35,9 @@ describe('declared wiring (ARC-3)', () => {
   });
 
   it('ORC-6: the only edges into our orchestrated modules are calls from their shims', () => {
-    for (const m of ['driftMonitor', 'modelRunner', 'featureDetector', 'announcer']) {
-      const into = EDGES.filter((e) => e.to === m);
+    for (const m of ['driftMonitor', 'modelRunner', 'featureDetector', 'announcer', 'climatologyImporter', 'shoreExporter']) {
+      // Data arriving from a store (the importer reads its inbox) is not a call; every call is from a shim.
+      const into = EDGES.filter((e) => e.to === m && e.kind !== 'read');
       expect(into.every((e) => e.kind === 'call' && e.from.startsWith('shim'))).toBe(true);
     }
   });

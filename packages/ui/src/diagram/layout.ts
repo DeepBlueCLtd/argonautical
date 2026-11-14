@@ -24,8 +24,8 @@ export const REGIONS = {
 
 export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   // The top fifth of the World column is the presenter's Control panel (CONTROL below).
-  ocean: { x: 20, y: 232, w: 190, h: 228 },
-  sensors: { x: 20, y: 470, w: 190, h: 272 },
+  ocean: { x: 20, y: 242, w: 190, h: 226 },
+  sensors: { x: 20, y: 476, w: 190, h: 266 },
   ingestion: { x: 248, y: 430, w: 150, h: 130 },
   // Persistent queue between the DAQ gateway and ingestion (FLT-3).
   sensorBroker: { x: 252, y: 612, w: 162, h: 104 },
@@ -40,7 +40,6 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   stalenessSchedule: { x: 830, y: 72, w: 180, h: 78 },
   manualRequest: { x: 830, y: 176, w: 180, h: 78 },
   privateStore: { x: 1160, y: 72, w: 138, h: 92 },
-  climatology: { x: 548, y: 470, w: 140, h: 76 },
   forecast: { x: 720, y: 290, w: 215, h: 282 },
   shimRun: { x: 732, y: 368, w: 191, h: 20 },
   modelRunner: { x: 732, y: 394, w: 191, h: 120 },
@@ -56,15 +55,30 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   // Straddles the System | Consumers boundary (UI-1). Sits above the consumers so its deliveries
   // and the consumers' pygeoapi queries run along visibly different paths.
   broker: { x: 1308, y: 72, w: 104, h: 100 },
+  // UI-11: the watchkeeper (mission network) above the consumers; the run-request API beside the orchestrator.
+  watchkeeper: { x: 1436, y: 150, w: 154, h: 56 },
+  runRequestApi: { x: 1168, y: 186, w: 130, h: 54 },
+  // UI-12: shore at the foot of the World column; the sync agent and transfer area as one Shore transfer card.
+  shore: { x: 20, y: 752, w: 190, h: 80 },
+  shoreSync: { x: 256, y: 752, w: 160, h: 30 },
+  transferArea: { x: 256, y: 796, w: 160, h: 36 },
+  shoreExport: { x: 480, y: 420, w: 104, h: 170 },
+  shimExport: { x: 486, y: 470, w: 92, h: 20 },
+  shoreExporter: { x: 486, y: 496, w: 92, h: 70 },
+  climatology: { x: 594, y: 420, w: 116, h: 170 },
+  shimImport: { x: 600, y: 470, w: 104, h: 20 },
+  climatologyImporter: { x: 600, y: 496, w: 104, h: 70 },
 };
 
 /** Presenter controls (§5.4): the top fifth of the World column. */
-export const CONTROL: Rect = { x: 10, y: 8, w: 210, h: 196 };
+export const CONTROL: Rect = { x: 10, y: 8, w: 210, h: 216 };
 
-export const CONSUMER_AREA = { x: 1430, y: 196, w: 160, cardH: 94, gap: 10, max: 3 } as const;
+export const CONSUMER_AREA = { x: 1430, y: 216, w: 160, cardH: 94, gap: 10, max: 3 } as const;
 
 /** Token key, at the foot of the Onboard consumers column. */
-export const TOKEN_KEY: Rect = { x: 1404, y: 540, w: 190, h: 292 };
+export const TOKEN_KEY: Rect = { x: 1404, y: 548, w: 190, h: 286 };
+/** UI-12: the Shore transfer card around the sync agent and transfer area. */
+export const SHORE_TRANSFER: Rect = { x: 248, y: 726, w: 176, h: 110 };
 
 export function consumerRect(index: number): Rect {
   const c = CONSUMER_AREA;
@@ -197,6 +211,40 @@ const CUSTOM: Record<string, (a: Rect, b: Rect) => Pt[]> = {
     const y = a.y + a.h / 2 + 10;
     return [{ x: a.x + a.w, y }, { x: b.x, y }];
   },
+  // UI-11: watchkeeper → run-request API, left under the broker.
+  'watchkeeper>send>runRequestApi': (a, b) => {
+    const y = b.y + b.h / 2;
+    return [{ x: a.x, y: a.y + a.h / 2 }, { x: 1424, y: a.y + a.h / 2 }, { x: 1424, y }, { x: b.x + b.w, y }];
+  },
+  // UI-12: shore ↔ sync agent, straight across the World | System line.
+  'shore>send>shoreSync': (a, b) => [{ x: a.x + a.w, y: b.y + 10 }, { x: b.x, y: b.y + 10 }],
+  'shoreSync>send>shore': (a, b) => [{ x: a.x, y: a.y + 22 }, { x: b.x + b.w, y: a.y + 22 }],
+  'shoreSync>write>transferArea': (a, b) => [{ x: a.x + 50, y: a.y + a.h }, { x: a.x + 50, y: b.y }],
+  'transferArea>read>shoreSync': (a, b) => [{ x: a.x + 110, y: a.y }, { x: a.x + 110, y: b.y + b.h }],
+  // Exporter → outbox: down out of the orchestrator, then left into the Shore transfer card.
+  'shoreExporter>write>transferArea': (a, b) => {
+    const x = a.x + 20;
+    const y = b.y + 6;
+    return [{ x, y: a.y + a.h }, { x, y }, { x: b.x + b.w, y }];
+  },
+  // Inbox → importer: right out of the transfer area, up into the importer from below.
+  'transferArea>read>climatologyImporter': (a, b) => {
+    const x = b.x + 18;
+    const y = a.y + a.h - 8;
+    return [{ x: a.x + a.w, y }, { x, y }, { x, y: b.y + b.h }];
+  },
+  'climatologyImporter>write>netcdfStore': (a, b) => {
+    const x = a.x + a.w - 22;
+    return [{ x, y: a.y + a.h }, { x, y: b.y }];
+  },
+  // Exporter → pygeoapi: down, then along under the stores into pygeoapi from below.
+  'shoreExporter>query>pygeoapi': (a, b) => {
+    const x = a.x + a.w - 16;
+    const y = 652;
+    const bx = b.x - 16;
+    const by = b.y + 48;
+    return [{ x, y: a.y + a.h }, { x, y }, { x: bx, y }, { x: bx, y: by }, { x: b.x, y: by }];
+  },
   // Drift monitor → pygeoapi: out between the schedule and manual-request cards, down the gap between features and announcement.
   'driftMonitor>query>pygeoapi': (a, b) => {
     const y = 162;
@@ -221,6 +269,12 @@ function orthogonal(a: Pt, sa: Side, b: Pt, sb: Side, drop?: number): Pt[] {
   }
   // one horizontal, one vertical: single elbow
   return horizontal(sa) ? [a, { x: b.x, y: a.y }, b] : [a, { x: a.x, y: b.y }, b];
+}
+
+/** A plain orthogonal route between two rectangles, sides chosen by their relative position. */
+export function orthogonalRoute(a: Rect, b: Rect): Pt[] {
+  const s = chooseSides(a, b);
+  return orthogonal(port(a, s.from, 0.5), s.from, port(b, s.to, 0.5), s.to);
 }
 
 export interface Route {
