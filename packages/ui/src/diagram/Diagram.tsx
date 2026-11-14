@@ -1079,57 +1079,58 @@ function Ring({ cx, cy, frac, label, r: rr = 13, cls = '' }: { cx: number; cy: n
 }
 
 /**
- * DRF-6: one small line graph per input over the last two minutes: each reading's residual (thin)
- * and the 10 s mean the monitor judges by (bold, red beyond the threshold), against the dashed
- * ±threshold. Entering a front shows as a ramp climbing through the dashed line.
+ * DRF-6: one composite graph, all inputs on a common scale (σ from each input's long-term mean),
+ * over the last two minutes. Per input, in its own colour: the measurements (solid; bold while the
+ * 10 s mean is beyond the threshold from the forecast) and the forecast (dashed steps). Entering a
+ * front, the measurements climb away from the forecast; a new forecast then steps up and the gap closes.
  */
 function ResidualBars({ r, snap }: { r: Rect; snap: Snapshot }) {
-  const n = snap.inputs.length;
-  const top = r.y + 26;
+  const top = r.y + 30;
   const bottom = r.y + r.h - 18;
-  const rowH = (bottom - top) / n;
-  const x0 = r.x + 34;
+  const x0 = r.x + 40;
   const x1 = r.x + r.w - 8;
   const span = 120;
   const th = snap.drift.threshold;
+  const traces = snap.inputs.map((s, i) => ({ s, i, pts: (snap.drift.trace[s.key] ?? []).filter((p) => p.t > snap.tick - span) }));
+  // Scale: at least −2σ…+3σ, widened to fit the data, in whole σ.
+  let lo = -2;
+  let hi = 3;
+  for (const { pts } of traces) for (const p of pts) (lo = Math.min(lo, p.z, p.fz)), (hi = Math.max(hi, p.z, p.fz));
+  lo = Math.floor(Math.max(lo, -8));
+  hi = Math.ceil(Math.min(hi, 8));
   const xOf = (t: number) => x1 - ((snap.tick - t) / span) * (x1 - x0);
+  const yOf = (v: number) => bottom - ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * (bottom - top);
+  const keyStep = Math.min(12, (bottom - top) / Math.max(1, traces.length));
   return (
     <g className="residuals">
-      <text x={x1} y={top - 3} textAnchor="end" className="resid-scale">
-        last 2 min · ±6σ · dashed ±{th}σ
+      <text x={x1} y={top - 5} textAnchor="end" className="resid-scale">
+        <title>{`Last 2 minutes. Each input in σ from its long-term mean (scale ${lo}…+${hi}σ). Solid: measurements, bold while the 10 s mean is more than ${th}σ from the forecast. Dashed: the forecast.`}</title>
+        {`2 min · ${lo}…+${hi}σ · ─ obs ┄ fcst`}
       </text>
-      {snap.inputs.map((s, i) => {
-        const mid = top + rowH * (i + 0.5);
-        const k = (rowH / 2 - 1) / 6;
-        const yOf = (v: number) => mid - Math.max(-6, Math.min(6, v)) * k;
-        const pts = (snap.drift.trace[s.key] ?? []).filter((p) => p.t > snap.tick - span);
-        const raw = pts.map((p, j) => `${j ? 'L' : 'M'}${xOf(p.t).toFixed(1)},${yOf(p.r).toFixed(1)}`).join(' ');
-        // The mean as a line, split where it is beyond the threshold so those stretches can be red.
+      <line className="axis" x1={x0} x2={x1} y1={yOf(0)} y2={yOf(0)} />
+      {traces.map(({ s, i, pts }) => {
+        // Measurements, split into runs by whether that check's mean is beyond the threshold.
         const runs: { over: boolean; d: string }[] = [];
         pts.forEach((p, j) => {
-          const at = `${xOf(p.t).toFixed(1)},${yOf(p.m).toFixed(1)}`;
+          const at = `${xOf(p.t).toFixed(1)},${yOf(p.z).toFixed(1)}`;
           const over = Math.abs(p.m) > th;
-          const last = runs[runs.length - 1];
           const joined = j > 0 && pts[j - 1]!.t === p.t - 1;
+          const last = runs[runs.length - 1];
           if (last && joined && last.over === over) last.d += ` L${at}`;
-          else {
-            const prev = joined ? `${xOf(pts[j - 1]!.t).toFixed(1)},${yOf(pts[j - 1]!.m).toFixed(1)}` : at;
-            runs.push({ over, d: `M${prev} L${at}` });
-          }
+          else runs.push({ over, d: `M${joined ? `${xOf(pts[j - 1]!.t).toFixed(1)},${yOf(pts[j - 1]!.z).toFixed(1)}` : at} L${at}` });
         });
+        // The forecast as steps: flat while a forecast holds, a step when a new one is issued.
+        const fc = pts.map((p, j) => `${j ? 'L' : 'M'}${xOf(p.t).toFixed(1)},${yOf(p.fz).toFixed(1)}`).join(' ');
         return (
-          <g key={s.key}>
-            <text x={r.x + 8} y={mid + 3} className="resid-label">
+          <g key={s.key} className={`trace in-${i}`}>
+            <title>{`${s.label}: latest 10 s mean ${s.residual === undefined ? '—' : `${s.residual >= 0 ? '+' : ''}${s.residual.toFixed(2)}σ`} from the forecast`}</title>
+            <text x={r.x + 8} y={top + 7 + i * keyStep} className="trace-key">
               {s.key}
             </text>
-            <line className="threshold" x1={x0} x2={x1} y1={yOf(th)} y2={yOf(th)} />
-            <line className="threshold" x1={x0} x2={x1} y1={yOf(-th)} y2={yOf(-th)} />
-            <line className="axis" x1={x0} x2={x1} y1={mid} y2={mid} />
-            {raw && <path className="resid-raw" d={raw} />}
+            {fc && <path className="trace-forecast" d={fc} />}
             {runs.map((run, j) => (
-              <path key={j} className={`resid-mean ${run.over ? 'over' : ''}`} d={run.d} />
+              <path key={j} className={`trace-obs ${run.over ? 'over' : ''}`} d={run.d} />
             ))}
-            <title>{`${s.label}: latest 10 s mean ${s.residual === undefined ? '—' : s.residual.toFixed(2)}σ from the forecast`}</title>
           </g>
         );
       })}

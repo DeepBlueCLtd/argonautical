@@ -62,8 +62,11 @@ export interface SensorCursor {
   status: string;
   lastCheck?: number;
   residuals: DriftCheckResult['residuals'];
-  /** DRF-6: per input, the recent readings' residuals (r) with the mean of their check (m), for the trace. */
-  trace: Record<string, { t: number; r: number; m: number }[]>;
+  /**
+   * DRF-6: per input, for the trace: each reading's level (z) and the forecast's (fz), in σ from the
+   * long-term mean, and the residual of that check's 10 s mean (m).
+   */
+  trace: Record<string, { t: number; z: number; fz: number; m: number }[]>;
   exceeding: readonly string[];
 }
 
@@ -170,11 +173,11 @@ export class Orchestrator {
     const changed = res.status !== before;
     Object.assign(this.cursor, { streak: res.streak, status: res.status, lastCheck: t, residuals: res.residuals, exceeding: res.exceeding });
     // DRF-6: keep the last two minutes of readings for the drift monitor's trace.
-    for (const [k, rs] of Object.entries(res.readings ?? {})) {
+    for (const [k, lv] of Object.entries(res.levels ?? {})) {
       const m = res.residuals[k];
-      if (!rs || m === undefined) continue;
+      if (!lv || m === undefined) continue;
       const list = (this.cursor.trace[k] ??= []);
-      rs.forEach((r, i) => list.push({ t: t - (rs.length - 1 - i), r, m }));
+      lv.obs.forEach((z, i) => list.push({ t: t - (lv.obs.length - 1 - i), z, fz: lv.forecast, m }));
       if (list.length > TRACE_POINTS) list.splice(0, list.length - TRACE_POINTS);
     }
     if (res.requestRun) {
