@@ -2,7 +2,7 @@
  * Owns the wall clock: run/pause, step, rate, and token animation timing.
  * It drives the simulation only through its control API and step() (ARC-4).
  */
-import { EDGES, Simulation, type ControlAction, type InputSlot, type Token } from '@argonautical/sim';
+import { EDGES, Simulation, type Capabilities, type ControlAction, type InputSlot, type Token } from '@argonautical/sim';
 
 /** CAT-1: the demo opens on the minimal system (no feature detector, 12 h); the presenter grows it. */
 const DEMO_CAPABILITIES = { featureDetector: false, longRange: false } as const;
@@ -73,8 +73,6 @@ function noticeOf(t: Token): string {
       return `▸ ${id} ready`;
     case 'features/new':
       return `▸ features of ${id}`;
-    case 'catalogue/changed':
-      return '▸ catalogue changed';
     default:
       return '▸ message';
   }
@@ -109,7 +107,58 @@ export class Runner {
     public seed: string,
     public inputs: number,
   ) {
-    this.sim = new Simulation({ seed, inputs, consumers: 3, capabilities: DEMO_CAPABILITIES });
+    this.sim = new Simulation({ seed, inputs, consumers: 3, capabilities: this.capabilities });
+    // CAT-5: the app opens on, with the power-on handshake already done (not animated).
+    this.lastSeq = this.sim.tokens.total;
+  }
+
+  /** CAT-1: the system is on (installed and serving) or off (capabilities can be changed). */
+  powered = true;
+  /** What the next power-on installs; the running system's are `sim.capabilities`. */
+  capabilities: Capabilities = { ...DEMO_CAPABILITIES };
+  /** Animation time until which the power-on handshake is still playing (Play waits for it). */
+  private handshakeUntil = 0;
+
+  /** True while the power-on handshake is still on screen. */
+  get handshaking(): boolean {
+    return this.powered && this.anim < this.handshakeUntil;
+  }
+
+  /** CAT-1: switch the system off. It stops, and the capabilities can be changed. */
+  powerOff(): void {
+    this.running = false;
+    this.stepBudget = 0;
+    this.powered = false;
+    this.emit();
+  }
+
+  /** CAT-1: choose what the next power-on installs (only while off). */
+  setCapability(name: keyof Capabilities, on: boolean): void {
+    if (this.powered) return;
+    this.capabilities = { ...this.capabilities, [name]: on };
+    this.emit();
+  }
+
+  /**
+   * CAT-1, CAT-5: switch on. A fresh system is installed at T+00:00 with the chosen capabilities;
+   * the consumers' handshake plays with the clock held, and Play is available once it has.
+   */
+  powerOn(): void {
+    if (this.powered) return;
+    this.powered = true;
+    this.running = false;
+    this.sim = new Simulation({ seed: this.seed, inputs: this.inputs, consumers: 3, capabilities: this.capabilities });
+    this.visuals = [];
+    this.lastSeq = 0;
+    this.exchangesThisTick.clear();
+    this.gatherings.clear();
+    this.inbox.clear();
+    this.hold = { tick: -1, at: 0 };
+    this.frac = 0;
+    this.ingestTokens();
+    this.handshakeUntil = Math.max(this.anim, ...this.visuals.map((v) => v.born + v.dur));
+    this.stepBudget = this.handshakeUntil - this.anim;
+    this.emit();
   }
 
   subscribe(fn: () => void): () => void {
@@ -123,7 +172,7 @@ export class Runner {
   restart(seed: string, inputs: number): void {
     this.seed = seed;
     this.inputs = inputs;
-    this.sim = new Simulation({ seed, inputs, consumers: 3, capabilities: DEMO_CAPABILITIES });
+    this.sim = new Simulation({ seed, inputs, consumers: 3, capabilities: this.capabilities });
     this.visuals = [];
     this.lastSeq = 0;
     this.exchangesThisTick.clear();
@@ -141,6 +190,8 @@ export class Runner {
   }
 
   setRunning(on: boolean): void {
+    // Nothing runs while the system is off, or until the power-on handshake has played.
+    if (on && (!this.powered || this.handshaking)) return;
     this.running = on;
     this.emit();
   }
@@ -172,6 +223,7 @@ export class Runner {
 
   /** Advance exactly one tick and let its tokens fly part-way, then stay paused so they can be inspected. */
   step(): void {
+    if (!this.powered || this.handshaking) return;
     this.running = false;
     this.sim.step();
     this.frac = 0;

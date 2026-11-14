@@ -50,8 +50,7 @@ export type ControlAction =
   | { readonly type: 'addConsumer' }
   | { readonly type: 'reconfigureConsumer'; readonly consumer: string }
   | { readonly type: 'ingestion'; readonly running: boolean }
-  | { readonly type: 'observationsDb'; readonly up: boolean }
-  | { readonly type: 'capability'; readonly name: keyof Capabilities; readonly on: boolean };
+  | { readonly type: 'observationsDb'; readonly up: boolean };
 
 export class Simulation {
   readonly seed: string;
@@ -74,11 +73,8 @@ export class Simulation {
   readonly orchestrator: Orchestrator;
   readonly faults: Faults;
   readonly consumers: Consumer[] = [];
-  /** CAT-1: what the deployed system can do; a run uses what was set when it started. */
-  capabilities: Capabilities;
-  /** The latest features id when the detector was last switched on: `features` is live once a newer one exists. */
-  private featuresAtToggle: string | undefined;
-  private lastCatalogue = '';
+  /** CAT-1: what the installed system can do. Fixed for the life of this simulation (a power cycle installs a new one). */
+  readonly capabilities: Capabilities;
   private t = 0;
   private readonly units: Record<string, string>;
 
@@ -149,7 +145,6 @@ export class Simulation {
     this.capabilities = { featureDetector: true, longRange: false, ...opts.capabilities };
     this.log.append(0, 'control', `start: seed "${opts.seed}", ${this.inputs.length} inputs, feature detector ${this.capabilities.featureDetector ? 'present' : 'absent'}, ${this.capabilities.longRange ? 48 : 12} h forecasts`);
     this.orchestrator.materialise('climatology', 0);
-    this.lastCatalogue = JSON.stringify(this.catalogue());
     for (let i = 0; i < (opts.consumers ?? DEFAULT_CONSUMERS); i++) this.newConsumer();
   }
 
@@ -175,7 +170,6 @@ export class Simulation {
     this.sensorBroker.publish(t, this.sensors.sample());
     this.ingest(t);
     this.orchestrator.tick(t);
-    this.publishCatalogueChange();
     for (const c of this.consumers) c.tick(t);
     this.tokens.prune();
   }
@@ -237,8 +231,6 @@ export class Simulation {
         return this.setIngestionRunning(a.running);
       case 'observationsDb':
         return this.setObservationsDbUp(a.up);
-      case 'capability':
-        return this.setCapability(a.name, a.on);
     }
   }
 
@@ -324,47 +316,15 @@ export class Simulation {
     return this.newConsumer();
   }
 
-  /** Presenter: CAT-1. Takes effect from the next run; the catalogue says so straight away. */
-  setCapability(name: keyof Capabilities, on: boolean): void {
-    if (this.capabilities[name] === on) return;
-    this.capabilities = { ...this.capabilities, [name]: on };
-    if (name === 'featureDetector' && on) this.featuresAtToggle = this.featuresDb.latestForecastId;
-    this.control(`presenter: ${name === 'featureDetector' ? 'feature detector' : '48 h forecast'} ${on ? 'on' : 'off'} (from the next run)`);
-    this.publishCatalogueChange();
-  }
-
-  /**
-   * CAT-3: what pygeoapi's `/collections` lists now. `features` is listed while a detector is
-   * present ("from next run" until it has written some) and, after it is removed, while old
-   * features remain ("no longer updated").
-   */
+  /** CAT-3: what pygeoapi's `/collections` lists: it follows what is installed. */
   catalogue(): CollectionInfo[] {
-    const caps = this.capabilities;
-    const latest = this.netcdf.latest;
-    const nextHorizon = caps.longRange ? 48 : 12;
-    const horizon = latest?.horizon ?? nextHorizon;
     const cols: CollectionInfo[] = [
-      { id: 'observations', title: 'Ship observations', api: 'SensorThings', status: 'available' },
-      { id: 'climatology', title: 'Climatology at the ship', api: 'EDR', status: 'available' },
-      { id: 'forecast', title: 'Forecast at the ship', api: 'EDR', status: 'available', horizon, ...(nextHorizon !== horizon ? { nextHorizon } : {}) },
+      { id: 'observations', title: 'Ship observations', api: 'SensorThings' },
+      { id: 'climatology', title: 'Climatology at the ship', api: 'EDR' },
+      { id: 'forecast', title: 'Forecast at the ship', api: 'EDR', horizon: this.capabilities.longRange ? 48 : 12 },
     ];
-    const latestFeatures = this.featuresDb.latestForecastId;
-    if (caps.featureDetector) {
-      cols.push({ id: 'features', title: 'Fronts and eddies', api: 'Features', status: latestFeatures !== undefined && latestFeatures !== this.featuresAtToggle ? 'available' : 'from next run' });
-    } else if (latestFeatures !== undefined) {
-      cols.push({ id: 'features', title: 'Fronts and eddies', api: 'Features', status: 'no longer updated' });
-    }
+    if (this.capabilities.featureDetector) cols.push({ id: 'features', title: 'Fronts and eddies', api: 'Features' });
     return cols;
-  }
-
-  /** CAT-4: when the catalogue changes, the deployment hook says so on `catalogue/changed`. */
-  private publishCatalogueChange(): void {
-    const cols = this.catalogue();
-    const sig = JSON.stringify(cols);
-    if (sig === this.lastCatalogue) return;
-    this.lastCatalogue = sig;
-    this.log.append(this.t, 'control', `catalogue changed: ${cols.map((c) => c.id + (c.status === 'available' ? '' : ` (${c.status})`) + (c.nextHorizon ? ` (${c.horizon} h → ${c.nextHorizon} h next run)` : c.horizon ? ` (${c.horizon} h)` : '')).join(', ')}`);
-    this.broker.publish('pygeoapi', { topic: 'catalogue/changed', body: { collections: cols.map((c) => c.id) } });
   }
 
   /**

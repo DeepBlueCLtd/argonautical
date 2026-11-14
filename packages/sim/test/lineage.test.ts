@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { runScript } from '../src/scenario.ts';
+import { Simulation } from '../src/simulation.ts';
 import type { Token } from '../src/tokens.ts';
 import { EDGES } from '../src/topology/elements.ts';
 import { loadScenarios } from './helpers.ts';
@@ -22,7 +23,16 @@ describe('lineage signals', () => {
 
   it('only forecast → features and features → announcement release a step, or forecast → announcement when there is no feature detector', () => {
     const released = new Set(tokens.filter((t) => t.signal === 'release').map((t) => t.edge));
-    expect([...released].sort()).toEqual(['features>lineage>announcement', 'forecast>lineage>announcement', 'forecast>lineage>features']);
+    expect([...released].sort()).toEqual(['features>lineage>announcement', 'forecast>lineage>features']);
+    // Without a feature detector, the forecast releases the announcement itself.
+    const s = new Simulation({ seed: 'no-detector', capabilities: { featureDetector: false } });
+    let last = 0;
+    const seen: Token[] = [];
+    for (let i = 0; i < 30; i++) {
+      s.step();
+      for (const t of s.tokens.tokens) if (t.seq > last) (last = t.seq), seen.push(t);
+    }
+    expect([...new Set(seen.filter((t) => t.signal === 'release').map((t) => t.edge))]).toEqual(['forecast>lineage>announcement']);
   });
 
   it('observations, climatology and the background loop are only ever checked', () => {

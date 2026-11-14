@@ -82,7 +82,7 @@ export function App() {
     <div className="app">
       <main className="stage">
         <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} spotlight={spotlight} controls={{ logOpen, onLog: () => setLogOpen(!logOpen), onWalkthrough: startWalk }} />
-        {runner.frozen && !picked && walk === null && (
+        {runner.frozen && runner.powered && !runner.handshaking && !picked && walk === null && (
           <div className="inspect-hint">{runner.tokens.length ? 'Paused · click a dot to see what it carries' : 'Paused · press Step to send one tick of tokens, then click a dot'}</div>
         )}
         <Legend />

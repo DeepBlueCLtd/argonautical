@@ -244,8 +244,6 @@ export const featuresInsert = (forecastId: string, feats: readonly Feature[]) =>
 // ---- broker ----
 
 const topicPath = (t: Topic) => `argonautical/${t}`;
-/** Announcements are retained, so a new subscriber gets the latest straight away; catalogue changes are not. */
-const RETAINED: Record<Topic, boolean> = { 'forecast/new': true, 'features/new': true, 'catalogue/changed': false };
 
 const messageBody = (m: BrokerMessage): { summary: string; payload: unknown } => {
   switch (m.topic) {
@@ -258,19 +256,12 @@ const messageBody = (m: BrokerMessage): { summary: string; payload: unknown } =>
     }
     case 'features/new':
       return { summary: `Features of ${m.body.forecastId} are ready`, payload: { forecast_id: m.body.forecastId, feature_count: m.body.featureCount } };
-    case 'catalogue/changed':
-      return { summary: 'The catalogue changed: discover again', payload: { collections: m.body.collections, href: '/collections' } };
   }
 };
 
 export const mqtt = (msg: BrokerMessage, to?: string) => {
   const { summary, payload } = messageBody(msg);
-  return p(to ? `${summary} → ${to}` : summary, `MQTT ${to ? 'message' : 'PUBLISH'} on '${topicPath(msg.topic)}' (QoS 1${RETAINED[msg.topic] ? ', retained' : ''})`, { topic: topicPath(msg.topic), retained: RETAINED[msg.topic], payload });
-};
-
-export const catalogueHook = (msg: BrokerMessage) => {
-  const { summary, payload } = messageBody(msg);
-  return p(summary, `MQTT PUBLISH on '${topicPath(msg.topic)}' by the deployment hook (pygeoapi does not announce its own configuration)`, { topic: topicPath(msg.topic), payload });
+  return p(to ? `${summary} → ${to}` : summary, `MQTT ${to ? 'message' : 'PUBLISH'} on '${topicPath(msg.topic)}' (QoS 1, retained)`, { topic: topicPath(msg.topic), retained: true, payload });
 };
 
 export const subscribe = (topic: Topic, who: string, on: boolean) =>
@@ -281,14 +272,12 @@ export const subscribe = (topic: Topic, who: string, on: boolean) =>
 export const collectionsRequest = () => p('Which collections are offered?', 'OGC API – Common request', { method: 'GET', url: '/collections' });
 
 export const collectionsResponse = (cols: readonly CollectionInfo[]) =>
-  p(`${cols.length} collection(s): ${cols.map((c) => c.id + (c.status === 'available' ? '' : ` (${c.status})`)).join(', ')}`, 'OGC API – Common collections (JSON)', {
+  p(`${cols.length} collection(s): ${cols.map((c) => c.id + (c.horizon ? ` ${c.horizon} h` : '')).join(', ')}`, 'OGC API – Common collections (JSON)', {
     collections: cols.map((c) => ({
       id: c.id,
       title: c.title,
       itemType: c.api === 'Features' ? 'feature' : c.api === 'EDR' ? 'coverage' : 'observation',
       links: [{ rel: 'items', href: c.api === 'SensorThings' ? '/v1.1/Datastreams' : `/collections/${c.id}${c.api === 'EDR' ? '/position' : '/items'}` }],
       ...(c.horizon !== undefined ? { extent: { temporal: { horizon_hours: c.horizon } } } : {}),
-      ...(c.status !== 'available' ? { 'x-status': c.status } : {}),
-      ...(c.nextHorizon !== undefined ? { 'x-next-run': { horizon_hours: c.nextHorizon } } : {}),
     })),
   });

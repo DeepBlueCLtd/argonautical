@@ -65,9 +65,9 @@ export interface Announcement {
   readonly horizon: number;
 }
 
-/** CAT-1: what the deployed system can do. Each takes effect from the next run. */
+/** CAT-1: what the installed system can do. Fixed while the system is on; change it by switching off and on. */
 export interface Capabilities {
-  /** A feature detector is present: runs detect fronts and eddies. */
+  /** A feature detector is installed: runs detect fronts and eddies. */
   readonly featureDetector: boolean;
   /** The model produces 48 h forecasts instead of 12 h. */
   readonly longRange: boolean;
@@ -78,15 +78,12 @@ export interface CollectionInfo {
   readonly id: 'observations' | 'climatology' | 'forecast' | 'features';
   readonly title: string;
   readonly api: 'SensorThings' | 'EDR' | 'Features';
-  /** 'from next run': configured, no data yet. 'no longer updated': its producer is gone; old data stays readable. */
-  readonly status: 'available' | 'from next run' | 'no longer updated';
-  /** Forecast only: the horizon (h) of the data now served, and the next run's if different. */
+  /** Forecast only: its horizon in hours. */
   readonly horizon?: number;
-  readonly nextHorizon?: number;
 }
 
 /** Broker topics (CAT-4). */
-export type Topic = 'forecast/new' | 'features/new' | 'catalogue/changed';
+export type Topic = 'forecast/new' | 'features/new';
 
 /** A `features/new` message: features for a forecast are ready. */
 export interface FeaturesReady {
@@ -94,12 +91,7 @@ export interface FeaturesReady {
   readonly featureCount: number;
 }
 
-/** A `catalogue/changed` message, published by the deployment hook. */
-export interface CatalogueChanged {
-  readonly collections: readonly string[];
-}
-
-export type BrokerMessage = { readonly topic: 'forecast/new'; readonly body: Announcement } | { readonly topic: 'features/new'; readonly body: FeaturesReady } | { readonly topic: 'catalogue/changed'; readonly body: CatalogueChanged };
+export type BrokerMessage = { readonly topic: 'forecast/new'; readonly body: Announcement } | { readonly topic: 'features/new'; readonly body: FeaturesReady };
 
 export function forecastDigest(f: Pick<Forecast, 'id' | 'validUntil' | 'inputs' | 'values'>): string {
   const body = f.inputs.map((k) => `${k}=${(f.values[k] ?? NaN).toFixed(6)}`).join(',');

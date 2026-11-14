@@ -144,8 +144,7 @@ export const ELEMENTS: readonly ElementDecl[] = [
     kind: 'service',
     provenance: 'off-the-shelf',
     region: 'system',
-    // CAT-4: its deployment hook publishes catalogue changes (pygeoapi itself does not).
-    relations: [r('reads', 'observationsDb'), r('reads', 'netcdfStore'), r('reads', 'featuresDb'), r('publishes', 'broker')],
+    relations: [r('reads', 'observationsDb'), r('reads', 'netcdfStore'), r('reads', 'featuresDb')],
     note: 'read only',
   },
   { id: 'broker', label: 'Broker', kind: 'service', provenance: 'off-the-shelf', region: 'boundary', relations: [] },

@@ -135,14 +135,6 @@ const CUSTOM: Record<string, (a: Rect, b: Rect) => Pt[]> = {
     const y = a.y + a.h / 2;
     return [{ x: a.x, y }, { x, y }, { x, y: b.y }];
   },
-  // pygeoapi → broker: its deployment hook publishes catalogue changes (CAT-4), up the corridor
-  // right of the orchestrator frame and into the broker from below.
-  'pygeoapi>publish>broker': (a, b) => {
-    const x = b.x + 40;
-    const sx = a.x + a.w - 10;
-    const y = 642;
-    return [{ x: sx, y: a.y }, { x: sx, y }, { x, y }, { x, y: b.y + b.h }];
-  },
   // Announcer → broker: out of the announcer's right side, then up into the broker from below,
   // clear of the orchestrator frame (x 1340) and the announcement card (x 1300).
   'announcer>publish>broker': (a, b) => {
