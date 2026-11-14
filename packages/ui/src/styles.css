@@ -340,7 +340,7 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .ctl-play:hover circle { filter: brightness(1.15); }
 .ctl-play:focus { outline: none; }
 .ctl-play:focus-visible circle { stroke: var(--ours); stroke-width: 3; }
-.diagram .ctl-clock { font-size: 25px; font-weight: 700; fill: var(--ink); }
+.diagram .ctl-clock { font-size: 22px; font-weight: 700; fill: var(--ink); }
 .ctl-btn { cursor: pointer; }
 .ctl-btn rect { fill: #fff; stroke: #9aa5b1; stroke-width: 1.2; }
 .ctl-btn:hover rect { fill: var(--world); }
@@ -360,8 +360,6 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .box.absent > rect { opacity: 0.45; }
 .box.absent text { opacity: 0.6; }
 .absent-part { opacity: 0.35; }
-.diagram .cat-from-next-run { fill: var(--retry); font-style: italic; }
-.diagram .cat-no-longer-updated { fill: var(--muted); font-style: italic; }
 .status-badge rect { stroke-width: 1.2; }
 .status-badge.good rect { fill: var(--mat-fill); stroke: var(--mat); }
 .status-badge.pending rect { fill: #fff; stroke: var(--retry); stroke-dasharray: 3 2; }
@@ -373,6 +371,23 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .diagram .topic-tag { font: 700 9px var(--mono); fill: var(--std-M); paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
 .diagram .notice { fill: var(--std-M); font-weight: 700; }
 
+/* CAT-1: power, locked capabilities, the off overlay and the handshake note */
+.ctl-power { cursor: pointer; }
+.ctl-power circle { fill: #fff; stroke-width: 2; transition: fill 0.15s; }
+.ctl-power.on circle { stroke: var(--mat); }
+.ctl-power.on .glyph-stroke { stroke: var(--mat); }
+.ctl-power.off circle { fill: var(--offline); stroke: var(--offline); }
+.ctl-power.off .glyph-stroke { stroke: #fff; }
+.ctl-power .glyph-stroke { fill: none; stroke-width: 2.2; stroke-linecap: round; }
+.ctl-power:focus { outline: none; }
+.ctl-power:focus-visible circle { stroke: var(--ours); stroke-width: 3; }
+.ctl-play.disabled { cursor: not-allowed; opacity: 0.35; }
+.ctl-btn.locked { cursor: not-allowed; opacity: 0.55; }
+.power-off rect { fill: rgba(246, 247, 249, 0.82); pointer-events: all; }
+.diagram .power-off-title { font-size: 28px; font-weight: 700; fill: var(--ink); }
+.diagram .power-off-sub { font-size: 15px; fill: var(--muted); }
+.diagram .handshake-note { font-size: 14px; font-weight: 600; fill: var(--std-O); }
+.diagram .ctl-phase { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; fill: var(--std-O); }
 /* A module (or the drift monitor) at work: its own shading, distinct from the green asset around it */
 .box.ours.running > rect { fill: #dcecfb; stroke: #1c63a5; stroke-width: 2.5; animation: module-working 1.6s ease-in-out infinite; }
 @keyframes module-working { 50% { fill: #c6e0f8; } }

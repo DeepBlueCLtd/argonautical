@@ -130,6 +130,12 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
   const execLabel = (step: 'run' | 'detect') => (retrieving(step) ? 'retrieving data' : (executing(step)?.label ?? (retryOn(step) !== undefined ? 'waiting for retry' : '')));
   const dataIn = useRef(new Map<string, number>());
   const shown = useRef(new Map<string, { status: string; line: string; ok: boolean | undefined }>());
+  // A power-on installs a new system: forget what the old consumers showed.
+  const shownFor = useRef(runner.sim);
+  if (shownFor.current !== runner.sim) {
+    shownFor.current = runner.sim;
+    shown.current.clear();
+  }
   const shownProgress = (step: 'run' | 'detect', dur: number) => {
     const r = executing(step);
     if (!r || retrieving(step)) return 0;
@@ -444,9 +450,6 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
             {staleRemaining > 0 ? `valid until ${clockLabel(f.validUntil)}` : stale.replacing ? 'stale · replacing' : 'stale'}
           </T>
         )}
-        <T x={R.forecast.x + 12} y={R.forecast.y + R.forecast.h - 46} cls="tiny waiting">
-          {snap.capabilities.longRange !== (f ? f.horizon === 48 : false) ? `${snap.capabilities.longRange ? 48 : 12} h from the next run` : ''}
-        </T>
         <T x={R.forecast.x + 12} y={R.forecast.y + R.forecast.h - 30} cls="tiny muted">
           {run ? `${run.id} → ${run.forecastId} · ${run.causes}` : 'idle'}
         </T>
@@ -478,7 +481,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         </T>
         {!detector && (
           <T x={R.features.x + 12} y={R.features.y + 60} cls="tiny strong">
-            no feature detector{snap.stores.features ? ' · not updated' : ''}
+            no feature detector installed
           </T>
         )}
         <T x={R.features.x + 12} y={R.features.y + R.features.h - 30} cls="tiny waiting">
@@ -559,8 +562,8 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         </T>
         {/* CAT-3: the catalogue, as consumers discover it */}
         {snap.catalogue.map((c, i) => (
-          <T key={c.id} x={R.pygeoapi.x + 12} y={R.pygeoapi.y + 60 + i * 14} cls={`tiny cat-${c.status.replace(/ /g, '-')}`}>
-            {`${c.id}${c.horizon ? ` · ${c.horizon} h${c.nextHorizon ? ` → ${c.nextHorizon} h next run` : ''}` : ''}${c.status === 'available' ? '' : ` · ${c.status}`}`}
+          <T key={c.id} x={R.pygeoapi.x + 12} y={R.pygeoapi.y + 60 + i * 14} cls="tiny">
+            {`${c.id}${c.horizon ? ` · ${c.horizon} h` : ''}`}
           </T>
         ))}
       </Box>
@@ -575,7 +578,6 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
           [
             ['forecast/new', 'forecast'],
             ['features/new', 'features'],
-            ['catalogue/changed', 'catalogue'],
           ] as const
         ).map(([topic, label], i) => (
           <T key={topic} x={R.broker.x + 10} y={R.broker.y + 46 + i * 16} cls={`tiny mono ${snap.topics[topic] ? '' : 'muted'}`}>
@@ -592,7 +594,8 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         // fetching new data on screen, it keeps showing what it showed before.
         const busy = !!runner.notice(c.id) || runner.readsPending('consumer', c.id);
         const prev = shown.current.get(c.id);
-        const view = busy && prev ? prev : { status: c.status, line: l ? `${l.forecastId}` : 'no data', ok: l?.ok };
+        // Before its first handshake has landed (power-on), it is still connecting.
+        const view = busy ? (prev ?? { status: 'connecting…', line: 'handshake', ok: undefined }) : { status: c.status, line: l ? `${l.forecastId}` : 'no data', ok: l?.ok };
         if (!busy) shown.current.set(c.id, view);
         const tone = STATUS_TONE[view.status] ?? 'neutral';
         return (
@@ -626,7 +629,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
               </T>
             )}
             <T x={r.x + 10} y={r.y + 82} cls="tiny muted">
-              {`subs: ${c.topics.filter((t) => t !== 'catalogue/changed').map((t) => t.split('/')[0]).join(', ') || '—'}`}
+              {`subs: ${c.topics.map((t) => t.split('/')[0]).join(', ') || '—'}`}
             </T>
             {/* CON-3: the app's user reconfigures it, so it discovers and fetches again (no new data implied) */}
             <g
@@ -674,6 +677,28 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
       {/* Tokens: one per recorded interaction (MOT-1) */}
       <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} onTokenTip={onTokenTip} />
 
+      {/* CAT-1: while the system is off, the System and Consumers regions are dimmed. */}
+      {!runner.powered && (
+        <g className="power-off">
+          <rect x={REGIONS.worldRight} y={0} width={VIEW.w - REGIONS.worldRight} height={VIEW.h} />
+          <text x={(REGIONS.worldRight + VIEW.w) / 2} y={VIEW.h / 2 - 8} textAnchor="middle" className="power-off-title">
+            System off
+          </text>
+          <text x={(REGIONS.worldRight + VIEW.w) / 2} y={VIEW.h / 2 + 16} textAnchor="middle" className="power-off-sub">
+            Choose what to install in the Control panel, then switch on: consumers shake hands, then press play.
+          </text>
+        </g>
+      )}
+      {runner.handshaking && (
+        <text x={(REGIONS.worldRight + REGIONS.consumersLeft) / 2} y={VIEW.h - 18} textAnchor="middle" className="handshake-note">
+          {runner.handshake === 'pending'
+            ? 'Powered on at T+00:00 · press play to run the consumers’ handshake (GET /collections, then SUBSCRIBE)'
+            : runner.playing
+              ? 'Consumers are shaking hands… (pause to inspect the messages)'
+              : 'Handshake paused · click a message to inspect it, or press play to continue'}
+        </text>
+      )}
+
       {/* WALK-2: the walkthrough dims everything but the current region or component. */}
       {spotlight !== undefined && (
         <g className="spotlight">
@@ -720,9 +745,13 @@ function CtlButton(props: { x: number; y: number; w: number; h: number; title: s
  */
 function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runner; controls: Controls }) {
   const c = CONTROL;
-  const playing = runner.running;
-  const cx = c.x + 34;
+  const playing = runner.playing;
+  const on = runner.powered;
+  const canPlay = on;
+  const px = c.x + 27;
+  const cx = c.x + 70;
   const cy = c.y + 50;
+  const caps = on ? snap.capabilities : runner.capabilities;
   const rates: Rate[] = [0.5, 1, 10, 60];
   const rw = 44;
   return (
@@ -731,11 +760,32 @@ function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runn
       <T x={c.x + 12} y={c.y + 18} cls="region-label control-label">
         CONTROL
       </T>
+      {/* CAT-1: power. Off to change capabilities; on installs a fresh system and the consumers shake hands. */}
+      <g
+        className={`ctl-power ${on ? 'on' : 'off'}`}
+        role="switch"
+        tabIndex={0}
+        aria-checked={on}
+        aria-label={on ? 'Switch the system off' : 'Switch the system on'}
+        onClick={() => (on ? runner.powerOff() : runner.powerOn())}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (on) runner.powerOff();
+            else runner.powerOn();
+          }
+        }}
+      >
+        <title>{on ? 'System on: switch off to change its capabilities' : 'System off: switch on to install it (consumers shake hands, then press play)'}</title>
+        <circle cx={px} cy={cy} r={16} />
+        <path className="glyph-stroke" d={`M${px - 5.5},${cy - 5} a7.5,7.5 0 1,0 11,0 M${px},${cy - 9} v8`} />
+      </g>
       {/* Play / pause */}
       <g
-        className={`ctl-play ${playing ? 'playing' : 'paused'}`}
+        className={`ctl-play ${playing ? 'playing' : 'paused'} ${canPlay ? '' : 'disabled'}`}
         role="button"
         tabIndex={0}
+        aria-disabled={!canPlay}
         aria-label={playing ? 'Pause the simulation' : 'Run the simulation'}
         onClick={() => runner.setRunning(!playing)}
         onKeyDown={(e) => {
@@ -745,16 +795,22 @@ function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runn
           }
         }}
       >
-        <title>{playing ? 'Pause (Space)' : 'Run (Space)'}</title>
-        <circle cx={cx} cy={cy} r={24} />
+        <title>{!on ? 'Switch the system on first' : runner.handshaking ? (playing ? 'Pause the handshake (Space)' : 'Run the consumers’ handshake (Space)') : playing ? 'Pause (Space)' : 'Run (Space)'}</title>
+        <circle cx={cx} cy={cy} r={22} />
         {playing ? (
           <path className="glyph" d={`M${cx - 8},${cy - 10} v20 h5 v-20 z M${cx + 3},${cy - 10} v20 h5 v-20 z`} />
         ) : (
           <path className="glyph" d={`M${cx - 6},${cy - 12} L${cx + 12},${cy} L${cx - 6},${cy + 12} z`} />
         )}
       </g>
-      <text x={c.x + 66} y={c.y + 58} className="ctl-clock mono">
-        {snap.clock}
+      {/* CAT-5: a clear marker while the power-on handshake is the thing that plays */}
+      {on && runner.handshaking && (
+        <text x={c.x + 100} y={c.y + 32} className="ctl-phase mono">
+          [HANDSHAKE]
+        </text>
+      )}
+      <text x={c.x + 100} y={c.y + 58} className="ctl-clock mono">
+        {on ? snap.clock : 'OFF'}
       </text>
       {/* Rate: one of four (radio group) */}
       <g role="radiogroup" aria-label="Rate">
@@ -788,18 +844,18 @@ function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runner: Runn
       <CtlButton x={c.x + 178} y={c.y + 120} w={26} h={28} title={`Event log (${snap.events.count} events)`} pressed={controls.logOpen} onClick={controls.onLog}>
         <path className="glyph-stroke" d={[0, 5, 10].map((k) => `M${c.x + 185},${c.y + 129 + k} h12`).join(' ')} />
       </CtlButton>
-      {/* CAT-1: capabilities of the deployed system; each takes effect from the next run */}
+      {/* CAT-1: what is installed. Locked while the system is on. */}
       <T x={c.x + 12} y={c.y + 168} cls="tiny muted">
-        Capabilities · from next run
+        {on ? 'Installed · switch off to change' : 'Install at power-on:'}
       </T>
-      <CtlButton x={c.x + 12} y={c.y + 174} w={118} h={16} title="Feature detector: present or absent (takes effect from the next run)" pressed={snap.capabilities.featureDetector} onClick={() => runner.apply({ type: 'capability', name: 'featureDetector', on: !snap.capabilities.featureDetector })} cls="cap">
+      <CtlButton x={c.x + 12} y={c.y + 174} w={118} h={16} title={on ? 'Feature detector (switch the system off to change)' : 'Install a feature detector at power-on'} pressed={caps.featureDetector} onClick={() => runner.setCapability('featureDetector', !caps.featureDetector)} cls={`cap ${on ? 'locked' : ''}`}>
         <text x={c.x + 71} y={c.y + 185.5} textAnchor="middle" className="ctl-text cap-text">
-          {snap.capabilities.featureDetector ? '✓ ' : ''}Feature detector
+          {caps.featureDetector ? '✓ ' : ''}Feature detector
         </text>
       </CtlButton>
-      <CtlButton x={c.x + 136} y={c.y + 174} w={64} h={16} title="48 h forecasts instead of 12 h (from the next run)" pressed={snap.capabilities.longRange} onClick={() => runner.apply({ type: 'capability', name: 'longRange', on: !snap.capabilities.longRange })} cls="cap">
+      <CtlButton x={c.x + 136} y={c.y + 174} w={64} h={16} title={on ? '48 h forecasts (switch the system off to change)' : 'Install 48 h forecasts at power-on'} pressed={caps.longRange} onClick={() => runner.setCapability('longRange', !caps.longRange)} cls={`cap ${on ? 'locked' : ''}`}>
         <text x={c.x + 168} y={c.y + 185.5} textAnchor="middle" className="ctl-text cap-text">
-          {snap.capabilities.longRange ? '✓ ' : ''}48 h
+          {caps.longRange ? '✓ ' : ''}48 h
         </text>
       </CtlButton>
       {/* Event count, as a badge on the log icon */}

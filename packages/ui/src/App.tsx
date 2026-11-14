@@ -67,7 +67,7 @@ export function App() {
       const t = e.target as HTMLElement;
       if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLButtonElement || t.getAttribute('role')) return;
       e.preventDefault();
-      runner.setRunning(!runner.running);
+      runner.setRunning(!runner.playing);
     };
     addEventListener('keydown', key);
     return () => removeEventListener('keydown', key);
@@ -82,7 +82,7 @@ export function App() {
     <div className="app">
       <main className="stage">
         <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} spotlight={spotlight} controls={{ logOpen, onLog: () => setLogOpen(!logOpen), onWalkthrough: startWalk }} />
-        {runner.frozen && !picked && walk === null && (
+        {runner.frozen && runner.powered && runner.handshake !== 'pending' && !picked && walk === null && (
           <div className="inspect-hint">{runner.tokens.length ? 'Paused · click a dot to see what it carries' : 'Paused · press Step to send one tick of tokens, then click a dot'}</div>
         )}
         <Legend />
