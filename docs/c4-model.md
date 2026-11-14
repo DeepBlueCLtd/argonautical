@@ -1,6 +1,6 @@
 # C4 Model — Production Candidate (Physical View)
 
-Companion to `srd.md` (v2) and `docs/system-architecture.md`. Status: **draft for review (Nov 13, 2026)**.
+Companion to `srd.md` (v2) and `docs/system-architecture.md`. Status: **draft for review (Nov 14, 2026)**. Open questions Q1–Q7 were decided on Nov 14 (§7).
 
 This is an alternative to `docs/system-architecture.md` §1.2–1.3, kept as a separate document so the two can be compared. It describes the **eventual production system**, not the demonstrator. Like the rest of the architecture material, it is a candidate design, not a commitment.
 
@@ -9,8 +9,8 @@ Diagrams are Mermaid flowcharts styled with C4 conventions, and Mermaid sequence
 | Level | Diagram | Section |
 |---|---|---|
 | 1 | System Context | §2 |
-| 2 | Containers | §3 |
-| 3 | Components: code location | §4 |
+| 2 | Containers: pipeline; operations and shore transfer; shore support | §3 |
+| 3 | Components: code location (forecast pipeline; shore transfer) | §4 |
 | — | Dynamic: drift → forecast → announce; ingest outage recovery; late-joiner consumer | §5 |
 | — | Deployment: ship, shore, test rig | §6 |
 
@@ -33,9 +33,9 @@ Carries forward assumptions A1–A4 (`system-architecture.md` §1.1), and adds t
 | C1 | Model the production system only. The demonstrator already projects it (SYS-1–6). |
 | C2 | Levels: Context, Container, Component (code location only), Dynamic (three flows), Deployment. No Code level. |
 | C3 | Three deployment environments: **ship** (production), **shore**, and a **shore test rig**. |
-| C4 | Onboard hosts are **logical deployment nodes, unsized**. They may share hardware. Sizing is an open question (§7). |
+| C4 | Onboard hosts are **logical deployment nodes, unsized**. They may share hardware. Sizing is decided by measurement on the test rig (D4). |
 | C5 | The shore link carries **climatology updates** (shore → ship) and **data back to shore** (ship → shore). It does not carry software or remote monitoring. |
-| C6 | Software reaches the ship on **physical media in port**: signed images and an SBOM, loaded into an onboard registry. |
+| C6 | Software reaches the ship on **physical media in port only**: signed images and an SBOM, loaded into an onboard registry. There is no over-the-link path, even for urgent fixes (D5). |
 | C7 | The test rig is an **integration mirror**: the same container set and zones on smaller hardware, with a sensor replayer in place of real instruments. Release images are validated here before they are written to port media. |
 | C8 | Actors: **watchkeeper/forecaster**, **onboard maintainer**, **shore analyst**. |
 
@@ -88,8 +88,6 @@ flowchart LR
 flowchart LR
   instr["<b>Onboard instruments</b>"]:::ext
   watch(["<b>Watchkeeper</b>"]):::person
-  maint(["<b>Onboard maintainer</b>"]):::person
-  shore["<b>Shore support</b>"]:::ext
   cons["<b>Onboard consumer systems</b>"]:::ext
 
   subgraph PIPE["Onboard forecast pipeline"]
@@ -104,11 +102,6 @@ flowchart LR
       cl["<b>Code location</b><br/><i>glue, shims, our modules</i>"]:::ours
       mr["<b>Model runner</b><br/><i>Pipes container</i>"]:::ours
     end
-    subgraph OPS["Operate"]
-      sync["<b>Shore sync agent</b>"]:::ours
-      reg["<b>Onboard registry</b><br/><i>OCI registry</i>"]:::adopted
-      mon["<b>Observability</b><br/><i>Prometheus, Grafana, Loki</i>"]:::adopted
-    end
     subgraph STORE["Stores (our data)"]
       fdb[("<b>Features DB</b><br/><i>PostGIS</i>")]:::adopted
       cov[("<b>Coverage store</b><br/><i>NetCDF / Zarr</i>")]:::adopted
@@ -117,19 +110,20 @@ flowchart LR
     subgraph DIST["Distribute"]
       pga["<b>pygeoapi</b><br/><i>read-only OGC APIs</i>"]:::adopted
       brk["<b>Announcement broker</b><br/><i>Mosquitto, retained</i>"]:::adopted
+      rapi["<b>Run-request API</b><br/><i>ours, thin</i>"]:::ours
     end
   end
 
   instr --> gw --> sbrk --> ing -->|"writes"| obs
-  watch --> dweb --> dd
+  watch -->|"requests runs,<br/>views status"| rapi
+  cl -->|"polls requests,<br/>posts status"| rapi
+  dweb --> dd
   dd -->|"sensors, runs"| cl
   cl -->|"Pipes"| mr
   mr -->|"commits forecast"| cov
   cl -->|"writes features"| fdb
   cl -->|"publishes"| brk
-  sync <-.->|"shore link"| shore
-  sync -->|"commits climatology"| cov
-  maint -->|"monitors, installs"| OPS
+  cl -->|"commits climatology"| cov
   STORE <-.->|"read-only"| pga
   brk -->|"announcements"| cons
   pga <-->|"OGC API queries"| cons
@@ -140,12 +134,62 @@ flowchart LR
   classDef zone fill:#fafafa,stroke:#999,stroke-dasharray:6 4,color:#333
   classDef host fill:#fff,stroke:#bbb,color:#333
   class PIPE zone
-  class INGEST,ORCH,OPS,STORE,DIST host
+  class INGEST,ORCH,STORE,DIST host
 ```
 
 Only the main data relations are drawn. Every service also pulls its image from the onboard registry and exports metrics and logs to observability. Those relations are omitted for legibility.
 
-### 3.2 Shore support
+The operations and shore-transfer containers are in §3.2. Two consequences of the Q1–Q3 decisions show across both diagrams:
+
+- **The watchkeeper never reaches the enclave.** They use the run-request API in the distribution zone. The code location polls it (D1). The Dagster webserver remains, for the maintainer, on an enclave console.
+- **The shore sync agent writes no store.** It only moves files between the shore link and the transfer area. The orchestrator owns both directions: the `climatology` asset imports from the inbox, and a `shore_export` asset writes bundles to the outbox (D2, D3).
+
+### 3.2 Onboard pipeline — operations and shore transfer
+
+The same system, showing only the containers that operate it and move data to and from shore.
+
+```mermaid
+flowchart LR
+  maint(["<b>Onboard maintainer</b>"]):::person
+  shore["<b>Shore support</b>"]:::ext
+  subgraph PIPE["Onboard forecast pipeline"]
+    subgraph OPS["Operate"]
+      reg["<b>Onboard registry</b><br/><i>OCI registry, keeps N and N-1</i>"]:::adopted
+      mon["<b>Observability</b><br/><i>Prometheus, Grafana, Loki</i>"]:::adopted
+      dweb["<b>Dagster webserver</b><br/><i>enclave console only</i>"]:::adopted
+      bkp["<b>Backup</b><br/><i>e.g. pgBackRest, restic</i>"]:::adopted
+    end
+    subgraph XFER["Shore transfer"]
+      sync["<b>Shore sync agent</b><br/><i>moves files only</i>"]:::ours
+      xfer[("<b>Transfer area</b><br/><i>inbox / outbox</i>")]:::adopted
+    end
+    cl["<b>Code location</b><br/><i>climatology + shore_export assets</i>"]:::ours
+    subgraph STORE["Stores (our data)"]
+      obs[("<b>Observations DB</b>")]:::adopted
+      cov[("<b>Coverage store</b>")]:::adopted
+      fdb[("<b>Features DB</b>")]:::adopted
+    end
+  end
+  maint -->|"installs, rolls back"| reg
+  maint -->|"monitors"| mon
+  maint -->|"inspects runs"| dweb
+  shore <-.->|"shore link"| sync
+  sync <-->|"verified files"| xfer
+  xfer -->|"climatology inbox"| cl
+  cl -->|"export bundles to outbox"| xfer
+  cl -->|"commits climatology"| cov
+  bkp -.->|"nightly"| STORE
+  classDef person fill:#08427b,stroke:#052e56,color:#fff
+  classDef ours fill:#1168bd,stroke:#0b4884,color:#fff
+  classDef adopted fill:#5a9bd8,stroke:#2e6295,color:#fff,stroke-dasharray:6 3
+  classDef ext fill:#8a8a8a,stroke:#666,color:#fff
+  classDef zone fill:#fafafa,stroke:#999,stroke-dasharray:6 4,color:#333
+  classDef host fill:#fff,stroke:#bbb,color:#333
+  class PIPE zone
+  class OPS,XFER,STORE host
+```
+
+### 3.3 Shore support
 
 ```mermaid
 flowchart LR
@@ -180,15 +224,17 @@ flowchart LR
 
 ## 4. Level 3 — Components of the code location
 
+### 4.1 Forecast pipeline components
+
 This diagram is where the import boundary meets the process boundary (`system-architecture.md` §1.4 point 1). Everything below runs in **one process**. The model runner is the only module of ours that is isolated in its own process.
 
 ```mermaid
 flowchart LR
   dd["<b>Dagster daemon</b>"]:::adopted
-  subgraph CL["Code location (one process)"]
+  subgraph CL["Code location"]
     direction LR
     defs["<b>Definitions</b><br/><i>@asset, @sensor, @schedule</i>"]:::adopted
-    glue["<b>Run glue</b><br/><i>coalesce, capped retry</i>"]:::ours
+    glue["<b>Run glue</b><br/><i>coalesce, capped retry,<br/>run-request poller</i>"]:::ours
     subgraph SH["Shims"]
       direction TB
       sc["check"]:::ours
@@ -209,6 +255,7 @@ flowchart LR
   pga["<b>pygeoapi</b>"]:::adopted
   fdb[("<b>Features DB</b>")]:::adopted
   brk["<b>Announcement broker</b>"]:::adopted
+  rapi["<b>Run-request API</b>"]:::ours
 
   dd --> defs
   defs --> glue
@@ -222,6 +269,7 @@ flowchart LR
   rd --> pga
   det --> fdb
   ann --> brk
+  glue -->|"polls, posts status"| rapi
   classDef person fill:#08427b,stroke:#052e56,color:#fff
   classDef ours fill:#1168bd,stroke:#0b4884,color:#fff
   classDef adopted fill:#5a9bd8,stroke:#2e6295,color:#fff,stroke-dasharray:6 3
@@ -232,7 +280,46 @@ flowchart LR
   class SH,MOD host
 ```
 
-Boundary rules (ARC-1, ARC-7): the drift monitor, feature detector and announcer import neither Dagster nor the shims nor the deployment model. The run glue and the Pipes client are **orchestrator glue**. They are custom code, but they are neither our special sauce nor off the shelf, and they need an owner (`system-architecture.md` §5.3).
+### 4.2 Shore transfer components
+
+The same process, showing the two components added by D2 and D3. Each has its own shim, following ARC-2.
+
+```mermaid
+flowchart LR
+  subgraph CL["Code location"]
+    defs["<b>Definitions</b><br/><i>climatology, shore_export assets</i>"]:::adopted
+    subgraph SH["Shims"]
+      si["import"]:::ours
+      sx["export"]:::ours
+    end
+    subgraph MOD["Our modules"]
+      imp["<b>Climatology importer</b>"]:::ours
+      exp["<b>Shore exporter</b>"]:::ours
+    end
+    rd["<b>Read client</b>"]:::ours
+  end
+  xin[("<b>Transfer area</b><br/><i>inbox</i>")]:::adopted
+  cov[("<b>Coverage store</b>")]:::adopted
+  pga["<b>pygeoapi</b>"]:::adopted
+  xout[("<b>Transfer area</b><br/><i>outbox</i>")]:::adopted
+  defs --> si & sx
+  si --> imp
+  sx --> exp
+  xin -->|"verified climatology"| imp
+  imp -->|"stage + manifest swap"| cov
+  exp --> rd --> pga
+  exp -->|"signed bundles"| xout
+  classDef person fill:#08427b,stroke:#052e56,color:#fff
+  classDef ours fill:#1168bd,stroke:#0b4884,color:#fff
+  classDef adopted fill:#5a9bd8,stroke:#2e6295,color:#fff,stroke-dasharray:6 3
+  classDef ext fill:#8a8a8a,stroke:#666,color:#fff
+  classDef zone fill:#fafafa,stroke:#999,stroke-dasharray:6 4,color:#333
+  classDef host fill:#fff,stroke:#bbb,color:#333
+  class CL zone
+  class SH,MOD host
+```
+
+Boundary rules (ARC-1, ARC-7): the drift monitor, feature detector, announcer, shore exporter and climatology importer import neither Dagster nor the shims nor the deployment model. The run glue and the Pipes client are **orchestrator glue**. They are custom code, but they are neither our special sauce nor off the shelf, and they need an owner (`system-architecture.md` §5.3).
 
 ---
 
@@ -345,20 +432,25 @@ flowchart LR
     end
     subgraph OPN["Ops node"]
       sync["Shore sync agent"]:::ours
+      xfer[("Transfer area")]:::adopted
       reg["Onboard registry"]:::adopted
       mon["Observability"]:::adopted
+      bkp["Backup"]:::adopted
     end
   end
   subgraph DMZ["Distribution zone"]
     subgraph DH["Distribution host"]
       pga["pygeoapi"]:::adopted
       brk["Announcement broker"]:::adopted
+      rapi["Run-request API"]:::ours
     end
   end
   subgraph MIS["Mission network"]
     cons["Consumer systems"]:::ext
+    wk["Watchkeeper workstation"]:::ext
   end
   sat["Shore link terminal<br/><i>satcom, intermittent</i>"]:::ext
+  gnss["Ship time source<br/><i>GNSS-disciplined</i>"]:::ext
 
   gw --> sbrk --> ing
   ing ==>|"SQL · OT→enclave FW"| obs
@@ -368,6 +460,11 @@ flowchart LR
   brk ==>|"MQTT · DMZ→mission FW"| cons
   pga <==>|"HTTPS queries"| cons
   sync ==>|"outbound only"| sat
+  sync --> xfer
+  bkp -.->|"nightly"| DAT
+  cl ==>|"HTTPS poll · enclave→DMZ"| rapi
+  wk ==>|"HTTPS · mission→DMZ"| rapi
+  gnss -.->|"NTP/PTP per zone"| OT & ENC & DMZ
   class OT,ENC,DMZ,MIS zone
   class DAQ,INGH,ORN,CMP,DAT,OPN,DH host
   classDef person fill:#08427b,stroke:#052e56,color:#fff
@@ -384,10 +481,12 @@ Firewall rules implied by the diagram. Each one should become a test on the test
 |---|---|---|
 | OT → enclave | Ingestion → Observations DB (SQL) only | Single writer |
 | Enclave → OT | None | OT accepts no inbound (A2) |
-| Enclave ↔ DMZ | Code location/model runner → pygeoapi; code location → broker; pygeoapi → stores (read-only) | Single read path |
+| Enclave ↔ DMZ | Code location/model runner → pygeoapi; code location → broker; code location → run-request API (poll); pygeoapi → stores (read-only) | Single read path; enclave-initiated requests |
 | DMZ → mission | Broker → consumers; consumers → pygeoapi (inbound to DMZ) | Distribution |
-| Mission → enclave | **Open question:** watchkeeper → Dagster webserver | See §7 |
+| Mission → DMZ | Watchkeeper → run-request API (HTTPS, authenticated) | Run requests and status (D1) |
+| Mission → enclave | **None** | Zone model holds (D1) |
 | Enclave → shore link | Shore sync agent only, outbound | Data out, climatology in |
+| Time | Each zone's NTP/PTP server ← ship time source | Timestamps are a correctness dependency (D7) |
 
 ### 6.2 Shore
 
@@ -478,33 +577,36 @@ flowchart LR
   classDef host fill:#fff,stroke:#bbb,color:#333
 ```
 
-What the rig proves: the release images start; the firewall rules in §6.1 hold (including negative tests); the dynamic flows in §5 work end to end, including DB and ingestion restarts; and shore sync works against a link simulator that can be switched on and off.
+What the rig proves: the release images start; a sizing benchmark sets the onboard host count (D4); rollback from N to N-1 works with the release's schema migrations (D6); the firewall rules in §6.1 hold (including negative tests); the dynamic flows in §5 work end to end, including DB and ingestion restarts; and shore sync works against a link simulator that can be switched on and off.
 
 What it does not prove: real instrument protocols and the DAQ adapter, production-scale performance, or hardware failover.
 
 ---
 
-## 7. Open questions raised by this model
+## 7. Decisions on the open questions (Nov 14, 2026)
 
-| # | Question | Why it matters |
+| # | Question | Decision |
 |---|---|---|
-| Q1 | **How does the watchkeeper reach the Dagster webserver?** It sits in the processing enclave, and watchkeepers sit on the mission network. | The options are: open mission → enclave HTTPS for one host (this weakens the zone model); a console inside the enclave; or a small run-request API in the DMZ. |
-| Q2 | **Where does shore sync read from?** | Through pygeoapi (consistent with the read-path decision, but slow for bulk transfer), or by direct read-only replication of the stores (efficient, but a second read path). |
-| Q3 | **Climatology commit.** The shore sync agent becomes a second writer to the coverage store. | It must use the same staging + manifest-swap commit as the model runner, and must not swap climatology during a run. Who owns that convention? |
-| Q4 | **Onboard host sizing and count** (C4). | The model runner and the databases are the likely contention. Decide before buying hardware; the rig can measure it. |
-| Q5 | **Port media cadence.** | Security fixes wait for the next port call. Is an emergency path over the link ever acceptable? |
-| Q6 | **Rollback onboard.** | The onboard registry should keep the previous release; the maintainer needs a documented rollback. |
-| Q7 | **Time sync (PTP/NTP) and backup** are not drawn. | Observation timestamps drive freshness (`system-architecture.md` §1.4 point 6), so time is a correctness dependency, not just operations. |
+| D1 | **Q1 — Watchkeeper access.** The watchkeeper is on the mission network; the Dagster webserver is in the enclave. | A thin **run-request API** of ours in the distribution zone. The watchkeeper requests runs and sees status there. **The enclave pulls:** a Dagster sensor polls the API for pending requests and posts run status back. No mission → enclave or DMZ → enclave rule is added. Manual requests wait up to one sensor interval (≥30 s), and they merge with drift and staleness requests through the existing coalescing logic (ORC-2). The Dagster webserver stays enclave-only, for the maintainer. |
+| D2 | **Q2 — Data back to shore.** | **Export bundles** produced by a new `shore_export` Dagster asset on a schedule, downstream of forecast and features. It reads through pygeoapi (the single read path holds) via a new `export` shim and writes signed, time-sliced bundles to the outbox. The shore sync agent only ships what is in the outbox. |
+| D3 | **Q3 — Climatology commit.** | **Inbox + asset.** The sync agent verifies incoming climatology and drops it in the inbox. The existing `climatology` asset materialises from the inbox via a new `import` shim, using the same stage + manifest-swap commit as forecasts. One run at a time means it never swaps mid-run. The sync agent writes no store. |
+| D4 | **Q4 — Host sizing.** | **Measure, then decide.** Nodes stay logical. A rig benchmark (realistic grid size, 6 inputs, backlog drain after an outage, export catch-up after a long link outage) sets the host count, at a gate before hardware procurement. |
+| D5 | **Q5 — Urgent fixes.** | **Port media only, no exceptions.** Risk accepted: a critical fix can wait until the next port call. Mitigation is pre-release hardening on the rig and the rollback in D6. |
+| D6 | **Q6 — Rollback.** | The onboard registry keeps **N and N-1**. A release is one manifest that pins every image. Rollback is **one documented command** that redeploys N-1. Schema migrations must stay backward-compatible for one release; the rig tests N → N-1 on every release. |
+| D7 | **Q7 — Time and backup.** | **Both drawn** (§6.1). Time: the ship's GNSS-disciplined source feeds an NTP/PTP server in each zone. DAQ gateways timestamp at source; ingestion rejects observations with implausible clock skew. Backup: nightly local backup of the databases and coverage store to the ops node; the shore export bundles (D2) are the off-ship copy. |
+
+New items these decisions add: the run-request API, the transfer area, the backup service, the `export` and `import` shims, and the shore exporter and climatology importer modules. None is in the SRD; the demonstrator does not need them.
 
 ---
 
 ## 8. Critical analysis
 
-- **The physical view is still mostly logical.** Unsized deployment nodes (C4) make the diagrams honest, but they defer the decision a physical view usually exists to make: how many boxes, and what shares a host. Q4 should close before the ship deployment is treated as stable.
-- **New containers expand scope.** The shore sync agent, onboard registry, shore support system and test rig are not in the SRD. Each needs an owner, and two of them (sync agent, registry) open new paths across zone boundaries. The sync agent is the first container in the enclave that talks to the outside world. It is the one most likely to be challenged in a security review.
-- **Read-path tension.** "pygeoapi is the only read path" was decided for our modules. Data back to shore (Q2) and climatology import (Q3) test that rule from both directions. Either extend the rule explicitly or record the exceptions.
-- **Mission access to the orchestrator UI (Q1) conflicts with zone separation.** A watchkeeper actor implies a path that the zone model does not provide today. This is the most important design gap the Context diagram exposes.
+- **The physical view is still mostly logical.** Unsized deployment nodes (C4) make the diagrams honest, but they defer the decision a physical view usually exists to make: how many boxes, and what shares a host. D4 turns that into a measured gate, but until the rig benchmark runs, the ship deployment is not stable.
+- **New containers expand scope.** The shore sync agent, transfer area, run-request API, backup, onboard registry, shore support system and test rig are not in the SRD. Each needs an owner. The sync agent is still the only container in the enclave that talks to the outside world, but D2/D3 shrink it to a file mover with no store access, which is the strongest position for a security review.
+- **Read-path tension resolved, at a cost.** D2 and D3 route both shore flows through the orchestrator, so pygeoapi stays the only read path and the model runner and climatology importer are the only coverage-store writers. The cost: two more assets and shims, and export catch-up after a long link outage loads pygeoapi. The rig benchmark (D4) should measure that.
+- **The run-request API is a new attack surface on the DMZ.** D1 keeps mission traffic out of the enclave, but the API accepts input from the mission network and its requests start runs. It needs authentication, rate limiting and a strict request schema. Polling adds up to one sensor interval of latency to manual requests; it may surprise watchkeepers used to an immediate response.
 - **Mermaid flowcharts are a compromise.** They render on GitHub and lay out far better than Mermaid's C4 mode, but the C4 semantics live only in styling conventions, not in the notation. Some relations are omitted, or drawn to a whole group, to keep the diagrams legible. There is also no single model: the eight diagrams are maintained by hand and can drift from each other, from `system-architecture.md` §1.2 and from `deployment.ts`. If this document is chosen over §1.2, consider Structurizr DSL, or a test that checks container names against `deployment.ts` placements.
 - **Naming differs from `deployment.ts`.** "Ops node" and "Shore link gateway" do not exist in the demonstrator, and the demonstrator's "Sea" zone has no production meaning. That is acceptable while the documents are compared, but must be reconciled afterwards.
+- **Port media only (D5) puts weight on the rig and on rollback.** With no emergency path, a defect found at sea is lived with or rolled back. D6's N-1 rollback is the only remedy, so its rig test must not be skipped.
 - **The test rig's blind spot is the edge that fails most.** The replayer bypasses the DAQ adapter and instrument protocols, which are often the least reliable parts at sea. A small bench of real instruments, or vendor simulators, would close that gap.
 - **The "ours" vs "adopted" line is clearer here than in the SRD.** The technology field names the product and licence for every adopted container, so licence traps (TimescaleDB edition, PostGIS GPL, avoiding MinIO's AGPL) are visible on the diagrams themselves.
