@@ -16,10 +16,10 @@
     "summary": "Power button beside play/pause. While off: nothing runs, the System and Consumers regions are dimmed, the clock reads OFF, and the presenter chooses what to install (Feature detector, 48 h). While on: the capability switches are locked…",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/26",
     "branch": "claude/power-handshake",
-    "sha": "c7bcaf7d3578b2434d25d66c8e31916d33d879db",
+    "sha": "e00230e93bffc125c1f98af5623a38513c86b9a2",
     "author": "IanMayo",
     "status": "open",
-    "updated": "2026-11-14T06:20:03.846Z"
+    "updated": "2026-11-14T07:22:15.920Z"
   },
   {
     "number": 25,
