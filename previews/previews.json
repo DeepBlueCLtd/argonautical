@@ -126,10 +126,10 @@
     "summary": "Adds docs/c4-model.md, a C4 model of the eventual production system. It is kept separate from docs/system-architecture.md so the two can be compared before one is chosen.",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/16",
     "branch": "claude/eloquent-archimedes-0zerkv",
-    "sha": "873b945fffef843fbd0e735364ef41c3b1cd9a6b",
+    "sha": "47f79a9b78dd01169c4ec1bc8f5c06338a972007",
     "author": "IanMayo",
     "status": "open",
-    "updated": "2026-11-13T16:58:33.471Z"
+    "updated": "2026-11-14T07:55:09.082Z"
   },
   {
     "number": 15,
