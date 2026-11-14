@@ -384,13 +384,13 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .resid-mean { fill: none; stroke: var(--ours); stroke-width: 2.2; stroke-linejoin: round; }
 .resid-mean.over { stroke: var(--offline); }
 /* DRF-6: composite drift trace, one colour per input (the labels are the key) */
-.trace.in-0 { --ic: #d55e00; }
-.trace.in-1 { --ic: #0072b2; }
-.trace.in-2 { --ic: #009e73; }
-.trace.in-3 { --ic: #cc79a7; }
+.trace.in-0 { --ic: #e8590c; }
+.trace.in-1 { --ic: #1c4fd6; }
+.trace.in-2 { --ic: #2b8a3e; }
+.trace.in-3 { --ic: #c2255c; }
 .trace.in-4 { --ic: #e69f00; }
 .trace.in-5 { --ic: #56b4e9; }
 .diagram .trace-key { font: 700 9px var(--mono); fill: var(--ic); }
-.trace-obs { fill: none; stroke: var(--ic); stroke-width: 1; stroke-linejoin: round; opacity: 0.85; }
-.trace-obs.over { stroke-width: 2.6; opacity: 1; }
-.trace-forecast { fill: none; stroke: var(--ic); stroke-width: 1.6; stroke-dasharray: 4 2.5; }
+.trace-obs { fill: none; stroke: var(--ic); stroke-width: 1; stroke-linejoin: round; }
+.trace-obs.over { stroke-width: 2.6; }
+.trace-forecast { fill: none; stroke: var(--ic); stroke-width: 2.4; }

@@ -357,7 +357,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.driftMonitor.x + 8} y={R.driftMonitor.y + 16} cls="title small-title">
           Drift monitor
         </T>
-        <ResidualBars r={R.driftMonitor} snap={snap} />
+        <ResidualBars r={R.driftMonitor} snap={snap} arrived={!runner.readsPending('driftMonitor')} />
         <T x={R.driftMonitor.x + 8} y={R.driftMonitor.y + R.driftMonitor.h - 8} cls={`small status ${snap.drift.status.startsWith('drift') ? 'alert' : ''}`}>
           {snap.drift.status}
         </T>
@@ -1084,14 +1084,18 @@ function Ring({ cx, cy, frac, label, r: rr = 13, cls = '' }: { cx: number; cy: n
  * 10 s mean is beyond the threshold from the forecast) and the forecast (dashed steps). Entering a
  * front, the measurements climb away from the forecast; a new forecast then steps up and the gap closes.
  */
-function ResidualBars({ r, snap }: { r: Rect; snap: Snapshot }) {
+function ResidualBars({ r, snap, arrived }: { r: Rect; snap: Snapshot; arrived: boolean }) {
   const top = r.y + 30;
   const bottom = r.y + r.h - 18;
   const x0 = r.x + 40;
   const x1 = r.x + r.w - 8;
   const span = 120;
   const th = snap.drift.threshold;
-  const traces = snap.inputs.map((s, i) => ({ s, i, pts: (snap.drift.trace[s.key] ?? []).filter((p) => p.t > snap.tick - span) }));
+  // The newest check's readings appear only once its replies have landed on screen.
+  const newest = Math.max(-Infinity, ...snap.inputs.map((s) => snap.drift.trace[s.key]?.at(-1)?.t ?? -Infinity));
+  const cutoff = arrived ? Infinity : newest - snap.drift.interval;
+  const traces = snap.inputs.map((s, i) => ({ s, i, pts: (snap.drift.trace[s.key] ?? []).filter((p) => p.t > snap.tick - span && p.t <= cutoff) }));
+  const n = traces.length;
   // Scale: at least −2σ…+3σ, widened to fit the data, in whole σ.
   let lo = -2;
   let hi = 3;
@@ -1127,7 +1131,8 @@ function ResidualBars({ r, snap }: { r: Rect; snap: Snapshot }) {
             <text x={r.x + 8} y={top + 7 + i * keyStep} className="trace-key">
               {s.key}
             </text>
-            {fc && <path className="trace-forecast" d={fc} />}
+            {/* Interleaved dashes: where forecasts coincide (often, near 0σ), every input's colour still shows. */}
+            {fc && <path className="trace-forecast" d={fc} strokeDasharray={`6 ${6 * (n - 1)}`} strokeDashoffset={-6 * i} />}
             {runs.map((run, j) => (
               <path key={j} className={`trace-obs ${run.over ? 'over' : ''}`} d={run.d} />
             ))}
