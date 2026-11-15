@@ -1,5 +1,5 @@
 /** Our stores. Counts are always read from stored rows (acceptance 12). */
-import { ServiceUnavailable, type Feature, type FeatureWriter, type Forecast, type ForecastWriter, type Observation, type ObservationWriter, type Values } from '../contracts.ts';
+import { ServiceUnavailable, type ClimatologyFile, type ExportBundle, type Feature, type FeatureWriter, type Forecast, type ForecastWriter, type Observation, type ObservationWriter, type Values } from '../contracts.ts';
 
 export class ObservationsDb implements ObservationWriter {
   private readonly rows: Observation[] = [];
@@ -20,7 +20,20 @@ export class ObservationsDb implements ObservationWriter {
 /** Coverage files: climatology and committed forecasts. Commits are atomic (whole record or nothing). */
 export class NetcdfStore implements ForecastWriter {
   private readonly forecasts: Forecast[] = [];
-  constructor(readonly climatology: Values) {}
+  /** SHR-3: climatology versions committed, newest last (v1 ships with the system). */
+  readonly climatologyVersions: { version: number; committedAt: number }[] = [{ version: 1, committedAt: 0 }];
+  climatology: Values;
+  constructor(climatology: Values) {
+    this.climatology = climatology;
+  }
+  get climatologyVersion(): number {
+    return this.climatologyVersions[this.climatologyVersions.length - 1]!.version;
+  }
+  /** SHR-3: stage, then swap the manifest: the new version replaces climatology.nc atomically. */
+  commitClimatology(f: ClimatologyFile, tick: number): void {
+    this.climatology = Object.freeze({ ...f.values });
+    this.climatologyVersions.push({ version: f.version, committedAt: tick });
+  }
   commit(forecast: Forecast): void {
     if (this.forecasts.some((f) => f.id === forecast.id)) throw new Error(`forecast ${forecast.id} already committed`);
     this.forecasts.push(Object.freeze({ ...forecast }));
@@ -63,4 +76,15 @@ export class FeaturesDb implements FeatureWriter {
   get latestForecastId(): string | undefined {
     return this.rows[this.rows.length - 1]?.forecastId;
   }
+}
+
+/**
+ * SHR: the transfer area on the ops node (a filesystem; adopted). The inbox holds verified files from
+ * shore; the outbox holds export bundles waiting for the link.
+ */
+export class TransferArea {
+  readonly inbox: ClimatologyFile[] = [];
+  readonly outbox: ExportBundle[] = [];
+  /** Bundles the sync agent has sent, newest last (for the inspector). */
+  readonly sent: { id: string; at: number }[] = [];
 }

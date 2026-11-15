@@ -26,6 +26,11 @@ export class SensorBroker {
     this.tokens.emit(edgeId('sensors', 'publish', 'sensorBroker'), { payload: P.sensorPublish(msgs, this.units) });
   }
 
+  /** Unacknowledged messages, oldest first (for the inspector). */
+  get pending(): readonly SensorMessage[] {
+    return this.queue;
+  }
+
   get queued(): number {
     return this.queue.length;
   }

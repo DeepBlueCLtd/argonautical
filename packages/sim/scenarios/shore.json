@@ -1,0 +1,11 @@
+{
+  "name": "shore",
+  "description": "Acceptance 19–21: run requests go through the run-request API and wait for its poll; climatology and export bundles wait for the shore link.",
+  "seed": "demo",
+  "until": 560,
+  "steps": [
+    { "at": 41, "action": { "type": "requestRun" }, "caption": "The watchkeeper requests a run. It reaches the run-request API, not the orchestrator." },
+    { "at": 42, "action": { "type": "requestRun" }, "caption": "A second request before the next poll: both are taken by one poll and merge into one queued run." },
+    { "caption": "Shore issues climatology v2 at T+02:00 while the link is down; it crosses when the link is next up.", "at": 120 }
+  ]
+}

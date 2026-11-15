@@ -43,7 +43,7 @@ describe('acceptance criteria', () => {
     const sim = runScript(loadScenario('queue-merge'));
     const req = events(sim, 'request').map((e) => e.text);
     expect(req.some((t) => /^drift request queued behind R1/.test(t))).toBe(true);
-    expect(req.some((t) => t === 'manual request merged into queued run: drift + manual')).toBe(true);
+    expect(req.some((t) => /^manual request \(Q1 via run-request API\) merged into queued run: drift \+ manual$/.test(t))).toBe(true);
     expect(events(sim, 'run').some((e) => e.text === 'R2 started (drift + manual) → F2')).toBe(true);
     expect(sim.netcdf.byId('F2')?.cause).toBe('drift + manual');
   });
@@ -76,7 +76,7 @@ describe('acceptance criteria', () => {
     let sawProgressWhileOffline = false;
     const sim = runScript(s, (x) => {
       const snap = x.snapshot();
-      if (x.tick > 34 && x.tick < 62) {
+      if (x.tick > 35 && x.tick < 62) {
         if (snap.run?.retryIn !== undefined) sawRetry = true;
         if (snap.run?.progress) sawProgressWhileOffline = true;
         expect(snap.offline.modelRunner).toBe(true);
@@ -84,12 +84,13 @@ describe('acceptance criteria', () => {
     });
     const fails = events(sim, 'fail').map((e) => [e.tick, Number(/retry in (\d+)s/.exec(e.text)![1])]);
     expect(fails.map((f) => f[1])).toEqual([2, 4, 8, 10, 10]);
-    expect(fails.map((f) => f[0])).toEqual([34, 36, 40, 48, 58]);
+    // RRQ-2: the request (T+00:33) waits for the next run-request poll (T+00:35).
+    expect(fails.map((f) => f[0])).toEqual([35, 37, 41, 49, 59]);
     expect(sawRetry).toBe(true);
     expect(sawProgressWhileOffline).toBe(false);
     expect(events(sim, 'commit').filter((e) => e.tick > 32 && e.tick < 68)).toHaveLength(0);
     const commit = events(sim, 'commit').find((e) => e.text.startsWith('F2 committed'));
-    expect(commit?.tick).toBe(68 + TIMING.inputReadDuration + TIMING.modelRunDuration);
+    expect(commit?.tick).toBe(69 + TIMING.inputReadDuration + TIMING.modelRunDuration);
     // MOT-4: retries send an amber token from the shim into the module
     const retryTokens = [...sim.tokens.tokens].filter((t) => t.edge === 'shimRun>call>modelRunner' && t.retry);
     expect(retryTokens.length).toBeGreaterThan(0);

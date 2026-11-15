@@ -14,6 +14,8 @@ import { edgeId, type ElementId } from '../topology/elements.ts';
 export interface Caller {
   readonly element: ElementId;
   readonly instance?: string;
+  /** The caller declares no input slots (MOT-7), e.g. the shore exporter. */
+  readonly noSlots?: boolean;
 }
 
 type Store = 'observationsDb' | 'netcdfStore' | 'featuresDb';
@@ -37,7 +39,7 @@ export class PygeoApi {
     this.tokens.emit(q, { ...inst, payload: req, role: 'request' });
     this.tokens.emit(r, { ...inst, payload: query, role: 'db-query', reverse: true });
     this.tokens.emit(r, { ...inst, payload: rows, role: 'db-rows' });
-    this.tokens.emit(q, { ...inst, payload: res, role: 'response', reverse: true, ...(slot ? { slot } : {}) });
+    this.tokens.emit(q, { ...inst, payload: res, role: 'response', reverse: true, ...(slot && !caller.noSlots ? { slot } : {}) });
     return result;
   }
 
@@ -99,6 +101,14 @@ export class PygeoApi {
       }
     }
     return this.exchange(caller, 'observationsDb', req, P.dbQuery('Observations DB', P.sql.recent(n)), P.obsRows(picked), out, P.sensorThingsRecent(n, out), 'observations');
+  }
+
+  /** SensorThings: every observation after `tick`, oldest first (SHR-4). */
+  observationsSince(caller: Caller, tick: number): Observation[] {
+    const req = P.observationsSinceRequest(tick);
+    this.requireObservations(caller, req);
+    const rows = this.obs.all.filter((o) => o.tick > tick);
+    return this.exchange(caller, 'observationsDb', req, P.observationsSinceQuery(tick), P.obsRows(rows.slice(-12)), rows, P.observationsSinceResponse(rows));
   }
 
   /** EDR: climatology coverage. */

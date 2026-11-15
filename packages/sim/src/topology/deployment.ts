@@ -11,6 +11,7 @@ export const ZONES = {
   proc: { label: 'Processing enclave' },
   dmz: { label: 'Distribution zone' },
   mission: { label: 'Mission network' },
+  shore: { label: 'Shore (off ship)' },
 } as const;
 export type ZoneId = keyof typeof ZONES;
 
@@ -21,8 +22,11 @@ export const NODES = {
   orch: { zone: 'proc', label: 'Orchestration node' },
   compute: { zone: 'proc', label: 'Compute node' },
   data: { zone: 'proc', label: 'Data node' },
+  ops: { zone: 'proc', label: 'Ops node' },
   dist: { zone: 'dmz', label: 'Distribution host' },
   mission: { zone: 'mission', label: 'Consumer hosts' },
+  wk: { zone: 'mission', label: 'Watchkeeper workstation' },
+  shore: { zone: 'shore', label: 'Shore support' },
 } as const satisfies Record<string, { zone: ZoneId; label: string }>;
 export type NodeId = keyof typeof NODES;
 
@@ -43,7 +47,8 @@ export const PLACEMENT: Record<ElementId, Placement> = {
   shimCheck: { node: 'orch', process: 'code-location' },
   driftMonitor: { node: 'orch', process: 'code-location' },
   stalenessSchedule: { node: 'orch', process: 'dagster-daemon' },
-  manualRequest: { node: 'orch', process: 'dagster-webserver' },
+  // RRQ-2: the run-request sensor, evaluated by the daemon.
+  manualRequest: { node: 'orch', process: 'dagster-daemon' },
   climatology: { node: 'orch', process: 'code-location' },
   forecast: { node: 'orch', process: 'code-location' },
   shimRun: { node: 'orch', process: 'code-location' },
@@ -59,6 +64,16 @@ export const PLACEMENT: Record<ElementId, Placement> = {
   pygeoapi: { node: 'dist', process: 'pygeoapi' },
   broker: { node: 'dist', process: 'mosquitto' },
   consumer: { node: 'mission', process: 'consumer-app' },
+  watchkeeper: { node: 'wk', process: 'browser' },
+  runRequestApi: { node: 'dist', process: 'run-request-api' },
+  shore: { node: 'shore', process: 'shore-sync-endpoint' },
+  shoreSync: { node: 'ops', process: 'shore-sync' },
+  transferArea: { node: 'ops', process: 'transfer-area' },
+  shimImport: { node: 'orch', process: 'code-location' },
+  climatologyImporter: { node: 'orch', process: 'code-location' },
+  shoreExport: { node: 'orch', process: 'code-location' },
+  shimExport: { node: 'orch', process: 'code-location' },
+  shoreExporter: { node: 'orch', process: 'code-location' },
 };
 
 /** Undirected network links between nodes. */
@@ -72,6 +87,9 @@ export const LINKS: readonly { readonly a: NodeId; readonly b: NodeId; readonly 
   { a: 'orch', b: 'data' },
   { a: 'data', b: 'dist' },
   { a: 'dist', b: 'mission', via: 'DMZ → mission firewall' },
+  { a: 'dist', b: 'wk', via: 'DMZ → mission firewall' },
+  { a: 'orch', b: 'ops' },
+  { a: 'ops', b: 'shore', via: 'satcom link (intermittent)' },
 ];
 
 export function linkBetween(x: NodeId, y: NodeId) {

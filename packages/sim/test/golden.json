@@ -1,12 +1,13 @@
 {
-  "buffering": "0692ccfd8f72d2",
-  "capabilities": "036c86abd466f6",
-  "detector-offline": "13722ec3303c86",
-  "drift": "1c544d37dc7421",
-  "failures": "034d6ef4ed5af6",
-  "late-consumer": "1e09204890463e",
-  "noise": "1b4599334344f6",
-  "queue-merge": "1e8d6033e1bffd",
-  "runner-offline": "1d4d6ca424b6da",
-  "schedule": "1e345d9a45f8f5"
+  "buffering": "119510252bd158",
+  "capabilities": "0a207267adb7ae",
+  "detector-offline": "18d4e89cd15bd3",
+  "drift": "019bf8171e825c",
+  "failures": "085d5c313bf414",
+  "late-consumer": "129b04a2abdc68",
+  "noise": "10478b8289d35b",
+  "queue-merge": "1f349a53b5e1d5",
+  "runner-offline": "1d9afd758d5c52",
+  "schedule": "057f2647da94fa",
+  "shore": "0ef662344ac2d8"
 }

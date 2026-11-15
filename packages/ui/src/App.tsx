@@ -1,11 +1,13 @@
 import { MAX_INPUTS, MIN_INPUTS } from '@argonautical/sim';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Diagram, type Picked, type SlotTip, type TokenTip } from './diagram/Diagram.tsx';
+import { PhysicalDiagram, type InspectId } from './diagram/PhysicalDiagram.tsx';
+import { StoreInspector } from './StoreInspector.tsx';
 import { SlotTipPanel, TokenTipPanel } from './SlotTip.tsx';
 import { TokenPopup } from './TokenPopup.tsx';
 import { Runner } from './runner.ts';
 import { WalkCard } from './Walkthrough.tsx';
-import { WALKTHROUGH } from './walkthrough.ts';
+import { PHYSICAL_WALKTHROUGH, WALKTHROUGH } from './walkthrough.ts';
 
 const params = new URLSearchParams(location.search);
 
@@ -52,11 +54,28 @@ export function App() {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [tip, setTip] = useState<SlotTip | null>(null);
   const [tokenTip, setTokenTip] = useState<TokenTip | null>(null);
-  const [walk, setWalk] = useState<number | null>(WALK_ON ? 0 : null);
-  const walkStep = walk === null ? undefined : WALKTHROUGH[walk];
+  const [walk, setWalk] = useState<number | null>(WALK_ON && params.get('view') !== 'physical' ? 0 : null);
+  // SYS-1: the view is presentation only; switching never touches the simulation.
+  const [view, setView] = useState<'logical' | 'physical'>(params.get('view') === 'physical' ? 'physical' : 'logical');
+  const [inspecting, setInspecting] = useState<InspectId | null>(null);
+  const changeView = (v: 'logical' | 'physical') => {
+    setView(v);
+    setWalk(null);
+    setInspecting(null);
+    setTip(null);
+    setTokenTip(null);
+    const u = new URL(location.href);
+    if (v === 'physical') u.searchParams.set('view', 'physical');
+    else u.searchParams.delete('view');
+    history.replaceState(null, '', u);
+  };
+  const steps = view === 'physical' ? PHYSICAL_WALKTHROUGH : WALKTHROUGH;
+  const walkStep = walk === null ? undefined : steps[walk];
   const spotlight = walkStep ? (walkStep.rect?.(runner.sim.consumers.length) ?? null) : undefined;
+  // Each view has its own walkthrough; the physical one starts only from the Walkthrough button.
   const startWalk = () => {
     runner.setRunning(false);
+    setInspecting(null);
     setPicked(null);
     setWalk(0);
   };
@@ -77,18 +96,24 @@ export function App() {
     if (start) runner.setRunning(true);
   };
   const snap = runner.sim.snapshot();
+  const controls = { logOpen, onLog: () => setLogOpen(!logOpen), onWalkthrough: startWalk, view, onView: changeView };
 
   return (
     <div className="app">
       <main className="stage">
-        <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} spotlight={spotlight} controls={{ logOpen, onLog: () => setLogOpen(!logOpen), onWalkthrough: startWalk }} />
+        {view === 'logical' ? (
+          <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} spotlight={spotlight} controls={controls} />
+        ) : (
+          <PhysicalDiagram snap={snap} runner={runner} onPick={setPicked} onTokenTip={setTokenTip} spotlight={spotlight} controls={controls} inspecting={inspecting} onInspect={(id) => setInspecting(inspecting === id ? null : id)} />
+        )}
         {runner.frozen && runner.powered && runner.handshake !== 'pending' && !picked && walk === null && (
           <div className="inspect-hint">{runner.tokens.length ? 'Paused · click a dot to see what it carries' : 'Paused · press Step to send one tick of tokens, then click a dot'}</div>
         )}
         <Legend />
       </main>
-      {walk !== null && <WalkCard index={walk} rect={spotlight ?? undefined} onGo={setWalk} onClose={endWalk} />}
+      {walk !== null && <WalkCard steps={steps} index={walk} rect={spotlight ?? undefined} onGo={setWalk} onClose={endWalk} />}
       {logOpen && <EventLogPanel runner={runner} onClose={() => setLogOpen(false)} />}
+      {view === 'physical' && inspecting && <StoreInspector id={inspecting} sim={runner.sim} onClose={() => setInspecting(null)} />}
       {tip && !picked && <SlotTipPanel tip={tip} runner={runner} />}
       {/* A token's panel goes when the token arrives (it is no longer on screen). */}
       {tokenTip && !picked && !tip && runner.tokens.some(({ v }) => v.token.seq === tokenTip.token.seq) && <TokenTipPanel tip={tokenTip} frozen={runner.frozen} />}

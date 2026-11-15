@@ -13,6 +13,8 @@ export type EventKind =
   | 'announce'
   | 'consumer'
   | 'materialise'
+  | 'export'
+  | 'shore'
   | 'defect';
 
 export interface LogEvent {

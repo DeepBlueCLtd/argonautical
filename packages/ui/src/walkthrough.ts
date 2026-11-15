@@ -2,6 +2,7 @@
  * WALK-1..5: the opening walkthrough. One region ("world") at a time, then one component at a time,
  * in the order data flows. Each step spotlights a rectangle of the diagram (viewBox coordinates).
  */
+import { CONSUMER_SLOT, NODE_RECTS, OPS_STATIC, PROCESS_RECTS, SHORE_ZONE, TOKEN_KEY_P, ZONE_BANDS, consumerRectP } from './diagram/physical.ts';
 import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, type Rect } from './diagram/layout.ts';
 
 export interface WalkStep {
@@ -90,4 +91,44 @@ export const WALKTHROUGH: readonly WalkStep[] = [
     title: 'Ready',
     body: 'Start the simulation. The first forecast is produced in its first ten simulated seconds. Try the ⏸ buttons, the Scenario and Operator controls, or Step to go one second at a time.',
   },
+];
+
+// ---- Physical view (SYS-1): started only from the Walkthrough button, never on its own ----
+
+
+const N = NODE_RECTS;
+const band = (z: keyof typeof ZONE_BANDS): Rect => ({ x: ZONE_BANDS[z].x0, y: 0, w: ZONE_BANDS[z].x1 - ZONE_BANDS[z].x0, h: VIEW.h });
+
+export const PHYSICAL_WALKTHROUGH: readonly WalkStep[] = [
+  {
+    id: 'p-intro',
+    kind: 'Overview',
+    title: 'The same system, where it would run',
+    body: 'This is the physical view: the same running simulation, drawn on a candidate production deployment (docs/c4-model.md). Nothing here changes the simulation; switch back to the logical view at any time. The machines are logical nodes: they may share hardware, and their sizing is still to be measured.',
+  },
+  { id: 'p-ot', kind: 'Region', title: 'Instrument network (OT)', body: 'The ship’s operational-technology network. It accepts no traffic from the rest of the system: data only leaves it, through a firewall, when ingestion writes to the Observations DB.', rect: () => ({ ...band('ot'), y: CONTROL.y + CONTROL.h + 6, h: VIEW.h - CONTROL.y - CONTROL.h - 6 }) },
+  { id: 'p-enclave', kind: 'Region', title: 'Processing enclave', body: 'Where the pipeline runs: the orchestration, compute, data and ops nodes. Nothing outside reaches in; the enclave calls out to the distribution zone and to shore.', rect: () => band('proc') },
+  { id: 'p-dmz', kind: 'Region', title: 'Distribution zone', body: 'The only place the mission network can reach: pygeoapi, the broker and the run-request API.', rect: () => band('dmz') },
+  { id: 'p-mission', kind: 'Region', title: 'Mission network', body: 'The watchkeeper’s workstation and the onboard consumer systems. They never reach the enclave directly.', rect: () => band('mission') },
+  { id: 'p-gates', kind: 'Component', title: 'Firewall gates', body: 'Each FW box is a firewall where a network link crosses a zone boundary. It lights up while a document passes through it.', rect: () => pad({ x: 1030, y: 14, w: 20, h: 560 }, 4) },
+  { id: 'p-orch', kind: 'Component', title: 'Orchestration node', body: 'Dagster’s processes. The daemon evaluates the sensors and the schedule; the code location holds the assets, the shims and our in-process modules. One process: the import boundary between our code and Dagster is not a process boundary.', rect: () => pad(N.orch, 4) },
+  { id: 'p-daemon', kind: 'Component', title: 'Daemon', body: 'The drift sensor, the staleness schedule and the run-request sensor, which polls the run-request API every 5 s for the watchkeeper’s requests.', rect: () => pad(PROCESS_RECTS.daemon, 4) },
+  { id: 'p-code', kind: 'Component', title: 'Code location', body: 'One row per asset: the asset, its shim, and the module of ours it calls. The run shim’s call leaves through the Dagster Pipes client for the compute node.', rect: () => pad(PROCESS_RECTS.codeLocation, 4) },
+  { id: 'p-compute', kind: 'Component', title: 'Compute node', body: 'The model runner runs in its own process, launched through Dagster Pipes. Its ⏸ takes it offline: the node turns red and the run shim retries.', rect: () => pad(N.compute, 4) },
+  { id: 'p-data', kind: 'Component', title: 'Data node · click a store', body: 'The Observations DB, the NetCDF store and the Features DB. Click any store (⌕) to open the inspector: it shows the contents in their native form and updates live while the simulation runs. Esc closes it.', rect: () => pad(N.data, 4) },
+  { id: 'p-ops', kind: 'Component', title: 'Ops node', body: 'The shore sync agent moves files between the shore link and the transfer area, and writes nothing else. Registry, observability, backup and time sync are drawn but not simulated.', rect: () => pad(N.ops, 4) },
+  { id: 'p-shore', kind: 'Component', title: 'Shore', body: 'Off ship, over an intermittent satcom link (up for 60 s in every 180 s here). Climatology updates wait on shore and export bundles wait in the outbox until the link is up.', rect: () => pad({ x: SHORE_ZONE.x, y: OPS_STATIC.terminal.y, w: SHORE_ZONE.w, h: SHORE_ZONE.y + SHORE_ZONE.h - OPS_STATIC.terminal.y }, 4) },
+  { id: 'p-dist', kind: 'Component', title: 'Distribution host', body: 'pygeoapi is the only read path, for our modules and the consumers alike. The broker keeps the latest announcement (click it to inspect). The run-request API takes the watchkeeper’s requests.', rect: () => pad(N.dist, 4) },
+  {
+    id: 'p-consumers',
+    kind: 'Component',
+    title: 'Watchkeeper and consumers',
+    body: 'The mission network’s side. Consumers subscribe to the broker and query pygeoapi; the watchkeeper requests runs through the run-request API.',
+    rect: (n) => {
+      const last = consumerRectP(Math.max(0, Math.min(n, CONSUMER_SLOT.max) - 1));
+      return pad({ x: N.wk.x, y: N.wk.y, w: N.wk.w, h: last.y + last.h - N.wk.y + 12 }, 4);
+    },
+  },
+  { id: 'p-key', kind: 'Key', title: 'Tokens', body: 'The same documents as in the logical view, routed along the network links. Hover one to see what it carries; pause and click it for the full data.', rect: () => pad(TOKEN_KEY_P, 4) },
+  { id: 'p-start', kind: 'Start', title: 'Ready', body: 'Run the simulation and watch documents cross the zones. Try ⏸ on the model runner, or open a store.' },
 ];

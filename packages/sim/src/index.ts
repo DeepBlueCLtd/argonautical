@@ -8,3 +8,4 @@ export type { Token, EdgeStat, ExchangeRole, LineageSignal } from './tokens.ts';
 export { STANDARDS, type Payload, type StandardCode } from './payloads.ts';
 export type { FaultTarget } from './faults.ts';
 export { INPUTS, PROFILES, consumerProfile, type InputDecl, type InputSlot, type ConsumerProfile } from './topology/inputs.ts';
+export { LINKS, NODES, PLACEMENT, ZONES, linkBetween, type NodeId, type ZoneId, type Placement } from './topology/deployment.ts';

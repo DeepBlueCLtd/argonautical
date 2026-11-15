@@ -37,6 +37,16 @@ export class Broker {
     return { 'forecast/new': this.subs.get('forecast/new')?.size ?? 0, 'features/new': this.subs.get('features/new')?.size ?? 0 };
   }
 
+  /** Retained messages, by topic (for the inspector). */
+  get retainedMessages(): readonly BrokerMessage[] {
+    return [...this.retained.values()];
+  }
+
+  /** Subscribers per topic (for the inspector). */
+  get subscriptions(): Record<string, readonly string[]> {
+    return Object.fromEntries([...this.subs].map(([t, m]) => [t, [...m.keys()]]));
+  }
+
   get subscribers(): readonly string[] {
     return [...new Set([...this.subs.values()].flatMap((m) => [...m.keys()]))];
   }

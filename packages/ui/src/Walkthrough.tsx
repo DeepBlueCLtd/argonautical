@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { VIEW, type Rect } from './diagram/layout.ts';
-import { WALKTHROUGH } from './walkthrough.ts';
+import type { WalkStep } from './walkthrough.ts';
 
 /** Viewbox rect → screen rect, for the diagram's `preserveAspectRatio="xMidYMid meet"`. */
 function toScreen(r: Rect): { left: number; top: number; right: number; bottom: number } | null {
@@ -17,8 +17,8 @@ function toScreen(r: Rect): { left: number; top: number; right: number; bottom: 
  * WALK-1..5: the caption card for the current walkthrough step. It sits beside the spotlit area
  * (or centred when nothing is spotlit) and stays on screen.
  */
-export function WalkCard(props: { index: number; rect: Rect | undefined; onGo: (i: number) => void; onClose: (start: boolean) => void }) {
-  const { index, rect, onGo, onClose } = props;
+export function WalkCard(props: { steps: readonly WalkStep[]; index: number; rect: Rect | undefined; onGo: (i: number) => void; onClose: (start: boolean) => void }) {
+  const { steps: WALKTHROUGH, index, rect, onGo, onClose } = props;
   const step = WALKTHROUGH[index]!;
   const last = index === WALKTHROUGH.length - 1;
   const ref = useRef<HTMLDivElement>(null);
