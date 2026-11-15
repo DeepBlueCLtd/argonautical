@@ -6,12 +6,11 @@
 import { EDGES, STANDARDS, type Snapshot } from '@argonautical/sim';
 import { useMemo, type ReactNode } from 'react';
 import type { Runner } from '../runner.ts';
-import { Box, ControlPanel, DocToken, Module, PlayPause, QueueTab, Shim, Store, T, Tokens, type Controls, type Picked, type TokenTip } from './Diagram.tsx';
+import { Box, ControlPanel, Inspectable, type InspectId, DocToken, Module, PlayPause, QueueTab, Shim, Store, T, Tokens, type Controls, type Picked, type TokenTip } from './Diagram.tsx';
 import { pathD, pointAt, VIEW, type Pt, type Rect } from './layout.ts';
 import { ALL_GATES, CONSUMER_SLOT, LINK_GEOM, NODE_RECTS, OPS_STATIC, PIPES_CHIP, PROCESS_RECTS, P_RECTS, SHORE_ZONE, TOKEN_KEY_P, ZONE_BANDS, consumerRectP, routePhysical } from './physical.ts';
 
-/** What the inspector can open (SYS-8). */
-export type InspectId = 'observationsDb' | 'netcdfStore' | 'featuresDb' | 'sensorBroker' | 'broker' | 'privateStore' | 'transferArea';
+export type { InspectId };
 
 const MATERIALISING_TICKS = 3;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
@@ -62,22 +61,11 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
   } as Record<string, string>;
 
   const inspectable = (id: InspectId, r: Rect, children: ReactNode, ours = true) => (
-    <g
-      className={`inspectable-store ${inspecting === id ? 'inspecting' : ''}`}
-      role="button"
-      tabIndex={0}
-      aria-label={`Inspect ${id}`}
-      onClick={() => onInspect(id)}
-      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onInspect(id)}
-    >
-      <title>Click to inspect its contents</title>
+    <Inspectable id={id} r={r} active={inspecting === id} onInspect={onInspect}>
       <Store r={r} ours={ours}>
         {children}
       </Store>
-      <text x={r.x + r.w - 8} y={r.y + 16} textAnchor="end" className="inspect-glyph">
-        ⌕
-      </text>
-    </g>
+    </Inspectable>
   );
 
   return (

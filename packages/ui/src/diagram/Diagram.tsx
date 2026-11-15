@@ -38,6 +38,29 @@ export function Store({ r, ours = true, cls = '', children }: { r: Rect; ours?: 
   );
 }
 
+/** What the store inspector can open (SYS-8). */
+export type InspectId = 'observationsDb' | 'netcdfStore' | 'featuresDb' | 'sensorBroker' | 'broker' | 'privateStore' | 'transferArea';
+
+/** SYS-8: wraps a store (or broker) so clicking it opens the live inspector; shared by both views. */
+export function Inspectable({ id, r, active, onInspect, children }: { id: InspectId; r: Rect; active: boolean; onInspect: (id: InspectId) => void; children: ReactNode }) {
+  return (
+    <g
+      className={`inspectable-store ${active ? 'inspecting' : ''}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`Inspect ${id}`}
+      onClick={() => onInspect(id)}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onInspect(id)}
+    >
+      <title>Click to inspect its contents</title>
+      {children}
+      <text x={r.x + r.w - 8} y={r.y + 16} textAnchor="end" className="inspect-glyph">
+        ⌕
+      </text>
+    </g>
+  );
+}
+
 export function T({ x, y, children, cls = '', anchor = 'start' }: { x: number; y: number; children: ReactNode; cls?: string; anchor?: 'start' | 'middle' | 'end' }) {
   return (
     <text x={x} y={y} className={cls} textAnchor={anchor}>
@@ -108,8 +131,13 @@ export interface Controls {
   readonly onView: (v: 'logical' | 'physical') => void;
 }
 
-export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; onTokenTip: (t: TokenTip | null) => void; spotlight?: Rect | null; controls: Controls }) {
-  const { snap, runner, onPick, onTip, onTokenTip, spotlight, controls } = props;
+export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; onTokenTip: (t: TokenTip | null) => void; spotlight?: Rect | null; controls: Controls; inspecting: InspectId | null; onInspect: (id: InspectId) => void }) {
+  const { snap, runner, onPick, onTip, onTokenTip, spotlight, controls, inspecting, onInspect } = props;
+  const insp = (id: InspectId, children: ReactNode) => (
+    <Inspectable id={id} r={RECTS[id]} active={inspecting === id} onInspect={onInspect}>
+      {children}
+    </Inspectable>
+  );
   const consumerIds = snap.consumers.map((c) => c.id);
   const routes = useMemo(() => routeAll(EDGES, consumerIds), [consumerIds.join(',')]);
   const byKey = useMemo(() => new Map(routes.map((r) => [r.key, r])), [routes]);
@@ -311,7 +339,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
       <PlayPause at={{ x: R.ingestion.x + 18, y: R.ingestion.y + 17 }} running={snap.ingestion.running} what="ingestion (readings queue in the sensor broker)" onToggle={() => runner.apply({ type: 'ingestion', running: !snap.ingestion.running })} />
 
       {/* Sensor broker: persistent queue between the DAQ gateway and ingestion (FLT-3) */}
-      <Box r={R.sensorBroker} style="ots">
+      {insp('sensorBroker', <Box r={R.sensorBroker} style="ots">
         <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 22} cls="title">
           Sensor broker
         </T>
@@ -324,7 +352,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 84} cls="tiny muted">
           {snap.sensorBroker.queued > snap.inputs.length ? `oldest waiting ${snap.sensorBroker.oldestAge}s` : ''}
         </T>
-      </Box>
+      </Box>)}
       {/* Queue tab on the exit edge (towards ingestion), only while a backlog builds */}
       {snap.sensorBroker.queued > snap.inputs.length && (
         <QueueTab x={R.sensorBroker.x + R.sensorBroker.w - 100} edgeY={R.sensorBroker.y} w={92} label={`${snap.sensorBroker.queued} queued`} />
@@ -332,7 +360,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
 
       {/* Observations DB = the observations source asset (UI-8); presenter can stop/start it (FLT-3) */}
       <g filter={snap.stores.observationsUp ? undefined : 'url(#offline-halo)'}>
-      <Store r={R.observationsDb} cls={snap.stores.observationsUp ? '' : 'stopped'}>
+      {insp('observationsDb', <Store r={R.observationsDb} cls={snap.stores.observationsUp ? '' : 'stopped'}>
         <T x={R.observationsDb.x + 32} y={R.observationsDb.y + 26} cls="title">
           Observations
         </T>
@@ -345,7 +373,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.observationsDb.x + 12} y={R.observationsDb.y + 92} cls={snap.stores.observationsUp ? 'small mono' : 'small offline-label'}>
           {snap.stores.observationsUp ? `${snap.stores.observations} rows` : 'stopped'}
         </T>
-      </Store>
+      </Store>)}
       </g>
       <PlayPause at={{ x: R.observationsDb.x + 19, y: R.observationsDb.y + 21 }} running={snap.stores.observationsUp} what="the Observations DB (ingestion holds off, observation reads fail)" onToggle={() => runner.apply({ type: 'observationsDb', up: !snap.stores.observationsUp })} />
 
@@ -435,7 +463,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         />
       </Box>
       {/* Private store (UI-9): internal, no edges */}
-      <Store r={R.privateStore} ours={false}>
+      {insp('privateStore', <Store r={R.privateStore} ours={false}>
         <T x={R.privateStore.x + 10} y={R.privateStore.y + 20} cls="small title-sm">
           Private store
         </T>
@@ -448,7 +476,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.privateStore.x + 10} y={R.privateStore.y + 76} cls="small mono">
           {snap.privateStore.runs} runs
         </T>
-      </Store>
+      </Store>)}
 
       {/* Assets */}
       <Box r={R.climatology} style="asset" cls={materialising('climatology')}>
@@ -584,7 +612,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
       </Module>
 
       {/* Stores and read path (UI-5) */}
-      <Store r={R.netcdfStore}>
+      {insp('netcdfStore', <Store r={R.netcdfStore}>
         <T x={R.netcdfStore.x + 12} y={R.netcdfStore.y + 26} cls="title">
           NetCDF store
         </T>
@@ -594,8 +622,8 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.netcdfStore.x + 12} y={R.netcdfStore.y + 70} cls="small mono">
           {snap.stores.coverageFiles} files
         </T>
-      </Store>
-      <Store r={R.featuresDb}>
+      </Store>)}
+      {insp('featuresDb', <Store r={R.featuresDb}>
         <T x={R.featuresDb.x + 12} y={R.featuresDb.y + 26} cls="title">
           Features DB
         </T>
@@ -605,7 +633,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.featuresDb.x + 12} y={R.featuresDb.y + 70} cls="small mono">
           {snap.stores.features} rows
         </T>
-      </Store>
+      </Store>)}
       <Box r={R.pygeoapi} style="ots">
         <T x={R.pygeoapi.x + 12} y={R.pygeoapi.y + 24} cls="title">
           pygeoapi
@@ -625,7 +653,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
       </Box>
 
       {/* Broker straddles the boundary */}
-      <Box r={R.broker} style="ots">
+      {insp('broker', <Box r={R.broker} style="ots">
         <T x={R.broker.x + 10} y={R.broker.y + 24} cls="title">
           Broker
         </T>
@@ -640,7 +668,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
             {`${label} ×${snap.topics[topic]}`}
           </T>
         ))}
-      </Box>
+      </Box>)}
 
       {/* Consumers */}
       {snap.consumers.slice(0, CONSUMER_AREA.max).map((c, i) => {
@@ -737,14 +765,14 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
           Shore sync agent
         </T>
       </Box>
-      <Store r={R.transferArea} ours={false}>
+      {insp('transferArea', <Store r={R.transferArea} ours={false}>
         <T x={R.transferArea.x + 8} y={R.transferArea.y + 15} cls="small">
           Transfer area
         </T>
         <T x={R.transferArea.x + 8} y={R.transferArea.y + 29} cls="tiny mono">
           inbox {snap.shore.inbox} · outbox {snap.shore.outbox}
         </T>
-      </Store>
+      </Store>)}
 
       {/* Token key: the standard each document's letter stands for */}
       <g className="token-key" aria-label="Token key">
