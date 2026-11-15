@@ -1,5 +1,16 @@
 [
   {
+    "number": 29,
+    "title": "Store inspector in the logical view",
+    "summary": "",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/29",
+    "branch": "claude/elegant-ritchie-60o0k3",
+    "sha": "1c9b5bf2a33f104d45dd760094da93ed99edd794",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-15T13:30:41.581Z"
+  },
+  {
     "number": 28,
     "title": "Physical view with live store inspector",
     "summary": "Adds a physical view: the same running simulation, drawn on the candidate production deployment from docs/c4-model.md §6.1 (with decisions D1–D7). Stores can be opened in a live inspector.",
