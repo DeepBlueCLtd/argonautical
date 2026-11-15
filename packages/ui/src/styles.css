@@ -447,10 +447,10 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .physical .terminal rect { fill: #fff; stroke: #495057; }
 .physical .terminal.down rect { stroke: var(--offline); }
 .physical .store-mat .store > rect:first-of-type { fill: var(--mat-fill); stroke: var(--mat); }
-.physical .inspectable-store { cursor: pointer; }
-.physical .inspectable-store:hover .store > rect:first-of-type, .physical .inspectable-store:focus .store > rect:first-of-type { stroke-width: 2.5; }
-.physical .inspectable-store.inspecting .store > rect:first-of-type { stroke: #f08c00; stroke-width: 2.5; }
-.physical .inspect-glyph { font-size: 13px; fill: #868e96; }
+.inspectable-store { cursor: pointer; }
+.inspectable-store:hover :is(.store, .box) > rect:first-of-type, .inspectable-store:focus :is(.store, .box) > rect:first-of-type { stroke-width: 2.5; }
+.inspectable-store.inspecting :is(.store, .box) > rect:first-of-type { stroke: #f08c00; stroke-width: 2.5; }
+.inspect-glyph { font-size: 13px; fill: #868e96; }
 
 /* ---- Store inspector (SYS-8) ---- */
 .inspector { position: fixed; right: 12px; top: 12px; bottom: 44px; width: 460px; background: var(--panel, #fff); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18); display: flex; flex-direction: column; z-index: 12; font-size: 13px; }

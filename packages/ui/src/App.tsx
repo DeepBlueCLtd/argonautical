@@ -102,7 +102,7 @@ export function App() {
     <div className="app">
       <main className="stage">
         {view === 'logical' ? (
-          <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} spotlight={spotlight} controls={controls} />
+          <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} spotlight={spotlight} controls={controls} inspecting={inspecting} onInspect={(id) => setInspecting(inspecting === id ? null : id)} />
         ) : (
           <PhysicalDiagram snap={snap} runner={runner} onPick={setPicked} onTokenTip={setTokenTip} spotlight={spotlight} controls={controls} inspecting={inspecting} onInspect={(id) => setInspecting(inspecting === id ? null : id)} />
         )}
@@ -113,7 +113,7 @@ export function App() {
       </main>
       {walk !== null && <WalkCard steps={steps} index={walk} rect={spotlight ?? undefined} onGo={setWalk} onClose={endWalk} />}
       {logOpen && <EventLogPanel runner={runner} onClose={() => setLogOpen(false)} />}
-      {view === 'physical' && inspecting && <StoreInspector id={inspecting} sim={runner.sim} onClose={() => setInspecting(null)} />}
+      {inspecting && <StoreInspector id={inspecting} sim={runner.sim} onClose={() => setInspecting(null)} />}
       {tip && !picked && <SlotTipPanel tip={tip} runner={runner} />}
       {/* A token's panel goes when the token arrives (it is no longer on screen). */}
       {tokenTip && !picked && !tip && runner.tokens.some(({ v }) => v.token.seq === tokenTip.token.seq) && <TokenTipPanel tip={tokenTip} frozen={runner.frozen} />}
