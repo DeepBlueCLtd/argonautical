@@ -1,5 +1,16 @@
 [
   {
+    "number": 31,
+    "title": "Wave-height sensor and per-measurement topics (#30)",
+    "summary": "Adds a third installable capability, Waves (a wave-height sensor), and makes each environmental measurement separately subscribable, so the passage planner can register for wave-height events.",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/31",
+    "branch": "ccr-8b4e308a-msn8ty",
+    "sha": "873bf666ba2d4b79880bd66386929cafcd281250",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-17T11:49:48.767Z"
+  },
+  {
     "number": 29,
     "title": "Store inspector in the logical view",
     "summary": "",
