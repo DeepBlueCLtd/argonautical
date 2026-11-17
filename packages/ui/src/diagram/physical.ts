@@ -17,8 +17,8 @@ export const ZONE_BANDS: Record<Exclude<ZoneId, 'environment' | 'shore'>, { x0: 
 export const SHORE_ZONE: Rect = { x: 262, y: 646, w: 600, h: 150 };
 
 export const NODE_RECTS: Record<Exclude<NodeId, 'sea'>, Rect> = {
-  daq: { x: 12, y: 250, w: 232, h: 122 },
-  ingest: { x: 12, y: 386, w: 232, h: 230 },
+  daq: { x: 12, y: 274, w: 232, h: 108 },
+  ingest: { x: 12, y: 398, w: 232, h: 218 },
   orch: { x: 274, y: 40, w: 520, h: 400 },
   compute: { x: 640, y: 456, w: 154, h: 128 },
   data: { x: 806, y: 40, w: 216, h: 400 },
@@ -44,10 +44,10 @@ export const consumerRectP = (i: number): Rect => ({ x: CONSUMER_SLOT.x, y: CONS
 
 export const P_RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   // OT
-  ocean: { x: 24, y: 262, w: 208, h: 36 },
-  sensors: { x: 24, y: 306, w: 208, h: 56 },
-  sensorBroker: { x: 24, y: 412, w: 208, h: 84 },
-  ingestion: { x: 24, y: 512, w: 208, h: 92 },
+  ocean: { x: 24, y: 284, w: 208, h: 34 },
+  sensors: { x: 24, y: 322, w: 208, h: 56 },
+  sensorBroker: { x: 24, y: 422, w: 208, h: 80 },
+  ingestion: { x: 24, y: 514, w: 208, h: 92 },
   // Orchestration node: webserver, metadata DB, daemon (sensors, schedule), code location rows
   privateStore: { x: 284, y: 84, w: 120, h: 42 },
   orchestrator: PROCESS_RECTS.daemon,
@@ -121,7 +121,7 @@ export interface LinkGeom {
 const key = (a: NodeId, b: NodeId) => `${a}|${b}`;
 
 export const LINK_GEOM: Record<string, LinkGeom> = {
-  [key('daq', 'ingest')]: { pts: [{ x: 128, y: 372 }, { x: 128, y: 386 }], gates: [] },
+  [key('daq', 'ingest')]: { pts: [{ x: 128, y: 382 }, { x: 128, y: 398 }], gates: [] },
   [key('ingest', 'data')]: {
     pts: [{ x: 244, y: 600 }, { x: 1031, y: 600 }, { x: 1031, y: 126 }, { x: 1022, y: 126 }],
     gates: [{ x: 256, y: 600 }],

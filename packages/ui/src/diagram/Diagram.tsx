@@ -231,7 +231,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <rect className="region consumers" x={REGIONS.consumersLeft} y={0} width={VIEW.w - REGIONS.consumersLeft} height={VIEW.h} />
         <line className="boundary" x1={REGIONS.worldRight} y1={0} x2={REGIONS.worldRight} y2={VIEW.h} />
         <line className="boundary" x1={REGIONS.consumersLeft} y1={0} x2={REGIONS.consumersLeft} y2={VIEW.h} />
-        <T x={REGIONS.worldRight / 2} y={237} cls="region-label" anchor="middle">
+        <T x={REGIONS.worldRight / 2} y={261} cls="region-label" anchor="middle">
           WORLD
         </T>
         <T x={(REGIONS.worldRight + REGIONS.consumersLeft) / 2} y={24} cls="region-label" anchor="middle">
@@ -980,35 +980,35 @@ export function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runne
       <T x={c.x + 12} y={c.y + 168} cls="tiny muted">
         {on ? 'Installed · switch off to change' : 'Install at power-on:'}
       </T>
-      <CtlButton x={c.x + 12} y={c.y + 174} w={72} h={16} title={on ? 'Feature detector (switch the system off to change)' : 'Install a feature detector at power-on'} pressed={caps.featureDetector} onClick={() => runner.setCapability('featureDetector', !caps.featureDetector)} cls={`cap ${on ? 'locked' : ''}`}>
-        <text x={c.x + 48} y={c.y + 185.5} textAnchor="middle" className="ctl-text cap-text">
-          {caps.featureDetector ? '✓ ' : ''}Detector
+      <CtlButton x={c.x + 12} y={c.y + 174} w={102} h={18} title={on ? 'Feature detector (switch the system off to change)' : 'Install a feature detector at power-on'} pressed={caps.featureDetector} onClick={() => runner.setCapability('featureDetector', !caps.featureDetector)} cls={`cap ${on ? 'locked' : ''}`}>
+        <text x={c.x + 63} y={c.y + 186.5} textAnchor="middle" className="ctl-text cap-text">
+          {caps.featureDetector ? '✓ ' : ''}Feature detector
         </text>
       </CtlButton>
-      <CtlButton x={c.x + 88} y={c.y + 174} w={48} h={16} title={on ? '48 h forecasts (switch the system off to change)' : 'Install 48 h forecasts at power-on'} pressed={caps.longRange} onClick={() => runner.setCapability('longRange', !caps.longRange)} cls={`cap ${on ? 'locked' : ''}`}>
-        <text x={c.x + 112} y={c.y + 185.5} textAnchor="middle" className="ctl-text cap-text">
-          {caps.longRange ? '✓ ' : ''}48 h
+      <CtlButton x={c.x + 118} y={c.y + 174} w={86} h={18} title={on ? '48 h forecasts (switch the system off to change)' : 'Install 48 h forecasts at power-on'} pressed={caps.longRange} onClick={() => runner.setCapability('longRange', !caps.longRange)} cls={`cap ${on ? 'locked' : ''}`}>
+        <text x={c.x + 161} y={c.y + 186.5} textAnchor="middle" className="ctl-text cap-text">
+          {caps.longRange ? '✓ ' : ''}48 h forecasts
         </text>
       </CtlButton>
       <CtlButton
-        x={c.x + 140}
-        y={c.y + 174}
-        w={60}
-        h={16}
+        x={c.x + 12}
+        y={c.y + 196}
+        w={130}
+        h={18}
         title={on ? 'Wave-height sensor (switch the system off to change)' : 'Install a wave-height sensor at power-on: wave height is measured, forecast and announced on its own topic'}
         pressed={caps.waveSensor}
         onClick={() => runner.setCapability('waveSensor', !caps.waveSensor)}
         cls={`cap ${on ? 'locked' : ''}`}
       >
-        <text x={c.x + 170} y={c.y + 185.5} textAnchor="middle" className="ctl-text cap-text">
-          {caps.waveSensor ? '✓ ' : ''}Waves
+        <text x={c.x + 77} y={c.y + 208.5} textAnchor="middle" className="ctl-text cap-text">
+          {caps.waveSensor ? '✓ ' : ''}Wave-height sensor
         </text>
       </CtlButton>
       {/* SYS-1: view toggle (radio group) */}
       <g role="radiogroup" aria-label="View">
         {(['logical', 'physical'] as const).map((v, i) => (
-          <CtlButton key={v} role="radio" x={c.x + 12 + i * 96} y={c.y + 198} w={92} h={18} title={v === 'logical' ? 'Logical view: information flow' : 'Physical view: the candidate production deployment'} pressed={controls.view === v} onClick={() => controls.onView(v)} cls="cap">
-            <text x={c.x + 12 + i * 96 + 46} y={c.y + 211} textAnchor="middle" className="ctl-text cap-text">
+          <CtlButton key={v} role="radio" x={c.x + 12 + i * 96} y={c.y + 222} w={92} h={18} title={v === 'logical' ? 'Logical view: information flow' : 'Physical view: the candidate production deployment'} pressed={controls.view === v} onClick={() => controls.onView(v)} cls="cap">
+            <text x={c.x + 12 + i * 96 + 46} y={c.y + 235} textAnchor="middle" className="ctl-text cap-text">
               {v === 'logical' ? 'Logical view' : 'Physical view'}
             </text>
           </CtlButton>
