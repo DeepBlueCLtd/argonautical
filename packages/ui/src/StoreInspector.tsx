@@ -97,7 +97,7 @@ function Netcdf({ sim }: { sim: Simulation }) {
         ['cause', f.cause],
         ['issued', iso(f.issuedAt)],
         ['valid_until', iso(f.validUntil)],
-        ['horizon_hours', String(f.horizon)],
+        ['windows_hours', f.windows.join(', ')],
         ['digest', f.digest],
       ]
     : [

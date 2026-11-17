@@ -1,15 +1,15 @@
 /** Model runner (ours, inside forecast): MOD-1, MOD-2. */
 import type { InputSpec } from '../config.ts';
 import { NUMERICS, TIMING } from '../config.ts';
-import type { Forecast, ForecastWriter, Job, ModelReader } from '../contracts.ts';
+import type { Forecast, ForecastWriter, Job, ModelReader, Windows } from '../contracts.ts';
 import { forecastDigest } from '../contracts.ts';
 
 export interface RunRequest {
   readonly id: string;
   readonly cause: string;
   readonly tick: number;
-  /** Hours: 12, or 48 with the long-range capability. */
-  readonly horizon: number;
+  /** Windows to produce: the now-cast, plus 12/24/48 h with future forecasts. */
+  readonly windows: Windows;
 }
 
 export class ModelRunner {
@@ -45,7 +45,7 @@ export class ModelRunner {
         const issuedAt = req.tick + TIMING.inputReadDuration + TIMING.modelRunDuration;
         const validUntil = issuedAt + TIMING.staleAfter;
         const base = { id: req.id, cause: req.cause, issuedAt, validUntil, inputs, values };
-        staged = { ...base, digest: forecastDigest(base), horizon: req.horizon };
+        staged = { ...base, digest: forecastDigest(base), windows: req.windows };
         writer.commit(staged);
         return staged;
       },

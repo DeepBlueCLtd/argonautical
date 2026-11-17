@@ -3,10 +3,10 @@
   "description": "CAT-1, CAT-4: a wave-height sensor is installed. Wave height is measured, ingested, monitored for drift, forecast and announced on its own topic, forecast/wave; the passage planner subscribes to it and verifies each value.",
   "seed": "waves",
   "consumers": 3,
-  "capabilities": { "featureDetector": true, "longRange": false, "waveSensor": true },
+  "capabilities": { "featureDetector": true, "futureForecasts": false, "waveSensor": true },
   "until": 120,
   "steps": [
-    { "at": 0, "caption": "Power-on: the planner sees wave height in the catalogue and subscribes to forecast/wave and forecast/cur (12 h + WAVES)." },
+    { "at": 0, "caption": "Power-on: the planner sees wave height in the catalogue and subscribes to forecast/wave and forecast/cur (NOW-CAST + WAVES)." },
     { "at": 30, "action": { "type": "shift", "input": "wave", "on": true }, "caption": "A swell builds: wave height rises +5σ over 20 s." },
     { "at": 31, "action": { "type": "shift", "input": "cur", "on": true }, "caption": "Current rises with it, so the drift quorum (two inputs) is met." },
     { "at": 90, "caption": "The drift run's forecast carries the new wave height; the planner fetches just that measurement and verifies it." }

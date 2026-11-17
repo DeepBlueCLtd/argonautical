@@ -26,8 +26,8 @@ export interface InputDecl {
 
 /**
  * CAT-5: consumer profiles. Each needs the forecast; what else it uses decides its status.
- * Chart display: features optional (LOW RES → HI RES). Passage planner: prefers a 48 h horizon
- * (12 h → 48 h) and uses wave height when it is offered (+ WAVES). Basic: the forecast only.
+ * Chart display: features optional (LOW RES → HI RES). Passage planner: plans as far ahead as the
+ * forecast reaches (NOW-CAST → 48 h with future forecasts) and uses wave height when it is offered (+ WAVES). Basic: the forecast only.
  *
  * CAT-4: `measurements` are the forecast measurements a profile uses. It subscribes to `forecast/<key>`
  * for each one the catalogue offers, rather than to the whole forecast; with none offered (or none
@@ -37,7 +37,7 @@ export type ConsumerProfile = 'chart' | 'planner' | 'basic';
 
 export const PROFILES: Record<ConsumerProfile, { readonly title: string; readonly about: string; readonly measurements: readonly string[] }> = {
   chart: { title: 'Chart display', about: 'Draws sea temperature and current on a chart; with features it draws fronts and eddies too (HI RES).', measurements: ['temp', 'cur'] },
-  planner: { title: 'Passage planner', about: 'Plans the route ahead from current and, when a wave-height sensor is fitted, wave height (+ WAVES); a 48 h forecast lets it look twice as far ahead.', measurements: ['cur', 'wave'] },
+  planner: { title: 'Passage planner', about: 'Plans the route ahead from current and, when a wave-height sensor is fitted, wave height (+ WAVES); with future forecasts it can plan up to 48 h ahead instead of from the now-cast alone.', measurements: ['cur', 'wave'] },
   basic: { title: 'Basic', about: 'Shows the whole forecast at the ship.', measurements: [] },
 };
 
@@ -83,7 +83,7 @@ export const INPUTS = {
         ...consumerForecast,
         label: 'forecast: cur, wave',
         what: `Current and, if a wave-height sensor is fitted, wave height from the announced forecast, one measurement per request (parameter-name). ${EDR}`,
-        use: 'Plans the route ahead: 12 h, or 48 h once the long-range forecast is offered. Each measurement is checked against the digest on its own topic (✓/✗).',
+        use: 'Plans the route ahead: from the now-cast, or up to 48 h once future forecasts are offered. Each measurement is checked against the digest on its own topic (✓/✗).',
       },
     ],
     basic: [consumerForecast],
