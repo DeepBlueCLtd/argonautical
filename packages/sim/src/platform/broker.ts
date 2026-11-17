@@ -33,8 +33,10 @@ export class Broker {
   }
 
   /** Subscriber count per topic, for the broker card. */
-  get topics(): Record<Topic, number> {
-    return { 'forecast/new': this.subs.get('forecast/new')?.size ?? 0, 'features/new': this.subs.get('features/new')?.size ?? 0 };
+  get topics(): Record<string, number> {
+    const out: Record<string, number> = { 'forecast/new': 0, 'features/new': 0 };
+    for (const [t, m] of this.subs) out[t] = m.size;
+    return out;
   }
 
   /** Retained messages, by topic (for the inspector). */

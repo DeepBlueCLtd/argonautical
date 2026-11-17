@@ -1,16 +1,25 @@
 import { DRIFT_BOUNDS, EDGES, INPUTS, NOISE_BOUNDS, PROFILES, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, useRef, type ReactNode } from 'react';
-import { topicTag, type Rate, type Runner } from '../runner.ts';
+import { topicShort, topicTag, type Rate, type Runner } from '../runner.ts';
 import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, SHORE_TRANSFER, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
 
 
 const MATERIALISING_TICKS = 3;
 /** CAT-5: badge colour per consumer status. */
-const STATUS_TONE: Record<string, 'good' | 'pending' | 'basic' | 'neutral'> = { 'HI RES': 'good', '48 h': 'good', OK: 'good', 'HI RES pending': 'pending', '48 h pending': 'pending', 'LOW RES': 'basic', '12 h': 'basic' };
+const STATUS_TONE: Record<string, 'good' | 'pending' | 'basic' | 'neutral'> = { 'HI RES': 'good', '48 h': 'good', OK: 'good', 'HI RES pending': 'pending', '48 h pending': 'pending', 'LOW RES': 'basic', '12 h': 'basic', '12 h + WAVES': 'good', '48 h + WAVES': 'good' };
 /** Gap, in diagram pixels, between reads a caller sends together (a token is ~12 px long). */
 const ABREAST_GAP = 18;
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
+/** CAT-4: subscribed per-measurement topics, `key ×n`, `perRow` to a row (they fit under the two run topics). */
+export function measurementTopicRows(topics: Record<string, number>, perRow: number): string[] {
+  const items = Object.entries(topics)
+    .filter(([t, n]) => t !== 'forecast/new' && t !== 'features/new' && n > 0)
+    .map(([t, n]) => `${topicShort(t)}×${n}`);
+  const rows: string[] = [];
+  for (let i = 0; i < items.length; i += perRow) rows.push(items.slice(i, i + perRow).join(' '));
+  return rows;
+}
 const fmt = (v: number | undefined, d = 2) => (v === undefined ? '—' : Number.isFinite(v) ? v.toFixed(d) : String(v));
 
 // ---- primitives ----
@@ -185,6 +194,10 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
   const f = snap.forecast;
   /** CAT-1: a feature detector is present (the toggle takes effect from the next run). */
   const detector = snap.capabilities.featureDetector;
+  // CAT-1: a wave-height sensor adds a seventh row at most; rows close up to fit their cards.
+  const oceanPitch = Math.min(30, (R.ocean.h - 66) / snap.inputs.length);
+  const sensorPitch = Math.min(36, (R.sensors.h - 70) / snap.inputs.length);
+  const readingGap = Math.min(16, sensorPitch - 15);
   // Staleness countdown (ORC-1, MOT-3): smooth between ticks; "replacing" once a run is under way.
   const staleRemaining = f ? Math.max(0, snap.schedule.staleIn - (snap.schedule.staleIn > 0 ? runner.frac : 0)) : 0;
   const stale = { replacing: !!run && f !== undefined && snap.schedule.staleIn === 0 };
@@ -218,7 +231,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <rect className="region consumers" x={REGIONS.consumersLeft} y={0} width={VIEW.w - REGIONS.consumersLeft} height={VIEW.h} />
         <line className="boundary" x1={REGIONS.worldRight} y1={0} x2={REGIONS.worldRight} y2={VIEW.h} />
         <line className="boundary" x1={REGIONS.consumersLeft} y1={0} x2={REGIONS.consumersLeft} y2={VIEW.h} />
-        <T x={REGIONS.worldRight / 2} y={237} cls="region-label" anchor="middle">
+        <T x={REGIONS.worldRight / 2} y={261} cls="region-label" anchor="middle">
           WORLD
         </T>
         <T x={(REGIONS.worldRight + REGIONS.consumersLeft) / 2} y={24} cls="region-label" anchor="middle">
@@ -261,7 +274,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
           true values, σ from climatology
         </T>
         {snap.inputs.map((s, i) => {
-          const y = R.ocean.y + 58 + i * 30;
+          const y = R.ocean.y + 58 + i * oceanPitch;
           const z = (s.truth - s.base) / s.sigma;
           const cx = R.ocean.x + 95;
           return (
@@ -295,15 +308,15 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         </T>
         {snap.inputs.map((s, i) => (
           <g key={s.key}>
-            <T x={R.sensors.x + 10} y={R.sensors.y + 64 + i * 36} cls="small">
+            <T x={R.sensors.x + 10} y={R.sensors.y + 64 + i * sensorPitch} cls="small">
               {s.label}
             </T>
-            <T x={R.sensors.x + 10} y={R.sensors.y + 80 + i * 36} cls="small mono">
+            <T x={R.sensors.x + 10} y={R.sensors.y + 64 + readingGap + i * sensorPitch} cls="small mono">
               {fmt(s.reading, s.sigma < 1 ? 2 : 1)} {s.unit}
             </T>
             <Stepper
               x={R.sensors.x + R.sensors.w - 90}
-              y={R.sensors.y + 67 + i * 36}
+              y={R.sensors.y + 67 + i * sensorPitch}
               vw={48}
               value={`±${s.noise}σ`}
               what={`${s.label} sensor noise`}
@@ -657,15 +670,15 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <T x={R.broker.x + 10} y={R.broker.y + 24} cls="title">
           Broker
         </T>
-        {/* CAT-4: topics and their subscriber counts */}
-        {(
-          [
-            ['forecast/new', 'forecast'],
-            ['features/new', 'features'],
-          ] as const
-        ).map(([topic, label], i) => (
+        {/* CAT-4: topics and their subscriber counts; per-measurement topics only once someone subscribes */}
+        {(['forecast/new', 'features/new'] as const).map((topic, i) => (
           <T key={topic} x={R.broker.x + 10} y={R.broker.y + 46 + i * 16} cls={`tiny mono ${snap.topics[topic] ? '' : 'muted'}`}>
-            {`${label} ×${snap.topics[topic]}`}
+            {`${topicShort(topic)} ×${snap.topics[topic] ?? 0}`}
+          </T>
+        ))}
+        {measurementTopicRows(snap.topics, 2).map((row, i) => (
+          <T key={i} x={R.broker.x + 10} y={R.broker.y + 78 + i * 13} cls="tiny mono">
+            {row}
           </T>
         ))}
       </Box>)}
@@ -713,7 +726,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
               </T>
             )}
             <T x={r.x + 10} y={r.y + 82} cls="tiny muted">
-              {`subs: ${c.topics.map((t) => t.split('/')[0]).join(', ') || '—'}`}
+              {`subs: ${c.topics.map(topicShort).join(', ') || '—'}`}
             </T>
             {/* CON-3: the app's user reconfigures it, so it discovers and fetches again (no new data implied) */}
             <g
@@ -967,21 +980,35 @@ export function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runne
       <T x={c.x + 12} y={c.y + 168} cls="tiny muted">
         {on ? 'Installed · switch off to change' : 'Install at power-on:'}
       </T>
-      <CtlButton x={c.x + 12} y={c.y + 174} w={118} h={16} title={on ? 'Feature detector (switch the system off to change)' : 'Install a feature detector at power-on'} pressed={caps.featureDetector} onClick={() => runner.setCapability('featureDetector', !caps.featureDetector)} cls={`cap ${on ? 'locked' : ''}`}>
-        <text x={c.x + 71} y={c.y + 185.5} textAnchor="middle" className="ctl-text cap-text">
+      <CtlButton x={c.x + 12} y={c.y + 174} w={102} h={18} title={on ? 'Feature detector (switch the system off to change)' : 'Install a feature detector at power-on'} pressed={caps.featureDetector} onClick={() => runner.setCapability('featureDetector', !caps.featureDetector)} cls={`cap ${on ? 'locked' : ''}`}>
+        <text x={c.x + 63} y={c.y + 186.5} textAnchor="middle" className="ctl-text cap-text">
           {caps.featureDetector ? '✓ ' : ''}Feature detector
         </text>
       </CtlButton>
-      <CtlButton x={c.x + 136} y={c.y + 174} w={64} h={16} title={on ? '48 h forecasts (switch the system off to change)' : 'Install 48 h forecasts at power-on'} pressed={caps.longRange} onClick={() => runner.setCapability('longRange', !caps.longRange)} cls={`cap ${on ? 'locked' : ''}`}>
-        <text x={c.x + 168} y={c.y + 185.5} textAnchor="middle" className="ctl-text cap-text">
-          {caps.longRange ? '✓ ' : ''}48 h
+      <CtlButton x={c.x + 118} y={c.y + 174} w={86} h={18} title={on ? '48 h forecasts (switch the system off to change)' : 'Install 48 h forecasts at power-on'} pressed={caps.longRange} onClick={() => runner.setCapability('longRange', !caps.longRange)} cls={`cap ${on ? 'locked' : ''}`}>
+        <text x={c.x + 161} y={c.y + 186.5} textAnchor="middle" className="ctl-text cap-text">
+          {caps.longRange ? '✓ ' : ''}48 h forecasts
+        </text>
+      </CtlButton>
+      <CtlButton
+        x={c.x + 12}
+        y={c.y + 196}
+        w={130}
+        h={18}
+        title={on ? 'Wave-height sensor (switch the system off to change)' : 'Install a wave-height sensor at power-on: wave height is measured, forecast and announced on its own topic'}
+        pressed={caps.waveSensor}
+        onClick={() => runner.setCapability('waveSensor', !caps.waveSensor)}
+        cls={`cap ${on ? 'locked' : ''}`}
+      >
+        <text x={c.x + 77} y={c.y + 208.5} textAnchor="middle" className="ctl-text cap-text">
+          {caps.waveSensor ? '✓ ' : ''}Wave-height sensor
         </text>
       </CtlButton>
       {/* SYS-1: view toggle (radio group) */}
       <g role="radiogroup" aria-label="View">
         {(['logical', 'physical'] as const).map((v, i) => (
-          <CtlButton key={v} role="radio" x={c.x + 12 + i * 96} y={c.y + 198} w={92} h={18} title={v === 'logical' ? 'Logical view: information flow' : 'Physical view: the candidate production deployment'} pressed={controls.view === v} onClick={() => controls.onView(v)} cls="cap">
-            <text x={c.x + 12 + i * 96 + 46} y={c.y + 211} textAnchor="middle" className="ctl-text cap-text">
+          <CtlButton key={v} role="radio" x={c.x + 12 + i * 96} y={c.y + 222} w={92} h={18} title={v === 'logical' ? 'Logical view: information flow' : 'Physical view: the candidate production deployment'} pressed={controls.view === v} onClick={() => controls.onView(v)} cls="cap">
+            <text x={c.x + 12 + i * 96 + 46} y={c.y + 235} textAnchor="middle" className="ctl-text cap-text">
               {v === 'logical' ? 'Logical view' : 'Physical view'}
             </text>
           </CtlButton>

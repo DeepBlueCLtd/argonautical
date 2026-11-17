@@ -411,6 +411,7 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .trace.in-3 { --ic: #c2255c; }
 .trace.in-4 { --ic: #e69f00; }
 .trace.in-5 { --ic: #56b4e9; }
+.trace.in-6 { --ic: #6741d9; }
 .diagram .trace-key { font: 700 9px var(--mono); fill: var(--ic); }
 .trace-obs { fill: none; stroke: var(--ic); stroke-width: 1; stroke-linejoin: round; }
 .trace-obs.over { stroke-width: 2.6; }

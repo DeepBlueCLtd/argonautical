@@ -8,6 +8,10 @@ describe('capabilities, catalogue and handshake', () => {
   const minimal = () => new Simulation({ seed: 'cat', consumers: 3, capabilities: { featureDetector: false, longRange: false } });
   const full = () => new Simulation({ seed: 'cat', consumers: 3, capabilities: { featureDetector: true, longRange: true } });
 
+  it('CAT-3: the forecast collection lists its measurements', () => {
+    expect(minimal().catalogue().find((c) => c.id === 'forecast')!.parameters).toEqual(['temp', 'sal', 'snd', 'cur']);
+  });
+
   it('CAT-3: the catalogue follows what is installed', () => {
     expect(minimal().catalogue().map((c) => c.id + (c.horizon ? `:${c.horizon}` : ''))).toEqual(['observations', 'climatology', 'forecast:12']);
     expect(full().catalogue().map((c) => c.id + (c.horizon ? `:${c.horizon}` : ''))).toEqual(['observations', 'climatology', 'forecast:48', 'features']);
@@ -25,11 +29,42 @@ describe('capabilities, catalogue and handshake', () => {
     }
   });
 
-  it('CAT-4: consumers subscribe per topic; only a chart display with features offered takes features/new', () => {
-    expect(minimal().broker.topics).toEqual({ 'forecast/new': 3, 'features/new': 0 });
+  it('CAT-4: consumers subscribe per measurement they use; only a chart display with features offered takes features/new', () => {
+    // C1 chart (temp, cur), C2 planner (cur; no wave offered), C3 basic (the whole forecast).
+    expect(minimal().broker.topics).toEqual({ 'forecast/new': 1, 'features/new': 0, 'forecast/temp': 1, 'forecast/cur': 2 });
     const s = full();
-    expect(s.broker.topics).toEqual({ 'forecast/new': 3, 'features/new': 1 });
-    expect([...s.consumers[0]!.topics].sort()).toEqual(['features/new', 'forecast/new']);
+    expect(s.broker.topics).toEqual({ 'forecast/new': 1, 'features/new': 1, 'forecast/temp': 1, 'forecast/cur': 2 });
+    expect([...s.consumers[0]!.topics].sort()).toEqual(['features/new', 'forecast/cur', 'forecast/temp']);
+    expect([...s.consumers[2]!.topics]).toEqual(['forecast/new']);
+  });
+
+  it('CAT-4: a consumer whose measurements are not offered falls back to the whole forecast', () => {
+    // Three inputs (temp, sal, snd): no current, so the planner has nothing of its own to take.
+    const s = new Simulation({ seed: 'cat', inputs: 3, consumers: 2, capabilities: { featureDetector: false } });
+    expect([...s.consumers[0]!.topics]).toEqual(['forecast/temp']);
+    expect([...s.consumers[1]!.topics]).toEqual(['forecast/new']);
+  });
+
+  it('CAT-1: a wave-height sensor adds wave height as an input, end to end', () => {
+    const s = new Simulation({ seed: 'waves', consumers: 3, capabilities: { waveSensor: true } });
+    expect(s.inputs.map((i) => i.key)).toEqual(['temp', 'sal', 'snd', 'cur', 'wave']);
+    expect(s.catalogue().find((c) => c.id === 'forecast')!.parameters).toContain('wave');
+    // CAT-5: the planner tailors itself to it and subscribes to wave height.
+    expect(s.consumers[1]!.status).toBe('12 h + WAVES');
+    expect([...s.consumers[1]!.topics].sort()).toEqual(['forecast/cur', 'forecast/wave']);
+    s.step(40);
+    // Measured, ingested, forecast and announced on its own topic; the planner fetches and verifies it.
+    expect(s.observationsDb.all.some((o) => o.input === 'wave')).toBe(true);
+    expect(s.netcdf.latest!.values.wave).toBeDefined();
+    expect(s.consumers[1]!.results.some((r) => r.measurement === 'wave' && r.ok)).toBe(true);
+    // Only the planner hears about wave height.
+    expect(s.consumers.filter((c) => c.results.some((r) => r.measurement === 'wave')).map((c) => c.id)).toEqual(['C2']);
+  });
+
+  it('CAT-1: without a wave-height sensor there is no wave input and the planner is not + WAVES', () => {
+    const s = minimal();
+    expect(s.inputs.some((i) => i.key === 'wave')).toBe(false);
+    expect(s.consumers[1]!.status).toBe('12 h');
   });
 
   it('CAT-2: without a detector, runs skip detection and announce without a feature count', () => {

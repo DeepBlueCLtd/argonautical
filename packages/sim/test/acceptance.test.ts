@@ -139,9 +139,10 @@ describe('acceptance criteria', () => {
     const queries = sim.tokens.edgeStats.get('consumer>query>pygeoapi')!.count;
     sim.reconfigureConsumer('C1');
     const r = sim.consumers[0]!.results;
-    // C1 is a chart display: it re-fetches the forecast and that forecast's features.
-    expect(r).toHaveLength(before + 2);
-    expect(r.at(-2)).toMatchObject({ tick: 30, trigger: 'reconfigure', ok: true, forecastId: 'F1' });
+    // C1 is a chart display: it re-fetches its measurements (temp, cur) and that forecast's features.
+    expect(r).toHaveLength(before + 3);
+    expect(r.at(-3)).toMatchObject({ tick: 30, trigger: 'reconfigure', ok: true, forecastId: 'F1', measurement: 'temp' });
+    expect(r.at(-2)).toMatchObject({ tick: 30, trigger: 'reconfigure', ok: true, forecastId: 'F1', measurement: 'cur' });
     expect(r.at(-1)).toMatchObject({ tick: 30, trigger: 'reconfigure', ok: true, forecastId: 'F1', featureCount: expect.any(Number) });
     expect(sim.tokens.edgeStats.get('consumer>query>pygeoapi')!.count).toBeGreaterThan(queries);
     expect(sim.consumers[1]!.results.some((x) => x.trigger === 'reconfigure')).toBe(false);

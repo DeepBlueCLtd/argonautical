@@ -3,7 +3,7 @@
  * The only read path for our modules and for consumers. Every read is a round trip of
  * four tokens: request, the provider's database query, the rows, and the response.
  */
-import { ServiceUnavailable, type CollectionInfo, type Feature, type Forecast, type InputKey, type Observation, type Values } from '../contracts.ts';
+import { ServiceUnavailable, parameterDigest, type CollectionInfo, type Feature, type Forecast, type InputKey, type Observation, type Values } from '../contracts.ts';
 import * as P from '../payloads.ts';
 import type { Payload } from '../payloads.ts';
 import type { FeaturesDb, NetcdfStore, ObservationsDb } from '../stores/stores.ts';
@@ -132,6 +132,24 @@ export class PygeoApi {
       P.forecastCoverage(f),
       // No forecast yet (a 404): the slot stays empty.
       f ? 'forecast' : undefined,
+    );
+  }
+
+  /** EDR: one measurement of a forecast (CAT-4: what a `forecast/<key>` subscriber fetches). */
+  forecastParameter(caller: Caller, id: string | undefined, key: InputKey): { forecast: Forecast; value: number; digest: string } | undefined {
+    const f = id === undefined ? this.netcdf.latest : this.netcdf.byId(id);
+    const file = `forecast_${f?.id ?? id}.nc`;
+    const value = f?.values[key];
+    const found = f && value !== undefined ? { forecast: f, value, digest: parameterDigest(f, key) } : undefined;
+    return this.exchange(
+      caller,
+      'netcdfStore',
+      P.request(`${key} of ${id ? `forecast ${id}` : 'the latest forecast'} at the ship`, 'EDR', P.urls.forecastParameter(id, key)),
+      P.netcdfRead(f ? file : undefined, f ? [key] : []),
+      P.netcdfValues(f ? file : undefined, found ? { [key]: found.value } : undefined),
+      found,
+      P.forecastParameterCoverage(f, key, found?.digest),
+      found ? 'forecast' : undefined,
     );
   }
 

@@ -71,6 +71,8 @@ export interface Capabilities {
   readonly featureDetector: boolean;
   /** The model produces 48 h forecasts instead of 12 h. */
   readonly longRange: boolean;
+  /** A wave-height sensor is fitted: wave height is measured, ingested, monitored, forecast and announced like any other input. */
+  readonly waveSensor: boolean;
 }
 
 /** CAT-3: one entry in pygeoapi's `/collections`. */
@@ -80,10 +82,33 @@ export interface CollectionInfo {
   readonly api: 'SensorThings' | 'EDR' | 'Features';
   /** Forecast only: its horizon in hours. */
   readonly horizon?: number;
+  /** Forecast only: the measurements it covers, each subscribable on `forecast/<key>` (CAT-4). */
+  readonly parameters?: readonly InputKey[];
 }
 
-/** Broker topics (CAT-4). */
-export type Topic = 'forecast/new' | 'features/new';
+/**
+ * Broker topics (CAT-4): the whole run (`forecast/new`), its features (`features/new`) and one topic per
+ * measurement (`forecast/temp`, `forecast/wave`…), so a consumer subscribes only to what it uses.
+ */
+export type MeasurementTopic = `forecast/${InputKey}`;
+export type Topic = 'forecast/new' | 'features/new' | MeasurementTopic;
+
+export const measurementTopic = (key: InputKey): MeasurementTopic => `forecast/${key}`;
+
+/** The measurement a topic carries, or undefined for `forecast/new` and `features/new`. */
+export function topicMeasurement(t: Topic): InputKey | undefined {
+  return t === 'forecast/new' || t === 'features/new' ? undefined : t.slice('forecast/'.length);
+}
+
+/** A `forecast/<key>` message: one measurement of a new forecast is ready. */
+export interface MeasurementReady {
+  readonly forecastId: string;
+  readonly parameter: InputKey;
+  readonly validUntil: number;
+  readonly horizon: number;
+  /** Digest of this measurement's value (see `parameterDigest`), checked by the consumer. */
+  readonly digest: string;
+}
 
 /** A `features/new` message: features for a forecast are ready. */
 export interface FeaturesReady {
@@ -91,11 +116,23 @@ export interface FeaturesReady {
   readonly featureCount: number;
 }
 
-export type BrokerMessage = { readonly topic: 'forecast/new'; readonly body: Announcement } | { readonly topic: 'features/new'; readonly body: FeaturesReady };
+export type BrokerMessage =
+  | { readonly topic: 'forecast/new'; readonly body: Announcement }
+  | { readonly topic: 'features/new'; readonly body: FeaturesReady }
+  | { readonly topic: MeasurementTopic; readonly body: MeasurementReady };
+
+export function isMeasurementMessage(m: BrokerMessage): m is { readonly topic: MeasurementTopic; readonly body: MeasurementReady } {
+  return topicMeasurement(m.topic) !== undefined;
+}
 
 export function forecastDigest(f: Pick<Forecast, 'id' | 'validUntil' | 'inputs' | 'values'>): string {
   const body = f.inputs.map((k) => `${k}=${(f.values[k] ?? NaN).toFixed(6)}`).join(',');
   return hash53(`${f.id}|${f.validUntil}|${body}`);
+}
+
+/** CAT-4: digest of one measurement of a forecast, so a consumer can verify the part it fetched. */
+export function parameterDigest(f: Pick<Forecast, 'id' | 'validUntil' | 'values'>, key: InputKey): string {
+  return hash53(`${f.id}|${f.validUntil}|${key}=${(f.values[key] ?? NaN).toFixed(6)}`);
 }
 
 /** Read ports. Our modules see only these; the simulation wires them to pygeoapi (the only read path). */

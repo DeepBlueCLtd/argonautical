@@ -34,8 +34,16 @@ describe('token payloads (drill-down)', () => {
     const ts = allTokens('drift');
     const commit = ts.find((t) => t.edge === 'modelRunner>write>netcdfStore' && (t.payload!.data as { global_attributes: { cause: string } }).global_attributes.cause === 'drift')!;
     const digest = (commit.payload!.data as { global_attributes: { digest: string } }).global_attributes.digest;
-    const delivered = ts.filter((t) => t.edge === 'broker>deliver>consumer' && (t.payload!.data as { payload: { digest: string } }).payload.digest === digest);
-    expect(delivered.map((t) => t.instance).sort()).toEqual(['C1', 'C2']);
+    const forecastId = (commit.payload!.data as { global_attributes: { forecast_id: string } }).global_attributes.forecast_id;
+    type Msg = { payload: { forecast_id: string; digest: string; parameter?: string } };
+    const published = ts.filter((t) => t.edge === 'announcer>publish>broker' && (t.payload!.data as Msg).payload.forecast_id === forecastId);
+    // forecast/new carries the committed digest.
+    expect(published.some((t) => (t.payload!.data as Msg).payload.digest === digest)).toBe(true);
+    // CAT-4: each measurement on its own topic; C1 (chart: temp, cur) and C2 (planner: cur) get theirs.
+    const values = (commit.payload!.data as { variables: Record<string, unknown> }).variables;
+    expect(published.filter((t) => (t.payload!.data as Msg).payload.parameter).map((t) => (t.payload!.data as Msg).payload.parameter)).toEqual(Object.keys(values));
+    const delivered = ts.filter((t) => t.edge === 'broker>deliver>consumer' && (t.payload!.data as Msg).payload.forecast_id === forecastId && (t.payload!.data as Msg).payload.parameter);
+    expect(delivered.map((t) => `${t.instance}:${(t.payload!.data as Msg).payload.parameter}`).sort()).toEqual(['C1:cur', 'C1:temp', 'C2:cur']);
   });
 
   it('a rejected NaN reading is shown as a string, not lost', () => {
@@ -64,7 +72,7 @@ describe('token payloads (drill-down)', () => {
 
   it('a consumer response carries the forecast it verified', () => {
     const ts = allTokens('drift');
-    const resp = ts.find((t) => t.role === 'response' && t.instance === 'C1' && /Forecast F\d/.test(t.payload!.summary))!;
+    const resp = ts.find((t) => t.role === 'response' && t.instance === 'C1' && /forecast F\d/i.test(t.payload!.summary))!;
     expect(resp.edge).toBe('consumer>query>pygeoapi');
     expect((resp.payload!.data as { type: string }).type).toBe('Coverage');
   });

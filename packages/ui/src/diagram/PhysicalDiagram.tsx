@@ -5,7 +5,8 @@
  */
 import { EDGES, STANDARDS, type Snapshot } from '@argonautical/sim';
 import { useMemo, type ReactNode } from 'react';
-import type { Runner } from '../runner.ts';
+import { topicShort, type Runner } from '../runner.ts';
+import { measurementTopicRows } from './Diagram.tsx';
 import { Box, ControlPanel, Inspectable, type InspectId, DocToken, Module, PlayPause, QueueTab, Shim, Store, T, Tokens, type Controls, type Picked, type TokenTip } from './Diagram.tsx';
 import { pathD, pointAt, VIEW, type Pt, type Rect } from './layout.ts';
 import { ALL_GATES, CONSUMER_SLOT, LINK_GEOM, NODE_RECTS, OPS_STATIC, PIPES_CHIP, PROCESS_RECTS, P_RECTS, SHORE_ZONE, TOKEN_KEY_P, ZONE_BANDS, consumerRectP, routePhysical } from './physical.ts';
@@ -440,9 +441,14 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
           <T x={R.broker.x + 10} y={R.broker.y + 36} cls="tiny muted">
             Mosquitto · retained
           </T>
-          {Object.entries(snap.topics).map(([topic, n], i) => (
+          {(['forecast/new', 'features/new'] as const).map((topic, i) => (
             <T key={topic} x={R.broker.x + 10} y={R.broker.y + 58 + i * 14} cls="tiny mono">
-              {topic} ×{n}
+              {topic} ×{snap.topics[topic] ?? 0}
+            </T>
+          ))}
+          {measurementTopicRows(snap.topics, 3).map((row, i) => (
+            <T key={i} x={R.broker.x + 10} y={R.broker.y + 86 + i * 14} cls="tiny mono">
+              {row}
             </T>
           ))}
         </>,
@@ -483,7 +489,7 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
               {c.latest ? `${c.latest.forecastId} ${c.latest.ok ? '✓' : '✗'}` : 'no data'}
             </T>
             <T x={r.x + 10} y={r.y + 76} cls="tiny muted">
-              subs: {c.topics.map((x) => x.split('/')[0]).join(', ')}
+              subs: {c.topics.map(topicShort).join(', ')}
             </T>
           </Box>
         );
