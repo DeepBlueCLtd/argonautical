@@ -29,7 +29,7 @@ export const WALKTHROUGH: readonly WalkStep[] = [
     id: 'control',
     kind: 'Overview',
     title: 'Control',
-    body: 'Run or pause (also Space), the simulated clock, and the speed: ½× is the default so each step can be followed. Step advances one second and leaves its tokens part-way so you can click them. + Consumer adds an onboard app; ? reopens this walkthrough; the list icon opens the event log. The power button switches the system off and on. While it is off you choose what to install (a feature detector, 48 h forecasts, a wave-height sensor); switching on installs a fresh system; press play to run the consumers’ handshake (pause it to inspect the messages), then play again to run the simulation.',
+    body: 'Run or pause (also Space), the simulated clock, and the speed: ½× is the default so each step can be followed. Step advances one second and leaves its tokens part-way so you can click them. + Consumer adds an onboard app; ? reopens this walkthrough; the list icon opens the event log. The power button switches the system off and on. While it is off you choose what to install (a feature detector, future forecasts at 12–48 h, a wave-height sensor); switching on installs a fresh system; press play to run the consumers’ handshake (pause it to inspect the messages), then play again to run the simulation.',
     rect: () => pad(CONTROL, 4),
   },
   // ---- regions ----
@@ -77,7 +77,7 @@ export const WALKTHROUGH: readonly WalkStep[] = [
     id: 'consumerCards',
     kind: 'Component',
     title: 'Consumers',
-    body: 'When the system comes on, each consumer shakes hands: it asks pygeoapi what it offers (GET /collections), tailors itself, and subscribes to the topics it will use: the measurements its profile uses (chart: temp and current; planner: current and wave height), or the whole forecast if none of them is offered (basic). Its badge shows how it tailored itself: a chart display is HI RES if features are offered, else LOW RES; a passage planner works to the forecast’s horizon (12 h or 48 h), + WAVES once a wave-height sensor is installed; a basic display just shows the forecast. Reconfigure stands for its user changing what the app shows.',
+    body: 'When the system comes on, each consumer shakes hands: it asks pygeoapi what it offers (GET /collections), tailors itself, and subscribes to the topics it will use: the measurements its profile uses (chart: temp and current; planner: current and wave height), or the whole forecast if none of them is offered (basic). Its badge shows how it tailored itself: a chart display is HI RES if features are offered, else LOW RES; a passage planner plans as far ahead as the forecast reaches (NOW-CAST, or 48 h with future forecasts), + WAVES once a wave-height sensor is installed; a basic display just shows the forecast. Reconfigure stands for its user changing what the app shows.',
     rect: (n) => {
       const first = consumerRect(0);
       const last = consumerRect(Math.max(0, Math.min(n, CONSUMER_AREA.max) - 1));

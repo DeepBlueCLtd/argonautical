@@ -1,4 +1,4 @@
-import { DRIFT_BOUNDS, EDGES, INPUTS, NOISE_BOUNDS, PROFILES, STANDARDS, clockLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
+import { DRIFT_BOUNDS, EDGES, INPUTS, NOISE_BOUNDS, PROFILES, STANDARDS, clockLabel, windowsLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, useRef, type ReactNode } from 'react';
 import { topicShort, topicTag, type Rate, type Runner } from '../runner.ts';
 import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, SHORE_TRANSFER, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
@@ -6,7 +6,7 @@ import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, SHORE_TRANSFER, TOKEN_KEY, VIEW
 
 const MATERIALISING_TICKS = 3;
 /** CAT-5: badge colour per consumer status. */
-const STATUS_TONE: Record<string, 'good' | 'pending' | 'basic' | 'neutral'> = { 'HI RES': 'good', '48 h': 'good', OK: 'good', 'HI RES pending': 'pending', '48 h pending': 'pending', 'LOW RES': 'basic', '12 h': 'basic', '12 h + WAVES': 'good', '48 h + WAVES': 'good' };
+const STATUS_TONE: Record<string, 'good' | 'pending' | 'basic' | 'neutral'> = { 'HI RES': 'good', '48 h': 'good', OK: 'good', 'HI RES pending': 'pending', '48 h pending': 'pending', 'LOW RES': 'basic', 'NOW-CAST': 'basic', 'NOW-CAST + WAVES': 'good', '48 h + WAVES': 'good' };
 /** Gap, in diagram pixels, between reads a caller sends together (a token is ~12 px long). */
 const ABREAST_GAP = 18;
 
@@ -539,7 +539,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
           forecast
         </T>
         <T x={R.forecast.x + 12} y={R.forecast.y + 44} cls="small">
-          {f ? `${f.id} · ${f.cause} · ${f.horizon} h` : 'none yet'}
+          {f ? `${f.id} · ${f.cause} · ${windowsLabel(f.windows)}` : 'none yet'}
         </T>
         {/* The asset states when it goes out of date; the countdown ring belongs to the Staleness schedule (the trigger). */}
         {f && (
@@ -660,7 +660,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         {/* CAT-3: the catalogue, as consumers discover it */}
         {snap.catalogue.map((c, i) => (
           <T key={c.id} x={R.pygeoapi.x + 12} y={R.pygeoapi.y + 60 + i * 14} cls="tiny">
-            {`${c.id}${c.horizon ? ` · ${c.horizon} h` : ''}`}
+            {`${c.id}${c.windows ? ` · ${windowsLabel(c.windows)}` : ''}`}
           </T>
         ))}
       </Box>
@@ -985,9 +985,9 @@ export function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runne
           {caps.featureDetector ? '✓ ' : ''}Feature detector
         </text>
       </CtlButton>
-      <CtlButton x={c.x + 118} y={c.y + 174} w={86} h={18} title={on ? '48 h forecasts (switch the system off to change)' : 'Install 48 h forecasts at power-on'} pressed={caps.longRange} onClick={() => runner.setCapability('longRange', !caps.longRange)} cls={`cap ${on ? 'locked' : ''}`}>
+      <CtlButton x={c.x + 118} y={c.y + 174} w={86} h={18} title={on ? 'Future forecasts: 12, 24 and 48 h beside the now-cast (switch the system off to change)' : 'Install future forecasts (12, 24 and 48 h) at power-on; without them each run is a now-cast'} pressed={caps.futureForecasts} onClick={() => runner.setCapability('futureForecasts', !caps.futureForecasts)} cls={`cap ${on ? 'locked' : ''}`}>
         <text x={c.x + 161} y={c.y + 186.5} textAnchor="middle" className="ctl-text cap-text">
-          {caps.longRange ? '✓ ' : ''}48 h forecasts
+          {caps.futureForecasts ? '✓ ' : ''}Future 12–48 h
         </text>
       </CtlButton>
       <CtlButton

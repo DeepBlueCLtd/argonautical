@@ -22,6 +22,30 @@ export class ServiceUnavailable extends Error {
   }
 }
 
+/** Hours ahead a forecast covers; 0 is the now-cast (conditions at issue time). */
+export type ForecastWindow = 0 | 12 | 24 | 48;
+export type Windows = readonly ForecastWindow[];
+/** A run without future forecasts: the now-cast only. */
+export const NOWCAST: Windows = [0];
+/** A run with future forecasts: the now-cast plus 12, 24 and 48 h. */
+export const FUTURE_WINDOWS: Windows = [0, 12, 24, 48];
+export const windowsFor = (futureForecasts: boolean): Windows => (futureForecasts ? FUTURE_WINDOWS : NOWCAST);
+
+/** The furthest window ahead, in hours (0 for a now-cast only). */
+export const furthestWindow = (w: Windows): number => Math.max(0, ...w);
+
+/** One window: "now-cast" or "24 h". */
+export const windowLabel = (h: number): string => (h === 0 ? 'now-cast' : `${h} h`);
+
+/** Every label in the system goes through here: "now-cast" or "now-cast + 12/24/48 h". */
+export function windowsLabel(w: Windows): string {
+  const ahead = w.filter((h) => h > 0);
+  const now = w.includes(0) ? 'now-cast' : '';
+  if (!ahead.length) return now || 'now-cast';
+  const future = `${ahead.join('/')} h`;
+  return now ? `${now} + ${future}` : future;
+}
+
 export interface Observation {
   readonly tick: number;
   readonly input: InputKey;
@@ -37,8 +61,8 @@ export interface Forecast {
   readonly inputs: readonly InputKey[];
   readonly values: Values;
   readonly digest: string;
-  /** Forecast horizon in hours (12, or 48 with the long-range capability). Not part of the digest. */
-  readonly horizon: number;
+  /** Forecast windows in hours ahead: [0] (now-cast only) or [0, 12, 24, 48] with future forecasts. Not part of the digest. */
+  readonly windows: Windows;
 }
 
 export type FeatureKind = 'front' | 'eddy';
@@ -62,15 +86,15 @@ export interface Announcement {
   readonly digest: string;
   /** Undefined when no feature detector ran (CAT-2). */
   readonly featureCount?: number;
-  readonly horizon: number;
+  readonly windows: Windows;
 }
 
 /** CAT-1: what the installed system can do. Fixed while the system is on; change it by switching off and on. */
 export interface Capabilities {
   /** A feature detector is installed: runs detect fronts and eddies. */
   readonly featureDetector: boolean;
-  /** The model produces 48 h forecasts instead of 12 h. */
-  readonly longRange: boolean;
+  /** Future forecasts: each run adds 12, 24 and 48 h windows to the now-cast. */
+  readonly futureForecasts: boolean;
   /** A wave-height sensor is fitted: wave height is measured, ingested, monitored, forecast and announced like any other input. */
   readonly waveSensor: boolean;
 }
@@ -80,8 +104,8 @@ export interface CollectionInfo {
   readonly id: 'observations' | 'climatology' | 'forecast' | 'features';
   readonly title: string;
   readonly api: 'SensorThings' | 'EDR' | 'Features';
-  /** Forecast only: its horizon in hours. */
-  readonly horizon?: number;
+  /** Forecast only: its windows in hours ahead (0 = now-cast). */
+  readonly windows?: Windows;
   /** Forecast only: the measurements it covers, each subscribable on `forecast/<key>` (CAT-4). */
   readonly parameters?: readonly InputKey[];
 }
@@ -105,7 +129,7 @@ export interface MeasurementReady {
   readonly forecastId: string;
   readonly parameter: InputKey;
   readonly validUntil: number;
-  readonly horizon: number;
+  readonly windows: Windows;
   /** Digest of this measurement's value (see `parameterDigest`), checked by the consumer. */
   readonly digest: string;
 }

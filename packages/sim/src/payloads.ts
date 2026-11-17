@@ -4,7 +4,7 @@
  * mock data object filled with the simulation's actual values. Payloads never affect the event
  * log or its digest. They are plain JSON: non-finite numbers become strings.
  */
-import { isMeasurementMessage } from './contracts.ts';
+import { isMeasurementMessage, windowsLabel } from './contracts.ts';
 import type { Announcement, FeaturesReady, BrokerMessage, ClimatologyFile, CollectionInfo, ExportBundle, Feature, Forecast, InputKey, Observation, RunRequestRecord, SensorMessage, Topic } from './contracts.ts';
 
 /** The standard (or format) a token's content follows, shown as a letter on the token. */
@@ -178,7 +178,7 @@ export const coverage = (what: string, values: Readonly<Record<InputKey, number>
     : p(`${what}: not found`, 'HTTP 404 response', { status: 404, title: 'Not Found' });
 
 export const forecastCoverage = (f: Forecast | undefined) =>
-  coverage(f ? `Forecast ${f.id} (${f.cause}, ${f.horizon} h)` : 'Forecast', f?.values, f ? { id: f.id, cause: f.cause, horizon_hours: f.horizon, issued: iso(f.issuedAt), validUntil: iso(f.validUntil), digest: f.digest } : {});
+  coverage(f ? `Forecast ${f.id} (${f.cause}, ${windowsLabel(f.windows)})` : 'Forecast', f?.values, f ? { id: f.id, cause: f.cause, windows_hours: f.windows, issued: iso(f.issuedAt), validUntil: iso(f.validUntil), digest: f.digest } : {});
 
 export const featureCollection = (forecastId: string, feats: readonly Feature[]) =>
   p(`${feats.length} feature(s) of ${forecastId}`, 'GeoJSON FeatureCollection', {
@@ -256,7 +256,7 @@ const topicPath = (t: Topic) => `argonautical/${t}`;
 const messageBody = (m: BrokerMessage): { summary: string; payload: unknown } => {
   if (isMeasurementMessage(m)) {
     const b = m.body;
-    return { summary: `${b.parameter} of ${b.forecastId} is ready (${b.horizon} h)`, payload: { forecast_id: b.forecastId, parameter: b.parameter, valid_until: iso(b.validUntil), horizon_hours: b.horizon, digest: b.digest } };
+    return { summary: `${b.parameter} of ${b.forecastId} is ready (${windowsLabel(b.windows)})`, payload: { forecast_id: b.forecastId, parameter: b.parameter, valid_until: iso(b.validUntil), windows_hours: b.windows, digest: b.digest } };
   }
   if (m.topic === 'features/new') {
     const b = m.body as FeaturesReady;
@@ -264,8 +264,8 @@ const messageBody = (m: BrokerMessage): { summary: string; payload: unknown } =>
   }
   const a = m.body as Announcement;
   return {
-    summary: `${a.forecastId} is ready (${a.horizon} h${a.featureCount === undefined ? '' : `, ${a.featureCount} features`})`,
-    payload: { forecast_id: a.forecastId, valid_until: iso(a.validUntil), horizon_hours: a.horizon, cause: a.cause, digest: a.digest, ...(a.featureCount !== undefined ? { feature_count: a.featureCount } : {}) },
+    summary: `${a.forecastId} is ready (${windowsLabel(a.windows)}${a.featureCount === undefined ? '' : `, ${a.featureCount} features`})`,
+    payload: { forecast_id: a.forecastId, valid_until: iso(a.validUntil), windows_hours: a.windows, cause: a.cause, digest: a.digest, ...(a.featureCount !== undefined ? { feature_count: a.featureCount } : {}) },
   };
 };
 
@@ -281,18 +281,18 @@ export const subscribe = (topic: Topic, who: string, on: boolean) =>
 
 /** EDR: one measurement of a forecast (CAT-4). */
 export const forecastParameterCoverage = (f: Forecast | undefined, key: InputKey, digest: string | undefined) =>
-  coverage(f ? `${key} of forecast ${f.id} (${f.horizon} h)` : `${key} of forecast`, f && f.values[key] !== undefined ? { [key]: f.values[key]! } : undefined, f ? { id: f.id, parameter: key, horizon_hours: f.horizon, validUntil: iso(f.validUntil), digest } : {});
+  coverage(f ? `${key} of forecast ${f.id} (${windowsLabel(f.windows)})` : `${key} of forecast`, f && f.values[key] !== undefined ? { [key]: f.values[key]! } : undefined, f ? { id: f.id, parameter: key, windows_hours: f.windows, validUntil: iso(f.validUntil), digest } : {});
 
 export const collectionsRequest = () => p('Which collections are offered?', 'OGC API – Common request', { method: 'GET', url: '/collections' });
 
 export const collectionsResponse = (cols: readonly CollectionInfo[]) =>
-  p(`${cols.length} collection(s): ${cols.map((c) => c.id + (c.horizon ? ` ${c.horizon} h` : '')).join(', ')}`, 'OGC API – Common collections (JSON)', {
+  p(`${cols.length} collection(s): ${cols.map((c) => c.id + (c.windows ? ` ${windowsLabel(c.windows)}` : '')).join(', ')}`, 'OGC API – Common collections (JSON)', {
     collections: cols.map((c) => ({
       id: c.id,
       title: c.title,
       itemType: c.api === 'Features' ? 'feature' : c.api === 'EDR' ? 'coverage' : 'observation',
       links: [{ rel: 'items', href: c.api === 'SensorThings' ? '/v1.1/Datastreams' : `/collections/${c.id}${c.api === 'EDR' ? '/position' : '/items'}` }],
-      ...(c.horizon !== undefined ? { extent: { temporal: { horizon_hours: c.horizon } } } : {}),
+      ...(c.windows !== undefined ? { extent: { temporal: { windows_hours: c.windows } } } : {}),
       ...(c.parameters ? { parameter_names: Object.fromEntries(c.parameters.map((k) => [k, { type: 'Parameter', topic: topicPath(`forecast/${k}`) }])) } : {}),
     })),
   });

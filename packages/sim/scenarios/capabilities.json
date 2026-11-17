@@ -1,12 +1,12 @@
 {
   "name": "capabilities",
-  "description": "CAT-1..5: a system installed with a feature detector and 48 h forecasts. At power-on each consumer shakes hands (reads /collections), tailors itself and subscribes; then it fetches what is announced.",
+  "description": "CAT-1..5: a system installed with a feature detector and future forecasts (now-cast + 12/24/48 h). At power-on each consumer shakes hands (reads /collections), tailors itself and subscribes; then it fetches what is announced.",
   "seed": "capabilities",
   "consumers": 3,
-  "capabilities": { "featureDetector": true, "longRange": true },
+  "capabilities": { "featureDetector": true, "futureForecasts": true },
   "until": 120,
   "steps": [
-    { "at": 0, "caption": "Power-on: three consumers read the catalogue and tailor themselves: the chart display goes HI RES (features offered), the planner 48 h." },
+    { "at": 0, "caption": "Power-on: three consumers read the catalogue and tailor themselves: the chart display goes HI RES (features offered), the planner 48 h (its furthest window)." },
     { "at": 40, "action": { "type": "requestRun" }, "caption": "A second run: each consumer fetches only what it subscribed to." }
   ]
 }

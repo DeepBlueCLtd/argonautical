@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { inputsFor } from '../src/config.ts';
-import type { Forecast } from '../src/contracts.ts';
+import { NOWCAST, type Forecast } from '../src/contracts.ts';
 import { DriftMonitor, type DriftParams } from '../src/modules/driftMonitor.ts';
 
 const inputs = inputsFor(3);
-const forecast: Forecast = { id: 'F1', cause: 'schedule', issuedAt: 0, validUntil: 180, inputs: ['temp', 'sal', 'snd'], values: { temp: 12, sal: 35, snd: 1500 }, digest: 'x', horizon: 12 };
+const forecast: Forecast = { id: 'F1', cause: 'schedule', issuedAt: 0, validUntil: 180, inputs: ['temp', 'sal', 'snd'], values: { temp: 12, sal: 35, snd: 1500 }, digest: 'x', windows: NOWCAST };
 const params: DriftParams = { threshold: 3, quorum: 2, persistence: 2 };
 
 function monitor(obs: Record<string, number | number[]>, f: Forecast | null = forecast) {

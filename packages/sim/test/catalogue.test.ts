@@ -5,21 +5,22 @@ import { loadScenarios } from './helpers.ts';
 
 /** CAT-1..5: installed capabilities, the catalogue, the power-on handshake and subscriptions. */
 describe('capabilities, catalogue and handshake', () => {
-  const minimal = () => new Simulation({ seed: 'cat', consumers: 3, capabilities: { featureDetector: false, longRange: false } });
-  const full = () => new Simulation({ seed: 'cat', consumers: 3, capabilities: { featureDetector: true, longRange: true } });
+  const minimal = () => new Simulation({ seed: 'cat', consumers: 3, capabilities: { featureDetector: false, futureForecasts: false } });
+  const full = () => new Simulation({ seed: 'cat', consumers: 3, capabilities: { featureDetector: true, futureForecasts: true } });
 
   it('CAT-3: the forecast collection lists its measurements', () => {
     expect(minimal().catalogue().find((c) => c.id === 'forecast')!.parameters).toEqual(['temp', 'sal', 'snd', 'cur']);
   });
 
   it('CAT-3: the catalogue follows what is installed', () => {
-    expect(minimal().catalogue().map((c) => c.id + (c.horizon ? `:${c.horizon}` : ''))).toEqual(['observations', 'climatology', 'forecast:12']);
-    expect(full().catalogue().map((c) => c.id + (c.horizon ? `:${c.horizon}` : ''))).toEqual(['observations', 'climatology', 'forecast:48', 'features']);
+    const ids = (s: Simulation) => s.catalogue().map((c) => c.id + (c.windows ? `:${c.windows.join('/')}` : ''));
+    expect(ids(minimal())).toEqual(['observations', 'climatology', 'forecast:0']);
+    expect(ids(full())).toEqual(['observations', 'climatology', 'forecast:0/12/24/48', 'features']);
   });
 
   it('CAT-5: at power-on each consumer shakes hands at T+00:00 and tailors itself', () => {
     for (const [sim, want] of [
-      [minimal(), ['LOW RES', '12 h', 'OK']],
+      [minimal(), ['LOW RES', 'NOW-CAST', 'OK']],
       [full(), ['HI RES', '48 h', 'OK']],
     ] as const) {
       expect(sim.tick).toBe(0);
@@ -50,7 +51,7 @@ describe('capabilities, catalogue and handshake', () => {
     expect(s.inputs.map((i) => i.key)).toEqual(['temp', 'sal', 'snd', 'cur', 'wave']);
     expect(s.catalogue().find((c) => c.id === 'forecast')!.parameters).toContain('wave');
     // CAT-5: the planner tailors itself to it and subscribes to wave height.
-    expect(s.consumers[1]!.status).toBe('12 h + WAVES');
+    expect(s.consumers[1]!.status).toBe('NOW-CAST + WAVES');
     expect([...s.consumers[1]!.topics].sort()).toEqual(['forecast/cur', 'forecast/wave']);
     s.step(40);
     // Measured, ingested, forecast and announced on its own topic; the planner fetches and verifies it.
@@ -64,22 +65,22 @@ describe('capabilities, catalogue and handshake', () => {
   it('CAT-1: without a wave-height sensor there is no wave input and the planner is not + WAVES', () => {
     const s = minimal();
     expect(s.inputs.some((i) => i.key === 'wave')).toBe(false);
-    expect(s.consumers[1]!.status).toBe('12 h');
+    expect(s.consumers[1]!.status).toBe('NOW-CAST');
   });
 
   it('CAT-2: without a detector, runs skip detection and announce without a feature count', () => {
     const s = minimal();
     s.step(30);
     const a = s.log.entries.filter((e) => e.kind === 'announce').map((e) => e.text);
-    expect(a[0]).toMatch(/12 h, no feature detector/);
+    expect(a[0]).toMatch(/now-cast, no feature detector/);
     expect(s.featuresDb.count).toBe(0);
   });
 
-  it('CAT-5: the chart display fetches features and the planner a 48 h forecast', () => {
+  it('CAT-5: the chart display fetches features and the planner the 48 h window', () => {
     const sim = runScript(loadScenarios().find((x) => x.name === 'capabilities')!);
     const [c1, c2, c3] = sim.consumers;
     expect(c1!.results.some((r) => r.featureCount !== undefined && r.ok)).toBe(true);
-    expect(c2!.results.some((r) => r.horizon === 48 && r.ok)).toBe(true);
+    expect(c2!.results.some((r) => r.windows?.includes(48) && r.ok)).toBe(true);
     expect(c3!.results.every((r) => r.featureCount === undefined)).toBe(true);
   });
 

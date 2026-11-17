@@ -4,15 +4,15 @@
  * When the system comes on (and on Reconfigure) it shakes hands: it reads what pygeoapi offers
  * (`GET /collections`), tailors itself to it, and subscribes to the topics it will use. It then
  * fetches and verifies what is announced. Its status is how it tailored itself: a chart display
- * is HI RES if features are offered, else LOW RES; a passage planner works to the forecast's
- * horizon (12 h or 48 h), + WAVES when wave height is offered; a basic display just shows the forecast.
+ * is HI RES if features are offered, else LOW RES; a passage planner works to the forecast's furthest
+ * window (NOW-CAST, or 48 h with future forecasts), + WAVES when wave height is offered; a basic display just shows the forecast.
  *
  * CAT-4: a profile that declares the measurements it uses subscribes to `forecast/<key>` for each one
  * offered, and fetches just that measurement (EDR `parameter-name`), rather than the whole forecast.
  */
 import { TIMING } from '../config.ts';
-import type { Announcement, BrokerMessage, CollectionInfo, FeaturesReady, InputKey, MeasurementReady, Topic } from '../contracts.ts';
-import { forecastDigest, isMeasurementMessage, measurementTopic, parameterDigest, topicMeasurement } from '../contracts.ts';
+import type { Announcement, BrokerMessage, CollectionInfo, FeaturesReady, InputKey, MeasurementReady, Topic, Windows } from '../contracts.ts';
+import { forecastDigest, furthestWindow, isMeasurementMessage, measurementTopic, NOWCAST, parameterDigest, topicMeasurement, windowsLabel } from '../contracts.ts';
 import type { EventLog } from '../events.ts';
 import type { Broker } from '../platform/broker.ts';
 import type { Caller, PygeoApi } from '../platform/pygeoapi.ts';
@@ -30,7 +30,7 @@ export interface ConsumerResult {
   readonly countOk: boolean;
   /** Set when this result covers features too. */
   readonly featureCount?: number;
-  readonly horizon?: number;
+  readonly windows?: Windows;
   /** Set when this result covers one measurement (CAT-4). */
   readonly measurement?: InputKey;
   /** What made the consumer fetch: an announcement, subscribing late, or its user reconfiguring the app. */
@@ -44,6 +44,12 @@ type Pending =
   | { due: number; kind: 'features'; msg: FeaturesReady; trigger: ConsumerResult['trigger'] }
   | { due: number; kind: 'measurement'; msg: MeasurementReady; trigger: ConsumerResult['trigger'] };
 
+/** CAT-5: how far ahead a passage planner can plan: NOW-CAST, or its furthest window ("48 h"). */
+export function plannerReach(w: Windows): string {
+  const h = furthestWindow(w);
+  return h === 0 ? 'NOW-CAST' : `${h} h`;
+}
+
 export class Consumer {
   readonly results: ConsumerResult[] = [];
   private readonly pending: Pending[] = [];
@@ -53,7 +59,7 @@ export class Consumer {
   /** The catalogue as this consumer last saw it (it only learns of changes by discovering again). */
   catalogue: readonly CollectionInfo[] = [];
   /** The forecast it holds and verified, and the forecast its features belong to. */
-  private coverage?: { forecastId: string; horizon: number };
+  private coverage?: { forecastId: string; windows: Windows };
   private featuresFor?: string;
 
   constructor(
@@ -96,7 +102,7 @@ export class Consumer {
       case 'chart':
         return this.offered('features') ? 'HI RES' : 'LOW RES';
       case 'planner':
-        return `${this.offered('forecast')?.horizon ?? 12} h${this.measurements.includes('wave') ? ' + WAVES' : ''}`;
+        return `${plannerReach(this.offered('forecast')?.windows ?? NOWCAST)}${this.measurements.includes('wave') ? ' + WAVES' : ''}`;
       case 'basic':
         return 'OK';
     }
@@ -114,7 +120,7 @@ export class Consumer {
   discover(t: number, why: 'start' | 'reconfigure'): void {
     this.catalogue = this.api.collections(this.caller, this.catalogueNow());
     const wanted = new Set(this.wantedTopics());
-    const offered = this.catalogue.map((c) => c.id + (c.horizon ? ` ${c.horizon} h` : '')).join(', ');
+    const offered = this.catalogue.map((c) => c.id + (c.windows ? ` ${windowsLabel(c.windows)}` : '')).join(', ');
     this.log.append(t, 'consumer', `${this.id} handshake (${why}): ${offered} → ${this.status}`);
     for (const topic of [...this.topics]) {
       if (wanted.has(topic)) continue;
@@ -154,16 +160,16 @@ export class Consumer {
   private fetchForecast(t: number, msg: Announcement, trigger: ConsumerResult['trigger']): void {
     const f = this.api.forecast(this.caller, msg.forecastId);
     const digestOk = !!f && f.digest === msg.digest && forecastDigest(f) === msg.digest;
-    if (f && digestOk) this.coverage = { forecastId: f.id, horizon: f.horizon };
-    this.record({ tick: t, forecastId: msg.forecastId, ok: digestOk, digestOk, countOk: true, horizon: f?.horizon, trigger });
+    if (f && digestOk) this.coverage = { forecastId: f.id, windows: f.windows };
+    this.record({ tick: t, forecastId: msg.forecastId, ok: digestOk, digestOk, countOk: true, windows: f?.windows, trigger });
   }
 
   /** CAT-4: fetch one measurement of the announced forecast and check it against its topic's digest. */
   private fetchMeasurement(t: number, msg: MeasurementReady, trigger: ConsumerResult['trigger']): void {
     const r = this.api.forecastParameter(this.caller, msg.forecastId, msg.parameter);
     const digestOk = !!r && r.digest === msg.digest && parameterDigest(r.forecast, msg.parameter) === msg.digest;
-    if (r && digestOk) this.coverage = { forecastId: r.forecast.id, horizon: r.forecast.horizon };
-    this.record({ tick: t, forecastId: msg.forecastId, ok: digestOk, digestOk, countOk: true, horizon: r?.forecast.horizon, measurement: msg.parameter, trigger });
+    if (r && digestOk) this.coverage = { forecastId: r.forecast.id, windows: r.forecast.windows };
+    this.record({ tick: t, forecastId: msg.forecastId, ok: digestOk, digestOk, countOk: true, windows: r?.forecast.windows, measurement: msg.parameter, trigger });
   }
 
   private fetchFeatures(t: number, msg: FeaturesReady, trigger: ConsumerResult['trigger']): void {
@@ -188,8 +194,8 @@ export class Consumer {
           return;
         }
         const digestOk = parameterDigest(r.forecast, key) === r.digest;
-        if (digestOk) this.coverage = { forecastId: r.forecast.id, horizon: r.forecast.horizon };
-        this.record({ tick: t, forecastId: r.forecast.id, ok: digestOk, digestOk, countOk: true, horizon: r.forecast.horizon, measurement: key, trigger });
+        if (digestOk) this.coverage = { forecastId: r.forecast.id, windows: r.forecast.windows };
+        this.record({ tick: t, forecastId: r.forecast.id, ok: digestOk, digestOk, countOk: true, windows: r.forecast.windows, measurement: key, trigger });
       }
       this.queryFeatures(t, this.coverage?.forecastId, trigger);
       return;
@@ -200,8 +206,8 @@ export class Consumer {
       return;
     }
     const digestOk = forecastDigest(f) === f.digest;
-    if (digestOk) this.coverage = { forecastId: f.id, horizon: f.horizon };
-    this.record({ tick: t, forecastId: f.id, ok: digestOk, digestOk, countOk: true, horizon: f.horizon, trigger });
+    if (digestOk) this.coverage = { forecastId: f.id, windows: f.windows };
+    this.record({ tick: t, forecastId: f.id, ok: digestOk, digestOk, countOk: true, windows: f.windows, trigger });
     this.queryFeatures(t, f.id, trigger);
   }
 
@@ -216,7 +222,7 @@ export class Consumer {
   private record(r: ConsumerResult): void {
     this.results.push(r);
     const mark = r.ok ? '✓' : '✗';
-    const what = r.featureCount !== undefined ? `${r.featureCount} features` : `${r.measurement ?? 'forecast'}${r.horizon ? ` ${r.horizon} h` : ''}`;
+    const what = r.featureCount !== undefined ? `${r.featureCount} features` : `${r.measurement ?? 'forecast'}${r.windows ? ` ${windowsLabel(r.windows)}` : ''}`;
     const detail = r.ok ? `${what} ok` : `${r.digestOk ? '' : 'digest mismatch '}${r.countOk ? '' : 'feature count mismatch'}`.trim();
     this.log.append(r.tick, 'consumer', `${this.id} ${mark} ${r.forecastId}${SUFFIX[r.trigger]}: ${detail} · ${this.status}`);
   }

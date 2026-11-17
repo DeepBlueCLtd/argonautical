@@ -3,7 +3,7 @@
  * run queue with merge, and retry with backoff. ORC-1..6, DRF-5.
  */
 import { TIMING } from '../config.ts';
-import { ServiceUnavailable, type Capabilities, type Feature, type Forecast, type Job, type RunRequestRecord } from '../contracts.ts';
+import { ServiceUnavailable, windowsFor, windowsLabel, type Capabilities, type Feature, type Forecast, type Job, type RunRequestRecord } from '../contracts.ts';
 import type { EventLog } from '../events.ts';
 import { clockLabel } from '../events.ts';
 import { ModuleFailure } from '../faults.ts';
@@ -279,7 +279,7 @@ export class Orchestrator {
           payload: P.shimCall('model_runner.run', 'Dagster Pipes: launch the model-runner container', { forecast_id: a.forecastId, cause: a.causes.join(' + ') }, a.attempt),
         });
         if (!first) this.d.log.append(t, 'retry', `${a.id}: retry ${a.attempt - 1} of model run`);
-        a.job = shims.run(this.d.runner, { id: a.forecastId, cause: a.causes.join(' + '), tick: t, horizon: a.caps.longRange ? 48 : 12 });
+        a.job = shims.run(this.d.runner, { id: a.forecastId, cause: a.causes.join(' + '), tick: t, windows: windowsFor(a.caps.futureForecasts) });
       } else if (a.step === 'detect') {
         this.d.tokens.emit(edgeId('shimDetect', 'call', 'featureDetector'), {
           ...retry,
@@ -366,7 +366,7 @@ export class Orchestrator {
       payload: P.shimCall('announcer.announce', 'Python call inside the Dagster asset', { forecast_id: f.id, ...(a.caps.featureDetector ? { feature_count: a.featureCount ?? 0 } : {}) }),
     });
     const msg = shims.announce(this.d.announcer, { forecast: f, ...(a.caps.featureDetector ? { featureCount: a.featureCount ?? 0 } : {}) });
-    this.d.log.append(t, 'announce', `announce ${msg.forecastId} (${msg.cause}), ${msg.horizon} h, ${msg.featureCount === undefined ? 'no feature detector' : `${msg.featureCount} features`}, digest ${msg.digest}`);
+    this.d.log.append(t, 'announce', `announce ${msg.forecastId} (${msg.cause}), ${windowsLabel(msg.windows)}, ${msg.featureCount === undefined ? 'no feature detector' : `${msg.featureCount} features`}, digest ${msg.digest}`);
     this.materialise('announcement', t);
     this.history.push({ id: a.id, forecastId: f.id, causes: a.causes.join(' + '), startedAt: a.startedAt, endedAt: t, failures: a.totalFailures, ...(msg.featureCount !== undefined ? { featureCount: msg.featureCount } : {}) });
     this.d.log.append(t, 'run', `${a.id} complete in ${t - a.startedAt}s`);

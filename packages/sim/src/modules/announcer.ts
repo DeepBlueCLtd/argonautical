@@ -16,10 +16,10 @@ export class Announcer {
   constructor(private readonly publisher: AnnouncementPublisher) {}
 
   announce({ forecast: f, featureCount }: AnnounceInput): Announcement {
-    const msg: Announcement = { forecastId: f.id, validUntil: f.validUntil, cause: f.cause, digest: f.digest, horizon: f.horizon, ...(featureCount !== undefined ? { featureCount } : {}) };
+    const msg: Announcement = { forecastId: f.id, validUntil: f.validUntil, cause: f.cause, digest: f.digest, windows: f.windows, ...(featureCount !== undefined ? { featureCount } : {}) };
     this.publisher.publish({ topic: 'forecast/new', body: msg });
     for (const key of f.inputs) {
-      this.publisher.publish({ topic: measurementTopic(key), body: { forecastId: f.id, parameter: key, validUntil: f.validUntil, horizon: f.horizon, digest: parameterDigest(f, key) } });
+      this.publisher.publish({ topic: measurementTopic(key), body: { forecastId: f.id, parameter: key, validUntil: f.validUntil, windows: f.windows, digest: parameterDigest(f, key) } });
     }
     if (featureCount !== undefined) this.publisher.publish({ topic: 'features/new', body: { forecastId: f.id, featureCount } });
     return msg;

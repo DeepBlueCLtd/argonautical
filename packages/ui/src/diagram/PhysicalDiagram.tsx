@@ -3,7 +3,7 @@
  * deployment (docs/c4-model.md §6.1). A projection of the same token records: it never alters the
  * simulation. Stores open the live inspector (SYS-8).
  */
-import { EDGES, STANDARDS, type Snapshot } from '@argonautical/sim';
+import { EDGES, STANDARDS, windowsLabel, type Snapshot } from '@argonautical/sim';
 import { useMemo, type ReactNode } from 'react';
 import { topicShort, type Runner } from '../runner.ts';
 import { measurementTopicRows } from './Diagram.tsx';
@@ -427,7 +427,7 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
         {snap.catalogue.map((c, i) => (
           <T key={c.id} x={R.pygeoapi.x + 10} y={R.pygeoapi.y + 58 + i * 14} cls="tiny">
             {c.id}
-            {c.horizon ? ` · ${c.horizon} h` : ''}
+            {c.windows ? ` · ${windowsLabel(c.windows)}` : ''}
           </T>
         ))}
       </Box>

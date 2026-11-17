@@ -4,8 +4,8 @@
  */
 import { EDGES, Simulation, type Capabilities, type ControlAction, type InputSlot, type Token } from '@argonautical/sim';
 
-/** CAT-1: the demo opens on the minimal system (no feature detector, 12 h, no wave-height sensor); the presenter grows it. */
-const DEMO_CAPABILITIES = { featureDetector: false, longRange: false, waveSensor: false } as const;
+/** CAT-1: the demo opens on the minimal system (no feature detector, now-cast only, no wave-height sensor); the presenter grows it. */
+const DEMO_CAPABILITIES = { featureDetector: false, futureForecasts: false, waveSensor: false } as const;
 
 export type Rate = 0.5 | 1 | 10 | 60;
 /** Default speed: half real time, so a live audience can follow each step. */
