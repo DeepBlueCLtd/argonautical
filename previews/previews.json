@@ -1,5 +1,16 @@
 [
   {
+    "number": 33,
+    "title": "Now-cast by default; future forecasts (12/24/48 h) as the add-on",
+    "summary": "Closes #32.",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/33",
+    "branch": "ccr-d48308d1-r0tkyy",
+    "sha": "450f8446cc684998ca745f1e6fa325493e24f692",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-17T18:16:54.713Z"
+  },
+  {
     "number": 31,
     "title": "Wave-height sensor and per-measurement topics (#30)",
     "summary": "Adds a third installable capability, Waves (a wave-height sensor), and makes each environmental measurement separately subscribable, so the passage planner can register for wave-height events.",
