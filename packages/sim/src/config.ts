@@ -20,6 +20,13 @@ export const INPUT_CATALOGUE: readonly InputSpec[] = [
   { key: 'turb', label: 'Turbidity', unit: 'NTU', base: 2.0, sigma: 0.5 },
 ];
 
+/**
+ * CAT-1: wave height, measured only when a wave-height sensor is installed (an upward-looking range finder
+ * on an underwater platform; an accelerometer or GPS altitude on a surface one). It is appended to the
+ * chosen inputs and then flows like any other: ingestion, drift, the model, the forecast and its topic.
+ */
+export const WAVE_INPUT: InputSpec = { key: 'wave', label: 'Wave height', unit: 'm', base: 1.5, sigma: 0.3 };
+
 export const MIN_INPUTS = 3;
 export const MAX_INPUTS = 6;
 
@@ -107,9 +114,10 @@ export const NOISE_BOUNDS = { min: 0, max: 3 } as const;
 
 export const DEFAULT_CONSUMERS = 2;
 
-export function inputsFor(count: number): InputSpec[] {
+/** The inputs for `count` (3–6, SIM-3), plus wave height when a wave-height sensor is installed (CAT-1). */
+export function inputsFor(count: number, waveSensor = false): InputSpec[] {
   if (!Number.isInteger(count) || count < MIN_INPUTS || count > MAX_INPUTS) {
     throw new RangeError(`input count must be an integer ${MIN_INPUTS}–${MAX_INPUTS}, got ${count}`);
   }
-  return INPUT_CATALOGUE.slice(0, count);
+  return [...INPUT_CATALOGUE.slice(0, count), ...(waveSensor ? [WAVE_INPUT] : [])];
 }

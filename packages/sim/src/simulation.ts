@@ -38,7 +38,7 @@ export interface SimOptions {
   readonly inputs?: number;
   /** Consumers present at T+00:00. Default 2. */
   readonly consumers?: number;
-  /** CAT-1. Default: feature detector present, 12 h forecasts (the classic pipeline). The demo opens with both off. */
+  /** CAT-1. Default: feature detector present, 12 h forecasts, no wave-height sensor (the classic pipeline). The demo opens with all off. */
   readonly capabilities?: Partial<Capabilities>;
 }
 
@@ -91,7 +91,9 @@ export class Simulation {
 
   constructor(opts: SimOptions) {
     this.seed = opts.seed;
-    this.inputs = inputsFor(opts.inputs ?? 4);
+    // CAT-1: decided before anything is built, because a wave-height sensor adds an input.
+    this.capabilities = { featureDetector: true, longRange: false, waveSensor: false, ...opts.capabilities };
+    this.inputs = inputsFor(opts.inputs ?? 4, this.capabilities.waveSensor);
     this.units = Object.fromEntries(this.inputs.map((s) => [s.key, s.unit]));
     this.streams = new Streams(opts.seed);
     const now = () => this.t;
@@ -217,8 +219,7 @@ export class Simulation {
       exporter,
     });
 
-    this.capabilities = { featureDetector: true, longRange: false, ...opts.capabilities };
-    this.log.append(0, 'control', `start: seed "${opts.seed}", ${this.inputs.length} inputs, feature detector ${this.capabilities.featureDetector ? 'present' : 'absent'}, ${this.capabilities.longRange ? 48 : 12} h forecasts`);
+    this.log.append(0, 'control', `start: seed "${opts.seed}", ${this.inputs.length} inputs${this.capabilities.waveSensor ? ' (with wave height)' : ''}, feature detector ${this.capabilities.featureDetector ? 'present' : 'absent'}, ${this.capabilities.longRange ? 48 : 12} h forecasts`);
     this.orchestrator.materialise('climatology', 0);
     for (let i = 0; i < (opts.consumers ?? DEFAULT_CONSUMERS); i++) this.newConsumer();
   }
@@ -413,7 +414,7 @@ export class Simulation {
     const cols: CollectionInfo[] = [
       { id: 'observations', title: 'Ship observations', api: 'SensorThings' },
       { id: 'climatology', title: 'Climatology at the ship', api: 'EDR' },
-      { id: 'forecast', title: 'Forecast at the ship', api: 'EDR', horizon: this.capabilities.longRange ? 48 : 12 },
+      { id: 'forecast', title: 'Forecast at the ship', api: 'EDR', horizon: this.capabilities.longRange ? 48 : 12, parameters: this.inputs.map((s) => s.key) },
     ];
     if (this.capabilities.featureDetector) cols.push({ id: 'features', title: 'Fronts and eddies', api: 'Features' });
     return cols;

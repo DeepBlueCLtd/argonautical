@@ -4,8 +4,8 @@
  */
 import { EDGES, Simulation, type Capabilities, type ControlAction, type InputSlot, type Token } from '@argonautical/sim';
 
-/** CAT-1: the demo opens on the minimal system (no feature detector, 12 h); the presenter grows it. */
-const DEMO_CAPABILITIES = { featureDetector: false, longRange: false } as const;
+/** CAT-1: the demo opens on the minimal system (no feature detector, 12 h, no wave-height sensor); the presenter grows it. */
+const DEMO_CAPABILITIES = { featureDetector: false, longRange: false, waveSensor: false } as const;
 
 export type Rate = 0.5 | 1 | 10 | 60;
 /** Default speed: half real time, so a live audience can follow each step. */
@@ -59,18 +59,26 @@ export function topicOf(t: Token): string | undefined {
   return d?.topic?.replace(/^argonautical\//, '');
 }
 
+/** CAT-4: a topic's short name: `forecast` (whole run), `features`, or the measurement (`cur`, `wave`…). */
+export function topicShort(topic: string): string {
+  if (topic === 'forecast/new') return 'forecast';
+  if (topic === 'features/new') return 'features';
+  return topic.replace(/^forecast\//, '');
+}
+
 /** A short tag for a broker token: which topic, or a subscription change. */
 export function topicTag(t: Token): string | undefined {
   const topic = topicOf(t);
   if (!topic) return undefined;
-  const name = topic.split('/')[0]!;
+  const name = topicShort(topic);
   if (t.edge === 'consumer>subscribe>broker') return `${/UNSUBSCRIBE/.test(t.payload!.format) ? '−' : '+'}${name}`;
   return name;
 }
 
 function noticeOf(t: Token): string {
-  const d = t.payload?.data as { payload?: { forecast_id?: string } } | undefined;
+  const d = t.payload?.data as { payload?: { forecast_id?: string; parameter?: string } } | undefined;
   const id = d?.payload?.forecast_id;
+  if (d?.payload?.parameter) return `▸ ${d.payload.parameter} of ${id}`;
   switch (topicOf(t)) {
     case 'forecast/new':
       return `▸ ${id} ready`;

@@ -19,8 +19,8 @@ export interface Script {
   readonly seed: string;
   readonly inputs?: number;
   readonly consumers?: number;
-  /** CAT-1: starting capabilities (default: feature detector present, 12 h). */
-  readonly capabilities?: { readonly featureDetector?: boolean; readonly longRange?: boolean };
+  /** CAT-1: starting capabilities (default: feature detector present, 12 h, no wave-height sensor). */
+  readonly capabilities?: { readonly featureDetector?: boolean; readonly longRange?: boolean; readonly waveSensor?: boolean };
   /** Run until this tick. */
   readonly until: number;
   readonly steps: readonly ScriptStep[];

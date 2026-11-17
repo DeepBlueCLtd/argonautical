@@ -27,14 +27,18 @@ export interface InputDecl {
 /**
  * CAT-5: consumer profiles. Each needs the forecast; what else it uses decides its status.
  * Chart display: features optional (LOW RES → HI RES). Passage planner: prefers a 48 h horizon
- * (12 h → 48 h). Basic: the forecast only.
+ * (12 h → 48 h) and uses wave height when it is offered (+ WAVES). Basic: the forecast only.
+ *
+ * CAT-4: `measurements` are the forecast measurements a profile uses. It subscribes to `forecast/<key>`
+ * for each one the catalogue offers, rather than to the whole forecast; with none offered (or none
+ * declared, as for basic) it subscribes to `forecast/new`.
  */
 export type ConsumerProfile = 'chart' | 'planner' | 'basic';
 
-export const PROFILES: Record<ConsumerProfile, { readonly title: string; readonly about: string }> = {
-  chart: { title: 'Chart display', about: 'Draws the forecast on a chart; with features it draws fronts and eddies too (HI RES).' },
-  planner: { title: 'Passage planner', about: 'Plans the route ahead; a 48 h forecast lets it look twice as far ahead.' },
-  basic: { title: 'Basic', about: 'Shows the forecast at the ship.' },
+export const PROFILES: Record<ConsumerProfile, { readonly title: string; readonly about: string; readonly measurements: readonly string[] }> = {
+  chart: { title: 'Chart display', about: 'Draws sea temperature and current on a chart; with features it draws fronts and eddies too (HI RES).', measurements: ['temp', 'cur'] },
+  planner: { title: 'Passage planner', about: 'Plans the route ahead from current and, when a wave-height sensor is fitted, wave height (+ WAVES); a 48 h forecast lets it look twice as far ahead.', measurements: ['cur', 'wave'] },
+  basic: { title: 'Basic', about: 'Shows the whole forecast at the ship.', measurements: [] },
 };
 
 const EDR = 'CoverageJSON from OGC API-EDR (pygeoapi reads it from the NetCDF store).';
@@ -63,7 +67,7 @@ export const INPUTS = {
   ],
   consumer: {
     chart: [
-      consumerForecast,
+      { ...consumerForecast, label: 'forecast: temp, cur', what: `Sea temperature and current from the announced forecast, one measurement per request (parameter-name). ${EDR}`, use: 'Drawn on the chart. Each measurement is checked against the digest on its own topic (✓/✗).' },
       {
         slot: 'features',
         label: 'features (optional)',
@@ -74,7 +78,14 @@ export const INPUTS = {
         whenEmpty: 'Only offered while a feature detector is present; without them the chart is LOW RES.',
       },
     ],
-    planner: [{ ...consumerForecast, use: 'Plans the route ahead: 12 h, or 48 h once the long-range forecast is offered. Its digest is checked against the announcement (✓/✗).' }],
+    planner: [
+      {
+        ...consumerForecast,
+        label: 'forecast: cur, wave',
+        what: `Current and, if a wave-height sensor is fitted, wave height from the announced forecast, one measurement per request (parameter-name). ${EDR}`,
+        use: 'Plans the route ahead: 12 h, or 48 h once the long-range forecast is offered. Each measurement is checked against the digest on its own topic (✓/✗).',
+      },
+    ],
     basic: [consumerForecast],
   } satisfies Record<ConsumerProfile, InputDecl[]>,
 } satisfies Record<string, readonly InputDecl[] | Record<ConsumerProfile, InputDecl[]>>;
