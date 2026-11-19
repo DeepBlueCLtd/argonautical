@@ -2,7 +2,7 @@
  * Owns the wall clock: run/pause, step, rate, and token animation timing.
  * It drives the simulation only through its control API and step() (ARC-4).
  */
-import { EDGES, Simulation, type Capabilities, type ControlAction, type InputSlot, type Token } from '@argonautical/sim';
+import { EDGES, Simulation, type Capabilities, type ControlAction, type InputSlot, type Snapshot, type Token } from '@argonautical/sim';
 
 /** CAT-1: the demo opens on the minimal system (no feature detector, now-cast only, no wave-height sensor); the presenter grows it. */
 const DEMO_CAPABILITIES = { featureDetector: false, futureForecasts: false, waveSensor: false } as const;
@@ -42,6 +42,16 @@ const EPS = 1e-6;
 const LINEAGE = new Set(EDGES.filter((e) => e.kind === 'lineage').map((e) => e.id));
 /** Orchestrator → module calls (via a shim): the module's reads leave only once its call has arrived. */
 const CALLS = new Set(EDGES.filter((e) => e.kind === 'call').map((e) => e.id));
+/** Triggers (a sensor, the schedule, the run-request sensor) asking for a forecast run. */
+const TRIGGERS = new Set(EDGES.filter((e) => e.kind === 'trigger').map((e) => e.id));
+/**
+ * Issue #35: a sensor decides only once its module's reads are back, so its RunRequest leaves then
+ * (the drift monitor's EDR and SensorThings reads; the run-request sensor's poll of the API).
+ */
+const TRIGGER_READER: Record<string, string> = {
+  'driftSensor>trigger>forecast': 'driftMonitor#',
+  'manualRequest>trigger>forecast': 'manualRequest#',
+};
 /** MOT-1: minimum on-screen time, in wall-clock seconds, at ½× (shorter when faster). */
 const MIN_WALL = { lineage: 1.2, other: 0.6 };
 /** The four legs of a pygeoapi read play one after another, each this long (wall seconds) at ½×, so a round trip takes ~8 s; shorter when faster. */
@@ -108,6 +118,8 @@ export class Runner {
   private abreast = 0;
   /** After a release or a call, the rest of that tick's tokens wait until it lands, so cause visibly precedes effect. */
   private hold = { tick: -1, at: 0 };
+  /** Issue #35: a run started by a trigger is shown only once its RunRequest has landed on forecast. */
+  private runGate = { id: '', at: 0 };
   private listeners = new Set<() => void>();
   /** CAT-4: per consumer, the latest broker message to reach it on screen (when it lands, and what it says). */
   private inbox = new Map<string, { at: number; label: string }>();
@@ -189,6 +201,7 @@ export class Runner {
     this.gatherings.clear();
     this.inbox.clear();
     this.hold = { tick: -1, at: 0 };
+    this.runGate = { id: '', at: 0 };
     this.frac = 0;
     this.ingestTokens();
     this.handshakeUntil = Math.max(this.anim, ...this.visuals.map((v) => v.born + v.dur));
@@ -216,6 +229,7 @@ export class Runner {
     this.gatherings.clear();
     this.inbox.clear();
     this.hold = { tick: -1, at: 0 };
+    this.runGate = { id: '', at: 0 };
     this.frac = 0;
     this.emit();
   }
@@ -250,6 +264,7 @@ export class Runner {
     this.visuals = this.visuals.filter((v) => v.born <= this.anim);
     this.legCursor = this.anim;
     this.hold = { tick: -1, at: 0 };
+    this.runGate = { id: '', at: 0 };
     this.emit();
   }
 
@@ -349,6 +364,18 @@ export class Runner {
         dur = Math.max(t.duration * secondsPerTick, this.wall(lineage ? MIN_WALL.lineage : MIN_WALL.other, 0.2));
         // The module starts work (and sends its reads) when the call lands, not when it leaves.
         if (CALLS.has(t.edge)) this.hold = { tick: t.start, at: now + dur };
+        if (TRIGGERS.has(t.edge)) {
+          // Issue #35: the request leaves once the sensor's reads are back, and the run it starts
+          // (dependency checks, the run call, the forecast card) waits until it has landed.
+          const reader = TRIGGER_READER[t.edge];
+          const list = reader ? (this.gatherings.get(reader) ?? []) : [];
+          const g = list[list.length - 1];
+          if (g && g.tick === t.start) born = Math.max(born, g.lastAt);
+          const lands = born + dur;
+          if (t.start !== this.hold.tick || lands > this.hold.at) this.hold = { tick: t.start, at: lands };
+          const a = this.sim.orchestrator.active;
+          if (a && a.startedAt === t.start) this.runGate = { id: a.id, at: Math.max(lands, a.id === this.runGate.id ? this.runGate.at : 0) };
+        }
       }
       const key = `${t.edge}#${t.instance ?? ''}#${t.role ?? ''}`;
       const same = this.visuals.filter((v) => `${v.token.edge}#${v.token.instance ?? ''}#${v.token.role ?? ''}` === key);
@@ -411,6 +438,12 @@ export class Runner {
       if (y && this.anim >= y.at - EPS && (!f || y.at > f.at)) f = y;
     }
     return g && f && f.at >= g.start - EPS ? { state: 'filled', token: f.token } : { state: 'awaiting' };
+  }
+
+  /** Issue #35: the run as the diagram should show it: not until the RunRequest that started it has landed. */
+  visibleRun(snap: Snapshot): Snapshot['run'] {
+    const r = snap.run;
+    return r && r.id === this.runGate.id && this.anim < this.runGate.at - EPS ? undefined : r;
   }
 
   /** Paused with nothing left to animate: tokens are frozen and can be clicked. */

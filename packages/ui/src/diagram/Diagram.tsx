@@ -130,14 +130,23 @@ export interface SlotTip {
   readonly box: { left: number; top: number; right: number; bottom: number };
 }
 
+/** SYS-1, issue #34: the three presentations of the same simulation. */
+export type View = 'logical' | 'physical' | 'graph';
+
+const VIEW_LABEL: Record<View, { label: string; title: string }> = {
+  logical: { label: 'Logical', title: 'Logical view: information flow' },
+  physical: { label: 'Physical', title: 'Physical view: the candidate production deployment' },
+  graph: { label: 'Artefacts', title: 'Artefacts view: the orchestrator’s dependency graph of assets, without reads and writes' },
+};
+
 /** What the Control panel needs from the app (§5.4). */
 export interface Controls {
   readonly logOpen: boolean;
   readonly onLog: () => void;
   readonly onWalkthrough: () => void;
   /** SYS-1: which view is showing, and the toggle. */
-  readonly view: 'logical' | 'physical';
-  readonly onView: (v: 'logical' | 'physical') => void;
+  readonly view: View;
+  readonly onView: (v: View) => void;
 }
 
 export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; onTokenTip: (t: TokenTip | null) => void; spotlight?: Rect | null; controls: Controls; inspecting: InspectId | null; onInspect: (id: InspectId) => void }) {
@@ -157,18 +166,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
     const m = snap.assets[a];
     return m !== undefined && t - m < MATERIALISING_TICKS ? 'materialising' : '';
   };
-  const run = snap.run;
-  const retryOn = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn !== undefined ? run.retryIn : undefined);
-  // While the step's reads are in flight it waits for its inputs; the countdown starts once they have arrived.
-  const reading = (step: 'run' | 'detect') => !!run && run.step === step && run.retryIn === undefined && run.reading;
-  const executing = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn === undefined && !run.reading ? run : undefined);
-  // A step first retrieves its inputs. It says "retrieving data" until the simulation's read phase is over
-  // AND the replies have visibly arrived (at faster rates the animation can lag the clock), and only then
-  // shows its own label ("replacing F1"), with the bar counting from that moment.
-  const READER = { run: 'modelRunner', detect: 'featureDetector' } as const;
-  const retrieving = (step: 'run' | 'detect') => reading(step) || (!!executing(step) && runner.readsPending(READER[step]));
-  const execLabel = (step: 'run' | 'detect') => (retrieving(step) ? 'retrieving data' : (executing(step)?.label ?? (retryOn(step) !== undefined ? 'waiting for retry' : '')));
-  const dataIn = useRef(new Map<string, number>());
+  const { run, retryOn, reading, executing, retrieving, execLabel, shownProgress } = useExecState(snap, runner);
   const shown = useRef(new Map<string, { status: string; line: string; ok: boolean | undefined }>());
   // A power-on installs a new system: forget what the old consumers showed.
   const shownFor = useRef(runner.sim);
@@ -176,28 +174,12 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
     shownFor.current = runner.sim;
     shown.current.clear();
   }
-  const shownProgress = (step: 'run' | 'detect', dur: number) => {
-    const r = executing(step);
-    if (!r || retrieving(step)) return 0;
-    const key = `${r.id}#${step}#${r.attempt}`;
-    const p = smoothProgress(step, dur);
-    if (!dataIn.current.has(key)) dataIn.current.set(key, p);
-    const p0 = Math.min(dataIn.current.get(key)!, 0.95);
-    return Math.max(0, (p - p0) / (1 - p0));
-  };
-  const smoothProgress = (step: 'run' | 'detect', dur: number) => {
-    const r = executing(step);
-    return r ? Math.min(1, r.progress + runner.frac / dur) : 0;
-  };
 
   const R = RECTS;
   const f = snap.forecast;
   /** CAT-1: a feature detector is present (the toggle takes effect from the next run). */
   const detector = snap.capabilities.featureDetector;
   // CAT-1: a wave-height sensor adds a seventh row at most; rows close up to fit their cards.
-  const oceanPitch = Math.min(30, (R.ocean.h - 66) / snap.inputs.length);
-  const sensorPitch = Math.min(36, (R.sensors.h - 70) / snap.inputs.length);
-  const readingGap = Math.min(16, sensorPitch - 15);
   // Staleness countdown (ORC-1, MOT-3): smooth between ticks; "replacing" once a run is under way.
   const staleRemaining = f ? Math.max(0, snap.schedule.staleIn - (snap.schedule.staleIn > 0 ? runner.frac : 0)) : 0;
   const stale = { replacing: !!run && f !== undefined && snap.schedule.staleIn === 0 };
@@ -231,7 +213,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <rect className="region consumers" x={REGIONS.consumersLeft} y={0} width={VIEW.w - REGIONS.consumersLeft} height={VIEW.h} />
         <line className="boundary" x1={REGIONS.worldRight} y1={0} x2={REGIONS.worldRight} y2={VIEW.h} />
         <line className="boundary" x1={REGIONS.consumersLeft} y1={0} x2={REGIONS.consumersLeft} y2={VIEW.h} />
-        <T x={REGIONS.worldRight / 2} y={261} cls="region-label" anchor="middle">
+        <T x={REGIONS.worldRight / 2} y={273} cls="region-label" anchor="middle">
           WORLD
         </T>
         <T x={(REGIONS.worldRight + REGIONS.consumersLeft) / 2} y={24} cls="region-label" anchor="middle">
@@ -266,68 +248,8 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
       <ControlPanel snap={snap} runner={runner} controls={controls} />
 
       {/* World */}
-      <Box r={R.ocean} style="world">
-        <T x={R.ocean.x + 10} y={R.ocean.y + 22} cls="title">
-          Ocean
-        </T>
-        <T x={R.ocean.x + 10} y={R.ocean.y + 38} cls="muted small">
-          true values, σ from climatology
-        </T>
-        {snap.inputs.map((s, i) => {
-          const y = R.ocean.y + 58 + i * oceanPitch;
-          const z = (s.truth - s.base) / s.sigma;
-          const cx = R.ocean.x + 95;
-          return (
-            <g key={s.key}>
-              <T x={R.ocean.x + 10} y={y} cls="small">
-                {s.label}
-              </T>
-              {/* Scenario: a front moves this input +5σ over 20 s (toggle). The label says what a click does. */}
-              <SvgButton
-                x={R.ocean.x + R.ocean.w - 74}
-                y={y - 13}
-                w={64}
-                label={s.shiftOn ? 'clear front' : '+5σ front'}
-                title={s.shiftOn ? `Clear the front: ${s.label} returns to climatology` : `Scenario: a front moves ${s.label} +5σ over 20 s`}
-                cls={`scenario ${s.shiftOn ? 'on' : ''}`}
-                onClick={() => runner.apply({ type: 'shift', input: s.key, on: !s.shiftOn })}
-              />
-              <line className="axis" x1={cx - 80} x2={cx + 80} y1={y + 10} y2={y + 10} />
-              <line className="axis zero" x1={cx} x2={cx} y1={y + 5} y2={y + 15} />
-              <rect className="zbar" x={Math.min(cx, cx + z * 13)} y={y + 7} width={Math.abs(z * 13)} height={6} />
-            </g>
-          );
-        })}
-      </Box>
-      <Box r={R.sensors} style="world">
-        <T x={R.sensors.x + 10} y={R.sensors.y + 22} cls="title">
-          Sensors
-        </T>
-        <T x={R.sensors.x + 10} y={R.sensors.y + 38} cls="muted small">
-          latest reading · noise
-        </T>
-        {snap.inputs.map((s, i) => (
-          <g key={s.key}>
-            <T x={R.sensors.x + 10} y={R.sensors.y + 64 + i * sensorPitch} cls="small">
-              {s.label}
-            </T>
-            <T x={R.sensors.x + 10} y={R.sensors.y + 64 + readingGap + i * sensorPitch} cls="small mono">
-              {fmt(s.reading, s.sigma < 1 ? 2 : 1)} {s.unit}
-            </T>
-            <Stepper
-              x={R.sensors.x + R.sensors.w - 90}
-              y={R.sensors.y + 67 + i * sensorPitch}
-              vw={48}
-              value={`±${s.noise}σ`}
-              what={`${s.label} sensor noise`}
-              cls="scenario"
-              dec={stepIn(NOISE_STEPS, s.noise, -1)}
-              inc={stepIn(NOISE_STEPS, s.noise, 1)}
-              onSet={(v) => runner.apply({ type: 'noise', input: s.key, sigma: v })}
-            />
-          </g>
-        ))}
-      </Box>
+      <OceanCard r={R.ocean} snap={snap} runner={runner} />
+      <SensorsCard r={R.sensors} snap={snap} runner={runner} />
 
       {/* Ingestion: ours, not orchestrated (UI-4); presenter can stop/start it (FLT-3) */}
       <g filter={snap.ingestion.running ? undefined : 'url(#offline-halo)'}>
@@ -413,7 +335,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         </T>
       </Box>
       </g>
-      <OperatorControls snap={snap} runner={runner} />
+      <OperatorControls snap={snap} runner={runner} sensor={R.driftSensor} monitor={R.driftMonitor} top={R.shimCheck.y} />
       <PlayPause at={{ x: R.driftSensor.x + 18, y: R.driftSensor.y + 17 }} running={!snap.offline.driftMonitor} what="the drift monitor (checks fail, no drift runs)" onToggle={() => runner.apply({ type: 'offline', module: 'driftMonitor', offline: !snap.offline.driftMonitor })} />
       <Box r={R.stalenessSchedule} style="ots">
         <T x={R.stalenessSchedule.x + 10} y={R.stalenessSchedule.y + 22} cls="title">
@@ -871,6 +793,60 @@ function CtlButton(props: { x: number; y: number; w: number; h: number; title: s
   );
 }
 
+/** The views in the order the switch shows them, with each segment's width (they sum to the switch's width). */
+const VIEW_ORDER: readonly { v: View; w: number }[] = [
+  { v: 'graph', w: 68 },
+  { v: 'logical', w: 56 },
+  { v: 'physical', w: 62 },
+];
+
+/** A segmented control: one pill, one segment per view; the chosen one is filled. */
+function ViewSwitch({ x, y, w, h, view, onView }: { x: number; y: number; w: number; h: number; view: View; onView: (v: View) => void }) {
+  const at = VIEW_ORDER.findIndex((o) => o.v === view);
+  const move = (d: number) => onView(VIEW_ORDER[(at + d + VIEW_ORDER.length) % VIEW_ORDER.length]!.v);
+  let sx = x;
+  const segs = VIEW_ORDER.map((o) => {
+    const seg = { ...o, x: sx };
+    sx += o.w;
+    return seg;
+  });
+  return (
+    <g
+      className="view-switch"
+      role="radiogroup"
+      aria-label="View"
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') (e.preventDefault(), move(1));
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') (e.preventDefault(), move(-1));
+      }}
+    >
+      <rect className="frame" x={x} y={y} width={w} height={h} rx={h / 2} />
+      {segs.slice(1).map((s, i) => (segs[i]!.v !== view && s.v !== view ? <line key={s.v} className="divider" x1={s.x} x2={s.x} y1={y + 4} y2={y + h - 4} /> : null))}
+      {segs.map((s) => {
+        const on = s.v === view;
+        return (
+          <g
+            key={s.v}
+            className={`seg ${on ? 'on' : ''}`}
+            role="radio"
+            aria-checked={on}
+            aria-label={VIEW_LABEL[s.v].title}
+            tabIndex={on ? 0 : -1}
+            onClick={() => onView(s.v)}
+            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onView(s.v))}
+          >
+            <title>{VIEW_LABEL[s.v].title}</title>
+            <rect x={s.x + 1.5} y={y + 1.5} width={s.w - 3} height={h - 3} rx={(h - 3) / 2} />
+            <text x={s.x + s.w / 2} y={y + 13} textAnchor="middle" className="ctl-text cap-text">
+              {VIEW_LABEL[s.v].label}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 /**
  * §5.4 Presenter controls, in the top fifth of the World column: a large play/pause, the clock,
  * Step, the rate (½×/1×/10×/60× as a radio group), Add consumer, Walkthrough and the event log.
@@ -1004,16 +980,8 @@ export function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runne
           {caps.waveSensor ? '✓ ' : ''}Wave-height sensor
         </text>
       </CtlButton>
-      {/* SYS-1: view toggle (radio group) */}
-      <g role="radiogroup" aria-label="View">
-        {(['logical', 'physical'] as const).map((v, i) => (
-          <CtlButton key={v} role="radio" x={c.x + 12 + i * 96} y={c.y + 222} w={92} h={18} title={v === 'logical' ? 'Logical view: information flow' : 'Physical view: the candidate production deployment'} pressed={controls.view === v} onClick={() => controls.onView(v)} cls="cap">
-            <text x={c.x + 12 + i * 96 + 46} y={c.y + 235} textAnchor="middle" className="ctl-text cap-text">
-              {v === 'logical' ? 'Logical view' : 'Physical view'}
-            </text>
-          </CtlButton>
-        ))}
-      </g>
+      {/* SYS-1: view switch, one segmented control (radio group); ← → move between views */}
+      <ViewSwitch x={c.x + 12} y={c.y + 222} w={186} h={18} view={controls.view} onView={controls.onView} />
       {/* Event count, as a badge on the log icon */}
       <g className="ctl-badge" aria-hidden>
         <rect x={c.x + 187} y={c.y + 112} width={22} height={13} rx={6.5} />
@@ -1023,6 +991,121 @@ export function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runne
       </g>
     </g>
   );
+}
+
+/** World · Ocean (UI-6): true values in σ, with the scenario's "+5σ front" per input. Shared by the logical and graph views. */
+export function OceanCard({ r, snap, runner }: { r: Rect; snap: Snapshot; runner: Runner }) {
+  const oceanPitch = Math.min(30, (r.h - 66) / snap.inputs.length);
+  return (
+    <>
+      <Box r={r} style="world">
+        <T x={r.x + 10} y={r.y + 22} cls="title">
+          Ocean
+        </T>
+        <T x={r.x + 10} y={r.y + 38} cls="muted small">
+          true values, σ from climatology
+        </T>
+        {snap.inputs.map((s, i) => {
+          const y = r.y + 58 + i * oceanPitch;
+          const z = (s.truth - s.base) / s.sigma;
+          const cx = r.x + 95;
+          return (
+            <g key={s.key}>
+              <T x={r.x + 10} y={y} cls="small">
+                {s.label}
+              </T>
+              {/* Scenario: a front moves this input +5σ over 20 s (toggle). The label says what a click does. */}
+              <SvgButton
+                x={r.x + r.w - 74}
+                y={y - 13}
+                w={64}
+                label={s.shiftOn ? 'clear front' : '+5σ front'}
+                title={s.shiftOn ? `Clear the front: ${s.label} returns to climatology` : `Scenario: a front moves ${s.label} +5σ over 20 s`}
+                cls={`scenario ${s.shiftOn ? 'on' : ''}`}
+                onClick={() => runner.apply({ type: 'shift', input: s.key, on: !s.shiftOn })}
+              />
+              <line className="axis" x1={cx - 80} x2={cx + 80} y1={y + 10} y2={y + 10} />
+              <line className="axis zero" x1={cx} x2={cx} y1={y + 5} y2={y + 15} />
+              <rect className="zbar" x={Math.min(cx, cx + z * 13)} y={y + 7} width={Math.abs(z * 13)} height={6} />
+            </g>
+          );
+        })}
+      </Box>
+    </>
+  );
+}
+
+/** World · Sensors: latest reading per input, with its noise stepper. Shared by the logical and graph views. */
+export function SensorsCard({ r, snap, runner }: { r: Rect; snap: Snapshot; runner: Runner }) {
+  const sensorPitch = Math.min(36, (r.h - 70) / snap.inputs.length);
+  const readingGap = Math.min(16, sensorPitch - 15);
+  return (
+    <>
+      <Box r={r} style="world">
+        <T x={r.x + 10} y={r.y + 22} cls="title">
+          Sensors
+        </T>
+        <T x={r.x + 10} y={r.y + 38} cls="muted small">
+          latest reading · noise
+        </T>
+        {snap.inputs.map((s, i) => (
+          <g key={s.key}>
+            <T x={r.x + 10} y={r.y + 64 + i * sensorPitch} cls="small">
+              {s.label}
+            </T>
+            <T x={r.x + 10} y={r.y + 64 + readingGap + i * sensorPitch} cls="small mono">
+              {fmt(s.reading, s.sigma < 1 ? 2 : 1)} {s.unit}
+            </T>
+            <Stepper
+              x={r.x + r.w - 90}
+              y={r.y + 67 + i * sensorPitch}
+              vw={48}
+              value={`±${s.noise}σ`}
+              what={`${s.label} sensor noise`}
+              cls="scenario"
+              dec={stepIn(NOISE_STEPS, s.noise, -1)}
+              inc={stepIn(NOISE_STEPS, s.noise, 1)}
+              onSet={(v) => runner.apply({ type: 'noise', input: s.key, sigma: v })}
+            />
+          </g>
+        ))}
+      </Box>
+    </>
+  );
+}
+
+/**
+ * A run's step as the diagram shows it (issue #35: only once its RunRequest has landed): retry,
+ * reading its inputs, executing, and the progress bar counted from when its data visibly arrived.
+ * Shared by the logical and artefacts views.
+ */
+export function useExecState(snap: Snapshot, runner: Runner) {
+  const run = runner.visibleRun(snap);
+  const retryOn = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn !== undefined ? run.retryIn : undefined);
+  // While the step's reads are in flight it waits for its inputs; the countdown starts once they have arrived.
+  const reading = (step: 'run' | 'detect') => !!run && run.step === step && run.retryIn === undefined && run.reading;
+  const executing = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn === undefined && !run.reading ? run : undefined);
+  // A step first retrieves its inputs. It says "retrieving data" until the simulation's read phase is over
+  // AND the replies have visibly arrived (at faster rates the animation can lag the clock), and only then
+  // shows its own label ("replacing F1"), with the bar counting from that moment.
+  const READER = { run: 'modelRunner', detect: 'featureDetector' } as const;
+  const retrieving = (step: 'run' | 'detect') => reading(step) || (!!executing(step) && runner.readsPending(READER[step]));
+  const execLabel = (step: 'run' | 'detect') => (retrieving(step) ? 'retrieving data' : (executing(step)?.label ?? (retryOn(step) !== undefined ? 'waiting for retry' : '')));
+  const dataIn = useRef(new Map<string, number>());
+  const shownProgress = (step: 'run' | 'detect', dur: number) => {
+    const r = executing(step);
+    if (!r || retrieving(step)) return 0;
+    const key = `${r.id}#${step}#${r.attempt}`;
+    const p = smoothProgress(step, dur);
+    if (!dataIn.current.has(key)) dataIn.current.set(key, p);
+    const p0 = Math.min(dataIn.current.get(key)!, 0.95);
+    return Math.max(0, (p - p0) / (1 - p0));
+  };
+  const smoothProgress = (step: 'run' | 'detect', dur: number) => {
+    const r = executing(step);
+    return r ? Math.min(1, r.progress + runner.frac / dur) : 0;
+  };
+  return { run, retryOn, reading, executing, retrieving, execLabel, shownProgress };
 }
 
 /**
@@ -1155,11 +1238,12 @@ function range(min: number, max: number, step: number): number[] {
 }
 
 /** Operator: the drift monitor's parameters (DRF-3), in a column right of the drift monitor. */
-function OperatorControls({ snap, runner }: { snap: Snapshot; runner: Runner }) {
-  const r = RECTS.driftSensor;
+/** The operator's drift steppers, in a column between the drift monitor and the drift sensor's right edge. */
+export function OperatorControls({ snap, runner, sensor, monitor, top }: { snap: Snapshot; runner: Runner; sensor: Rect; monitor: Rect; top: number }) {
+  const r = sensor;
   const d = snap.drift;
   const b = DRIFT_BOUNDS;
-  const m = RECTS.driftMonitor;
+  const m = monitor;
   const left = m.x + m.w;
   const cx = (left + r.x + r.w) / 2;
   const thresholds = range(b.threshold.min, b.threshold.max, b.threshold.step);
@@ -1174,7 +1258,7 @@ function OperatorControls({ snap, runner }: { snap: Snapshot; runner: Runner }) 
   return (
     <g className="operator-controls" aria-label="Operator controls">
       {items.map((it, i) => {
-        const y = RECTS.shimCheck.y + 16 + i * 40;
+        const y = top + 16 + i * 40;
         return (
           <g key={it.label}>
             <T x={cx} y={y - 5} cls="tiny operator-label" anchor="middle">
@@ -1219,7 +1303,7 @@ function Stepper({ x, y, value, what, cls, dec, inc, onSet, vw = 36 }: { x: numb
 }
 
 /** A small clickable control drawn inside the diagram (keyboard accessible). */
-function SvgButton({ x, y, w, label, title, onClick, cls = '' }: { x: number; y: number; w: number; label: string; title: string; onClick: () => void; cls?: string }) {
+export function SvgButton({ x, y, w, label, title, onClick, cls = '' }: { x: number; y: number; w: number; label: string; title: string; onClick: () => void; cls?: string }) {
   return (
     <g className={`svg-button ${cls}`} role="button" tabIndex={0} aria-label={title} onClick={onClick} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick()}>
       <title>{title}</title>
@@ -1231,7 +1315,7 @@ function SvgButton({ x, y, w, label, title, onClick, cls = '' }: { x: number; y:
   );
 }
 
-function EdgePath({ r }: { r: Route }) {
+export function EdgePath({ r }: { r: Route }) {
   const k = r.edge.kind;
   const heavy = k === 'lineage';
   const m = midpoint(r.points);
@@ -1265,7 +1349,7 @@ export function Module({ r, name, offline, running = false, children }: { r: Rec
   );
 }
 
-function ExecLine({ r, label, frac, active }: { r: Rect; label: string; frac: number; active: boolean }) {
+export function ExecLine({ r, label, frac, active }: { r: Rect; label: string; frac: number; active: boolean }) {
   return (
     <g>
       <text x={r.x + 8} y={r.y + 40} className="tiny">
@@ -1296,7 +1380,7 @@ export function Ring({ cx, cy, frac, label, r: rr = 13, cls = '' }: { cx: number
  * 10 s mean is beyond the threshold from the forecast) and the forecast (dashed steps). Entering a
  * front, the measurements climb away from the forecast; a new forecast then steps up and the gap closes.
  */
-function ResidualBars({ r, snap, arrived }: { r: Rect; snap: Snapshot; arrived: boolean }) {
+export function ResidualBars({ r, snap, arrived }: { r: Rect; snap: Snapshot; arrived: boolean }) {
   const top = r.y + 30;
   const bottom = r.y + r.h - 18;
   const x0 = r.x + 40;
@@ -1400,13 +1484,14 @@ function Pulse({ pts, p, token, frozen, onPick }: { pts: Pt[]; p: number; token:
   );
 }
 
-export function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void; onTokenTip: (t: TokenTip | null) => void }) {
+export function Tokens({ runner, byKey, loop, onPick, onTokenTip, show }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void; onTokenTip: (t: TokenTip | null) => void; show?: (t: Token) => boolean }) {
   // Drill-down: once paused, frozen tokens get a larger hit area and open a popup on click.
   const frozen = runner.frozen;
   return (
     <g className={`tokens ${frozen ? 'inspectable' : ''}`}>
       {runner.tokens.map(({ v, p }) => {
         const tk = v.token;
+        if (show && !show(tk)) return null;
         // A SUBSCRIBE travels back along the consumer's delivery line: one MQTT connection, both ways (CAT-4).
         const sub = tk.edge === 'consumer>subscribe>broker';
         // Only consumer edges have a line per consumer; a consumer read's database legs ride the shared store line.

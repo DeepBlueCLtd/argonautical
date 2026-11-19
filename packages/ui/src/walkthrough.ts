@@ -3,6 +3,7 @@
  * in the order data flows. Each step spotlights a rectangle of the diagram (viewBox coordinates).
  */
 import { CONSUMER_SLOT, NODE_RECTS, OPS_STATIC, PROCESS_RECTS, SHORE_ZONE, TOKEN_KEY_P, ZONE_BANDS, consumerRectP } from './diagram/physical.ts';
+import { G_CONSUMERS, G_RECTS } from './diagram/graph.ts';
 import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, TOKEN_KEY, VIEW, consumerRect, type Rect } from './diagram/layout.ts';
 
 export interface WalkStep {
@@ -131,4 +132,24 @@ export const PHYSICAL_WALKTHROUGH: readonly WalkStep[] = [
   },
   { id: 'p-key', kind: 'Key', title: 'Tokens', body: 'The same documents as in the logical view, routed along the network links. Hover one to see what it carries; pause and click it for the full data.', rect: () => pad(TOKEN_KEY_P, 4) },
   { id: 'p-start', kind: 'Start', title: 'Ready', body: 'Run the simulation and watch documents cross the zones. Try ⏸ on the model runner, or open a store.' },
+];
+
+// ---- Artefacts view (issue #34): the default view, so its walkthrough opens on start ----
+
+const G = G_RECTS as Required<typeof G_RECTS>;
+
+export const GRAPH_WALKTHROUGH: readonly WalkStep[] = [
+  {
+    id: 'g-intro',
+    kind: 'Overview',
+    title: 'An ocean forecast, as a graph of artefacts',
+    body: 'Readings from a ship’s sensors flow into a pipeline that produces a forecast and tells the apps on board. This view shows the orchestrator’s (Dagster’s) artefacts and their dependencies, with the messages that feed them, start them and carry their output away. Reads through pygeoapi and the other store writes are hidden: the Logical view shows them, and the Physical view shows where it all runs. Everything is simulated. The simulation is paused.',
+  },
+  { ...WALKTHROUGH.find((s) => s.id === 'control')!, id: 'g-control', body: 'Run or pause (also Space), the simulated clock, and the speed: ½× is the default so each step can be followed. Step advances one second and leaves its tokens part-way so you can click them. + Consumer adds an onboard app; ? reopens this walkthrough; the list icon opens the event log. The power button switches the system off so you can choose what to install. At the bottom, switch between the Artefacts, Logical and Physical views (← → also work).' },
+  { id: 'g-feed', kind: 'Component', title: 'Ingest', body: 'The flow starts at the ocean. Sensors send readings (S tokens) through the sensor broker to ingestion, which is not orchestrated and runs continuously; it writes them (Q) into the observations source asset. “+5σ front” in Ocean and the noise steppers in Sensors work here too: push an input away and watch the drift sensor fire.', rect: () => pad({ x: G.ocean.x, y: G.ingestion.y, w: G.observationsDb.x + G.observationsDb.w - G.ocean.x, h: G.sensors.y + G.sensors.h - G.ingestion.y }) },
+  { id: 'g-triggers', kind: 'Component', title: 'Triggers', body: 'Three things start a forecast run: the drift sensor (through our drift monitor), the staleness schedule, and the run-request sensor, which polls the run-request API for the watchkeeper’s requests (J tokens; press Request a run). The drift monitor’s chart shows the last two minutes against the forecast; the violet steppers set threshold, quorum and persistence. The staleness ring counts down to the next scheduled run. A D token on a trigger line is a Dagster RunRequest.', rect: () => pad({ x: G.driftSensor.x, y: G.watchkeeper.y, w: G.watchkeeper.x + G.watchkeeper.w - G.driftSensor.x, h: G.driftSensor.y + G.driftSensor.h - G.watchkeeper.y }) },
+  { id: 'g-lineage', kind: 'Component', title: 'Lineage', body: 'Thick lines are dependencies. At run start, observations, climatology and the previous forecast are checked (a faint sweep). When forecast is materialised it releases features, and features release announcement (a green sweep). Dependencies never start a run on their own.', rect: () => pad({ x: G.observationsDb.x, y: G.forecast.y - 30, w: G.announcement.x + G.announcement.w - G.observationsDb.x, h: G.forecast.h + 70 }) },
+  { id: 'g-shims', kind: 'Component', title: 'Shims call our modules', body: 'Inside each asset, a thin shim calls the module of ours that does the work: run → Model runner, detect → Feature detector, announce → Announcer. While a module works, its bar counts down: first it retrieves its data, then the bar fills. shore_export runs on its own schedule.', rect: () => pad(G.forecast) },
+  { id: 'g-broadcast', kind: 'Component', title: 'Broadcast', body: 'The announcement’s output goes out: the announcer publishes to the broker (M tokens), which delivers to each subscribed consumer. Consumers then fetch data through pygeoapi, which this view does not draw, and neither does it draw their SUBSCRIBE handshake.', rect: () => pad({ x: G.broker.x, y: G_CONSUMERS.y, w: VIEW.w - G.broker.x - 6, h: G.broker.y + G.broker.h - G_CONSUMERS.y + 300 }) },
+  { id: 'g-start', kind: 'Start', title: 'Ready', body: 'Run the simulation and watch the graph: triggers, checks, releases, and the broadcast.' },
 ];

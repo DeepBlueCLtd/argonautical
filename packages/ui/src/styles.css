@@ -481,3 +481,19 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .inspector .files-list { margin: 0; padding-left: 16px; }
 .physical .static-part text, .physical .terminal text { font-size: 10px; }
 .physical .chip text { font-size: 10.5px; }
+
+/* Graph view (issue #34) */
+.edge.feed { stroke: #9aa5b1; stroke-width: 1.4; stroke-dasharray: 5 3; fill: none; }
+.graph .graph-note rect, .graph .token-key rect { fill: #fff; stroke: #c5ccd3; }
+.graph .graph-note .edge { fill: none; }
+
+/* View switch: one segmented control (SYS-1) */
+.view-switch .frame { fill: #fff; stroke: #9aa5b1; stroke-width: 1.2; }
+.view-switch .divider { stroke: #c5ccd3; stroke-width: 1; }
+.view-switch .seg { cursor: pointer; }
+.view-switch .seg rect { fill: transparent; }
+.view-switch .seg:hover rect { fill: var(--world); }
+.view-switch .seg.on rect { fill: var(--ink); }
+.diagram .view-switch .seg.on .ctl-text { fill: #fff; }
+.view-switch .seg:focus { outline: none; }
+.view-switch .seg:focus-visible rect { stroke: var(--ours); stroke-width: 2; }

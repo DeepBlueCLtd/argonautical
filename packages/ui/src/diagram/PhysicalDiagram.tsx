@@ -40,7 +40,8 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
   const t = snap.tick;
   const recently = (m: number | undefined) => m !== undefined && t - m < MATERIALISING_TICKS;
   const mat = (a: keyof Snapshot['assets']) => (recently(snap.assets[a]) ? 'materialising' : '');
-  const run = snap.run;
+  // Issue #35: a triggered run shows only once its RunRequest has landed.
+  const run = runner.visibleRun(snap);
   const retryOn = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn !== undefined ? run.retryIn : undefined);
   const busy = (step: 'run' | 'detect') => !!run && run.step === step && run.retryIn === undefined;
 

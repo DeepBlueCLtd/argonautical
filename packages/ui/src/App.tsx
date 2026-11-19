@@ -1,13 +1,14 @@
 import { MAX_INPUTS, MIN_INPUTS } from '@argonautical/sim';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Diagram, type Picked, type SlotTip, type TokenTip } from './diagram/Diagram.tsx';
+import { Diagram, type Picked, type SlotTip, type TokenTip, type View } from './diagram/Diagram.tsx';
+import { GraphDiagram } from './diagram/GraphDiagram.tsx';
 import { PhysicalDiagram, type InspectId } from './diagram/PhysicalDiagram.tsx';
 import { StoreInspector } from './StoreInspector.tsx';
 import { SlotTipPanel, TokenTipPanel } from './SlotTip.tsx';
 import { TokenPopup } from './TokenPopup.tsx';
 import { Runner } from './runner.ts';
 import { WalkCard } from './Walkthrough.tsx';
-import { PHYSICAL_WALKTHROUGH, WALKTHROUGH } from './walkthrough.ts';
+import { GRAPH_WALKTHROUGH, PHYSICAL_WALKTHROUGH, WALKTHROUGH } from './walkthrough.ts';
 
 const params = new URLSearchParams(location.search);
 
@@ -54,25 +55,29 @@ export function App() {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [tip, setTip] = useState<SlotTip | null>(null);
   const [tokenTip, setTokenTip] = useState<TokenTip | null>(null);
-  const [walk, setWalk] = useState<number | null>(WALK_ON && params.get('view') !== 'physical' ? 0 : null);
+  // The artefacts view opens by default; `?view=logical` and `?view=physical` open the others.
+  const v0 = params.get('view');
+  const initialView: View = v0 === 'physical' ? 'physical' : v0 === 'logical' ? 'logical' : 'graph';
+  // WALK-1: the opening view's walkthrough opens with it (the physical one only from the ? button).
+  const [walk, setWalk] = useState<number | null>(WALK_ON && initialView !== 'physical' ? 0 : null);
   // SYS-1: the view is presentation only; switching never touches the simulation.
-  const [view, setView] = useState<'logical' | 'physical'>(params.get('view') === 'physical' ? 'physical' : 'logical');
+  const [view, setView] = useState<View>(initialView);
   const [inspecting, setInspecting] = useState<InspectId | null>(null);
-  const changeView = (v: 'logical' | 'physical') => {
+  const changeView = (v: View) => {
     setView(v);
     setWalk(null);
     setInspecting(null);
     setTip(null);
     setTokenTip(null);
     const u = new URL(location.href);
-    if (v === 'physical') u.searchParams.set('view', 'physical');
+    if (v !== 'graph') u.searchParams.set('view', v);
     else u.searchParams.delete('view');
     history.replaceState(null, '', u);
   };
-  const steps = view === 'physical' ? PHYSICAL_WALKTHROUGH : WALKTHROUGH;
+  const steps = view === 'physical' ? PHYSICAL_WALKTHROUGH : view === 'graph' ? GRAPH_WALKTHROUGH : WALKTHROUGH;
   const walkStep = walk === null ? undefined : steps[walk];
   const spotlight = walkStep ? (walkStep.rect?.(runner.sim.consumers.length) ?? null) : undefined;
-  // Each view has its own walkthrough; the physical one starts only from the Walkthrough button.
+  // Each view has its own walkthrough, restarted from the ? button.
   const startWalk = () => {
     runner.setRunning(false);
     setInspecting(null);
@@ -103,6 +108,8 @@ export function App() {
       <main className="stage">
         {view === 'logical' ? (
           <Diagram snap={snap} runner={runner} onPick={setPicked} onTip={setTip} onTokenTip={setTokenTip} spotlight={spotlight} controls={controls} inspecting={inspecting} onInspect={(id) => setInspecting(inspecting === id ? null : id)} />
+        ) : view === 'graph' ? (
+          <GraphDiagram snap={snap} runner={runner} onPick={setPicked} onTokenTip={setTokenTip} spotlight={spotlight} controls={controls} inspecting={inspecting} onInspect={(id) => setInspecting(inspecting === id ? null : id)} />
         ) : (
           <PhysicalDiagram snap={snap} runner={runner} onPick={setPicked} onTokenTip={setTokenTip} spotlight={spotlight} controls={controls} inspecting={inspecting} onInspect={(id) => setInspecting(inspecting === id ? null : id)} />
         )}
