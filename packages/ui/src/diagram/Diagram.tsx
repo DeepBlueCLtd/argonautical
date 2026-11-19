@@ -166,7 +166,8 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
     const m = snap.assets[a];
     return m !== undefined && t - m < MATERIALISING_TICKS ? 'materialising' : '';
   };
-  const run = snap.run;
+  // Issue #35: a triggered run shows only once its RunRequest has landed.
+  const run = runner.visibleRun(snap);
   const retryOn = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn !== undefined ? run.retryIn : undefined);
   // While the step's reads are in flight it waits for its inputs; the countdown starts once they have arrived.
   const reading = (step: 'run' | 'detect') => !!run && run.step === step && run.retryIn === undefined && run.reading;

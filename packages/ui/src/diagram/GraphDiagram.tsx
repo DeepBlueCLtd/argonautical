@@ -30,7 +30,8 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
     const m = snap.assets[a];
     return m !== undefined && t - m < MATERIALISING_TICKS ? 'materialising' : '';
   };
-  const run = snap.run;
+  // Issue #35: a triggered run shows only once its RunRequest has landed.
+  const run = runner.visibleRun(snap);
   const retryOn = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn !== undefined ? run.retryIn : undefined);
   const busy = (step: 'run' | 'detect') => !!run && run.step === step && run.retryIn === undefined;
   const f = snap.forecast;
