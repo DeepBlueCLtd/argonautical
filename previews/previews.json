@@ -1,5 +1,16 @@
 [
   {
+    "number": 37,
+    "title": "Artefacts view: make dependency checks stand out",
+    "summary": "This follows up #36. In the Artefacts view, the dependency-check pulses were nearly invisible.",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/37",
+    "branch": "ccr-60f43ccf-2l253n",
+    "sha": "f841e45a58b7eb14352b504e1b6ff65d1b4cb08e",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-19T17:49:39.347Z"
+  },
+  {
     "number": 36,
     "title": "Artefacts view (#34); triggered runs wait for their RunRequest (#35)",
     "summary": "Closes #34. Closes #35.",
