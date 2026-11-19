@@ -436,10 +436,10 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
           </g>
         ))}
         <T x={G_KEY.x + 12} y={G_KEY.y + 118} cls="tiny muted">
-          A green sweep on a lineage line: the upstream asset
+          Green sweep + flash: upstream materialised, next step released.
         </T>
         <T x={G_KEY.x + 12} y={G_KEY.y + 132} cls="tiny muted">
-          was just materialised and releases the next step.
+          Blue sweep + ✓: dependency checked at run start (never a trigger).
         </T>
       </g>
 

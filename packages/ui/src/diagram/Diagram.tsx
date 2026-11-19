@@ -1463,6 +1463,13 @@ function Pulse({ pts, p, token, frozen, onPick }: { pts: Pt[]; p: number; token:
       {s < 1 || !release ? <path d={pathD(pts)} className="sweep" strokeDasharray={`${seg} ${L + seg * 2}`} strokeDashoffset={seg - head} opacity={release ? 1 : 1 - s * 0.6} /> : null}
       {flash >= 0 && <circle className="flash" cx={end.x} cy={end.y} r={5 + flash * 16} opacity={1 - flash} />}
       {flash >= 0 && <circle className="flash-core" cx={end.x} cy={end.y} r={5} opacity={1 - flash * 0.7} />}
+      {/* A check's ✓ as it lands: drawn only where a view's CSS shows it (the artefacts view). */}
+      {!release && p > 0.7 && (
+        <g className="check-mark" opacity={Math.min(1, (p - 0.7) / 0.1) * (p > 0.9 ? (1 - p) / 0.1 : 1)}>
+          <circle cx={end.x} cy={end.y - 12} r={7} />
+          <path d={`M${end.x - 3.5},${end.y - 12} l2.5,2.5 l4.5,-5`} />
+        </g>
+      )}
       {frozen && (
         <circle
           className="hit pulse-hit"
