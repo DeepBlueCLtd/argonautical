@@ -55,10 +55,11 @@ export function App() {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [tip, setTip] = useState<SlotTip | null>(null);
   const [tokenTip, setTokenTip] = useState<TokenTip | null>(null);
-  // `?view=artefacts` (older links: `?view=graph`) and `?view=physical`; the logical view otherwise.
+  // The artefacts view opens by default; `?view=logical` and `?view=physical` open the others.
   const v0 = params.get('view');
-  const initialView: View = v0 === 'physical' ? 'physical' : v0 === 'artefacts' || v0 === 'graph' ? 'graph' : 'logical';
-  const [walk, setWalk] = useState<number | null>(WALK_ON && initialView === 'logical' ? 0 : null);
+  const initialView: View = v0 === 'physical' ? 'physical' : v0 === 'logical' ? 'logical' : 'graph';
+  // WALK-1: the opening view's walkthrough opens with it (the physical one only from the ? button).
+  const [walk, setWalk] = useState<number | null>(WALK_ON && initialView !== 'physical' ? 0 : null);
   // SYS-1: the view is presentation only; switching never touches the simulation.
   const [view, setView] = useState<View>(initialView);
   const [inspecting, setInspecting] = useState<InspectId | null>(null);
@@ -69,14 +70,14 @@ export function App() {
     setTip(null);
     setTokenTip(null);
     const u = new URL(location.href);
-    if (v !== 'logical') u.searchParams.set('view', v === 'graph' ? 'artefacts' : v);
+    if (v !== 'graph') u.searchParams.set('view', v);
     else u.searchParams.delete('view');
     history.replaceState(null, '', u);
   };
   const steps = view === 'physical' ? PHYSICAL_WALKTHROUGH : view === 'graph' ? GRAPH_WALKTHROUGH : WALKTHROUGH;
   const walkStep = walk === null ? undefined : steps[walk];
   const spotlight = walkStep ? (walkStep.rect?.(runner.sim.consumers.length) ?? null) : undefined;
-  // Each view has its own walkthrough; the physical and graph ones start only from the Walkthrough button.
+  // Each view has its own walkthrough, restarted from the ? button.
   const startWalk = () => {
     runner.setRunning(false);
     setInspecting(null);

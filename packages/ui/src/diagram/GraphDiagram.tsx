@@ -1,5 +1,5 @@
 /**
- * The artefacts view (issue #34; `View` id 'graph'): the same running simulation drawn as the orchestrator's dependency
+ * The artefacts view (issue #34; `View` id 'graph'), the default view: the same running simulation drawn as the orchestrator's dependency
  * graph. The flow starts with the ocean and ingestion, then shows only Dagster's own wiring
  * (triggers, asset lineage, shim calls) and the announcer's broadcast to the consumers. Reads,
  * writes and the sensor broker's messages are left out, and so are their tokens. Presentation
@@ -8,14 +8,14 @@
 import { EDGES, STANDARDS, clockLabel, windowsLabel, type Snapshot } from '@argonautical/sim';
 import { useMemo } from 'react';
 import { topicShort, type Runner } from '../runner.ts';
-import { Box, ControlPanel, DocToken, EdgePath, Inspectable, Module, OceanCard, OperatorControls, PlayPause, ResidualBars, Ring, SensorsCard, Shim, Store, T, Tokens, measurementTopicRows, type Controls, type InspectId, type Picked, type TokenTip } from './Diagram.tsx';
-import { FEED_EDGES, G_CONSUMERS, G_KEY, G_NOTE, G_RECTS, G_REGIONS, consumerRectG, feedLines, forecastLoopG, routeGraph } from './graph.ts';
+import { Box, ControlPanel, DocToken, EdgePath, ExecLine, SvgButton, useExecState, Inspectable, Module, OceanCard, OperatorControls, PlayPause, ResidualBars, Ring, SensorsCard, Shim, Store, T, Tokens, measurementTopicRows, type Controls, type InspectId, type Picked, type TokenTip } from './Diagram.tsx';
+import { G_CONSUMERS, G_KEY, G_NOTE, G_RECTS, G_REGIONS, consumerRectG, forecastLoopG, oceanLine, routeGraph } from './graph.ts';
 import { pathD, VIEW, type Rect } from './layout.ts';
 
 const MATERIALISING_TICKS = 3;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
 /** Token letters this view can show: Dagster, MQTT announcement, JSON (subscribe). */
-const KEY_CODES = ['D', 'M', 'J'] as const;
+const KEY_CODES = ['S', 'Q', 'D', 'M', 'J'] as const;
 
 export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTokenTip: (t: TokenTip | null) => void; controls: Controls; spotlight?: Rect | null; inspecting: InspectId | null; onInspect: (id: InspectId) => void }) {
   const { snap, runner, onPick, onTokenTip, controls, spotlight, inspecting, onInspect } = props;
@@ -23,17 +23,16 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
   const routes = useMemo(() => routeGraph(EDGES, consumerIds), [consumerIds.join(',')]);
   const byKey = useMemo(() => new Map(routes.map((r) => [r.key, r])), [routes]);
   const loop = useMemo(() => forecastLoopG(), []);
-  const feed = useMemo(() => feedLines(), []);
+  const ocean = useMemo(() => oceanLine(), []);
   const R = G_RECTS as Required<typeof G_RECTS>;
   const t = snap.tick;
   const mat = (a: keyof Snapshot['assets']) => {
     const m = snap.assets[a];
     return m !== undefined && t - m < MATERIALISING_TICKS ? 'materialising' : '';
   };
-  // Issue #35: a triggered run shows only once its RunRequest has landed.
-  const run = runner.visibleRun(snap);
-  const retryOn = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn !== undefined ? run.retryIn : undefined);
-  const busy = (step: 'run' | 'detect') => !!run && run.step === step && run.retryIn === undefined;
+  // Issue #35: a triggered run shows only once its RunRequest has landed. Timers as in the logical view.
+  const { run, retryOn, reading, executing, retrieving, execLabel, shownProgress } = useExecState(snap, runner);
+  const busy = (step: 'run' | 'detect') => !!executing(step) || reading(step) || runner.readsPending(step === 'run' ? 'modelRunner' : 'featureDetector');
   const f = snap.forecast;
   // Staleness countdown (ORC-1, MOT-3): smooth between ticks, as in the logical view.
   const staleRemaining = f ? Math.max(0, snap.schedule.staleIn - (snap.schedule.staleIn > 0 ? runner.frac : 0)) : 0;
@@ -90,18 +89,8 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
         </T>
       </Box>
 
-      {/* Ingest feed: no tokens (the sensor broker's message passing is not shown here) */}
-      <g className="feed" aria-label={`Ingest feed, summarising ${FEED_EDGES.join(', ')}`}>
-        {feed.map((pts, i) => (
-          <path key={i} className="edge feed" d={pathD(pts)} markerEnd="url(#arrow)" />
-        ))}
-        <T x={feed[1]![0]!.x + 26} y={feed[1]![0]!.y + 16} cls="tiny muted">
-          readings, via the
-        </T>
-        <T x={feed[1]![0]!.x + 26} y={feed[1]![0]!.y + 28} cls="tiny muted">
-          sensor broker
-        </T>
-      </g>
+      {/* Ocean → sensors: what the instruments measure, not a message */}
+      <path className="edge feed" d={pathD(ocean)} markerEnd="url(#arrow)" />
 
       {/* Edges */}
       <g className="edges">
@@ -133,6 +122,43 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
         </Box>
       </g>
       <PlayPause at={{ x: R.ingestion.x + 18, y: R.ingestion.y + 17 }} running={snap.ingestion.running} what="ingestion" onToggle={() => runner.apply({ type: 'ingestion', running: !snap.ingestion.running })} />
+
+      {/* Sensor broker: the persistent queue between the instruments and ingestion */}
+      <Inspectable id="sensorBroker" r={R.sensorBroker} active={inspecting === 'sensorBroker'} onInspect={onInspect}>
+        <Box r={R.sensorBroker} style="ots">
+          <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 20} cls="title">
+            Sensor broker
+          </T>
+          <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 37} cls="tiny muted">
+            persistent queue · QoS 1
+          </T>
+          <T x={R.sensorBroker.x + 10} y={R.sensorBroker.y + 58} cls={`small mono ${snap.sensorBroker.queued > snap.inputs.length ? 'strong' : ''}`}>
+            {snap.sensorBroker.queued} queued
+          </T>
+        </Box>
+      </Inspectable>
+
+      {/* Run requests: the watchkeeper → the run-request API, polled by the run-request sensor */}
+      <Box r={R.runRequestApi} style="ours">
+        <T x={R.runRequestApi.x + 8} y={R.runRequestApi.y + 18} cls="small title-sm">
+          Run-request API
+        </T>
+        <T x={R.runRequestApi.x + 8} y={R.runRequestApi.y + 33} cls="tiny muted">
+          distribution zone
+        </T>
+        <T x={R.runRequestApi.x + 8} y={R.runRequestApi.y + 52} cls="tiny mono">
+          {snap.runRequests.pending} pending
+        </T>
+        <T x={R.runRequestApi.x + 8} y={R.runRequestApi.y + 66} cls="tiny mono">
+          {snap.runRequests.total} total
+        </T>
+      </Box>
+      <Box r={R.watchkeeper} style="world">
+        <T x={R.watchkeeper.x + 8} y={R.watchkeeper.y + 18} cls="small title-sm">
+          Watchkeeper
+        </T>
+        <SvgButton x={R.watchkeeper.x + 8} y={R.watchkeeper.y + 28} w={R.watchkeeper.w - 16} label="Request a run" title="Watchkeeper: request a forecast run (through the run-request API)" cls="operator" onClick={() => runner.apply({ type: 'requestRun' })} />
+      </Box>
 
       {/* Source asset: the Observations DB */}
       <Inspectable id="observationsDb" r={R.observationsDb} active={inspecting === 'observationsDb'} onInspect={onInspect}>
@@ -249,9 +275,7 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
       <PlayPause at={{ x: R.forecast.x + 20, y: R.forecast.y + 19 }} running={!snap.offline.modelRunner} what="the model runner (every run fails until resumed)" onToggle={() => runner.apply({ type: 'offline', module: 'modelRunner', offline: !snap.offline.modelRunner })} />
       <Shim r={R.shimRun} name="run" retryIn={retryOn('run')} />
       <Module r={R.modelRunner} name="Model runner" offline={snap.offline.modelRunner} running={busy('run')}>
-        <T x={R.modelRunner.x + 8} y={R.modelRunner.y + 40} cls="tiny">
-          {busy('run') ? run!.label || 'running' : retryOn('run') !== undefined ? 'waiting for retry' : 'idle'}
-        </T>
+        <ExecLine r={R.modelRunner} label={execLabel('run')} frac={shownProgress('run', 8)} active={!!executing('run') && !retrieving('run')} />
         {retryOn('run') !== undefined && run?.lastFailure && (
           <T x={R.modelRunner.x + 8} y={R.modelRunner.y + 58} cls="tiny muted">
             {run.lastFailure}
@@ -277,9 +301,13 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
       <g className={detector ? '' : 'absent-part'}>
         <Shim r={R.shimDetect} name="detect" retryIn={retryOn('detect')} />
         <Module r={R.featureDetector} name="Feature detector" offline={snap.offline.featureDetector} running={busy('detect')}>
-          <T x={R.featureDetector.x + 8} y={R.featureDetector.y + 40} cls="tiny">
-            {busy('detect') ? run!.label || 'detecting' : retryOn('detect') !== undefined ? 'waiting for retry' : detector ? 'idle' : 'absent'}
-          </T>
+          {detector ? (
+            <ExecLine r={R.featureDetector} label={execLabel('detect')} frac={shownProgress('detect', 5)} active={!!executing('detect') && !retrieving('detect')} />
+          ) : (
+            <T x={R.featureDetector.x + 8} y={R.featureDetector.y + 40} cls="tiny">
+              absent
+            </T>
+          )}
         </Module>
       </g>
 
@@ -376,8 +404,8 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
           ['trigger', 'trigger: starts a run'],
           ['lineage', 'dependency (lineage)'],
           ['call', 'shim calls our module'],
-          ['publish', 'broadcast to consumers'],
-          ['feed', 'ingest feed (not orchestrated)'],
+          ['publish', 'message outside the orchestrator'],
+          ['feed', 'ocean → sensors (measured)'],
         ].map(([k, label], i) => (
           <g key={k}>
             <path className={`edge ${k}`} d={`M${G_NOTE.x + 12},${G_NOTE.y + 40 + i * 20} h28`} />
@@ -387,10 +415,10 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
           </g>
         ))}
         <T x={G_NOTE.x + 12} y={G_NOTE.y + 152} cls="tiny muted">
-          Reads, writes and stores are hidden.
+          Hidden: pygeoapi reads, other writes,
         </T>
         <T x={G_NOTE.x + 12} y={G_NOTE.y + 166} cls="tiny muted">
-          Switch to Logical view to see them.
+          SUBSCRIBE. See the Logical view.
         </T>
       </g>
 
@@ -401,8 +429,8 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
         </T>
         {KEY_CODES.map((code, i) => (
           <g key={code}>
-            <DocToken x={G_KEY.x + 20} y={G_KEY.y + 42 + i * 22} size={1.2} letter={code} cls="token" />
-            <T x={G_KEY.x + 34} y={G_KEY.y + 46 + i * 22} cls="tiny">
+            <DocToken x={G_KEY.x + 20 + Math.floor(i / 3) * 170} y={G_KEY.y + 42 + (i % 3) * 22} size={1.2} letter={code} cls="token" />
+            <T x={G_KEY.x + 34 + Math.floor(i / 3) * 170} y={G_KEY.y + 46 + (i % 3) * 22} cls="tiny">
               {STANDARDS[code as keyof typeof STANDARDS]}
             </T>
           </g>
@@ -415,7 +443,8 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
         </T>
       </g>
 
-      <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} onTokenTip={onTokenTip} />
+      {/* The consumers' SUBSCRIBE handshake is not an artefact message: hidden here. */}
+      <Tokens runner={runner} byKey={byKey} loop={loop} onPick={onPick} onTokenTip={onTokenTip} show={(t) => t.edge !== 'consumer>subscribe>broker'} />
 
       {spotlight !== undefined && (
         <g className="spotlight">

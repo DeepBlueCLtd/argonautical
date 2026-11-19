@@ -166,19 +166,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
     const m = snap.assets[a];
     return m !== undefined && t - m < MATERIALISING_TICKS ? 'materialising' : '';
   };
-  // Issue #35: a triggered run shows only once its RunRequest has landed.
-  const run = runner.visibleRun(snap);
-  const retryOn = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn !== undefined ? run.retryIn : undefined);
-  // While the step's reads are in flight it waits for its inputs; the countdown starts once they have arrived.
-  const reading = (step: 'run' | 'detect') => !!run && run.step === step && run.retryIn === undefined && run.reading;
-  const executing = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn === undefined && !run.reading ? run : undefined);
-  // A step first retrieves its inputs. It says "retrieving data" until the simulation's read phase is over
-  // AND the replies have visibly arrived (at faster rates the animation can lag the clock), and only then
-  // shows its own label ("replacing F1"), with the bar counting from that moment.
-  const READER = { run: 'modelRunner', detect: 'featureDetector' } as const;
-  const retrieving = (step: 'run' | 'detect') => reading(step) || (!!executing(step) && runner.readsPending(READER[step]));
-  const execLabel = (step: 'run' | 'detect') => (retrieving(step) ? 'retrieving data' : (executing(step)?.label ?? (retryOn(step) !== undefined ? 'waiting for retry' : '')));
-  const dataIn = useRef(new Map<string, number>());
+  const { run, retryOn, reading, executing, retrieving, execLabel, shownProgress } = useExecState(snap, runner);
   const shown = useRef(new Map<string, { status: string; line: string; ok: boolean | undefined }>());
   // A power-on installs a new system: forget what the old consumers showed.
   const shownFor = useRef(runner.sim);
@@ -186,19 +174,6 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
     shownFor.current = runner.sim;
     shown.current.clear();
   }
-  const shownProgress = (step: 'run' | 'detect', dur: number) => {
-    const r = executing(step);
-    if (!r || retrieving(step)) return 0;
-    const key = `${r.id}#${step}#${r.attempt}`;
-    const p = smoothProgress(step, dur);
-    if (!dataIn.current.has(key)) dataIn.current.set(key, p);
-    const p0 = Math.min(dataIn.current.get(key)!, 0.95);
-    return Math.max(0, (p - p0) / (1 - p0));
-  };
-  const smoothProgress = (step: 'run' | 'detect', dur: number) => {
-    const r = executing(step);
-    return r ? Math.min(1, r.progress + runner.frac / dur) : 0;
-  };
 
   const R = RECTS;
   const f = snap.forecast;
@@ -1100,6 +1075,40 @@ export function SensorsCard({ r, snap, runner }: { r: Rect; snap: Snapshot; runn
 }
 
 /**
+ * A run's step as the diagram shows it (issue #35: only once its RunRequest has landed): retry,
+ * reading its inputs, executing, and the progress bar counted from when its data visibly arrived.
+ * Shared by the logical and artefacts views.
+ */
+export function useExecState(snap: Snapshot, runner: Runner) {
+  const run = runner.visibleRun(snap);
+  const retryOn = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn !== undefined ? run.retryIn : undefined);
+  // While the step's reads are in flight it waits for its inputs; the countdown starts once they have arrived.
+  const reading = (step: 'run' | 'detect') => !!run && run.step === step && run.retryIn === undefined && run.reading;
+  const executing = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn === undefined && !run.reading ? run : undefined);
+  // A step first retrieves its inputs. It says "retrieving data" until the simulation's read phase is over
+  // AND the replies have visibly arrived (at faster rates the animation can lag the clock), and only then
+  // shows its own label ("replacing F1"), with the bar counting from that moment.
+  const READER = { run: 'modelRunner', detect: 'featureDetector' } as const;
+  const retrieving = (step: 'run' | 'detect') => reading(step) || (!!executing(step) && runner.readsPending(READER[step]));
+  const execLabel = (step: 'run' | 'detect') => (retrieving(step) ? 'retrieving data' : (executing(step)?.label ?? (retryOn(step) !== undefined ? 'waiting for retry' : '')));
+  const dataIn = useRef(new Map<string, number>());
+  const shownProgress = (step: 'run' | 'detect', dur: number) => {
+    const r = executing(step);
+    if (!r || retrieving(step)) return 0;
+    const key = `${r.id}#${step}#${r.attempt}`;
+    const p = smoothProgress(step, dur);
+    if (!dataIn.current.has(key)) dataIn.current.set(key, p);
+    const p0 = Math.min(dataIn.current.get(key)!, 0.95);
+    return Math.max(0, (p - p0) / (1 - p0));
+  };
+  const smoothProgress = (step: 'run' | 'detect', dur: number) => {
+    const r = executing(step);
+    return r ? Math.min(1, r.progress + runner.frac / dur) : 0;
+  };
+  return { run, retryOn, reading, executing, retrieving, execLabel, shownProgress };
+}
+
+/**
  * A token drawn as a tiny document: a white page with a folded top-right corner, centred on (x, y),
  * lettered with the standard its content follows (S SensorThings, Q SQL, E EDR…). Unlettered
  * tokens show ruled lines instead.
@@ -1294,7 +1303,7 @@ function Stepper({ x, y, value, what, cls, dec, inc, onSet, vw = 36 }: { x: numb
 }
 
 /** A small clickable control drawn inside the diagram (keyboard accessible). */
-function SvgButton({ x, y, w, label, title, onClick, cls = '' }: { x: number; y: number; w: number; label: string; title: string; onClick: () => void; cls?: string }) {
+export function SvgButton({ x, y, w, label, title, onClick, cls = '' }: { x: number; y: number; w: number; label: string; title: string; onClick: () => void; cls?: string }) {
   return (
     <g className={`svg-button ${cls}`} role="button" tabIndex={0} aria-label={title} onClick={onClick} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick()}>
       <title>{title}</title>
@@ -1340,7 +1349,7 @@ export function Module({ r, name, offline, running = false, children }: { r: Rec
   );
 }
 
-function ExecLine({ r, label, frac, active }: { r: Rect; label: string; frac: number; active: boolean }) {
+export function ExecLine({ r, label, frac, active }: { r: Rect; label: string; frac: number; active: boolean }) {
   return (
     <g>
       <text x={r.x + 8} y={r.y + 40} className="tiny">
@@ -1475,13 +1484,14 @@ function Pulse({ pts, p, token, frozen, onPick }: { pts: Pt[]; p: number; token:
   );
 }
 
-export function Tokens({ runner, byKey, loop, onPick, onTokenTip }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void; onTokenTip: (t: TokenTip | null) => void }) {
+export function Tokens({ runner, byKey, loop, onPick, onTokenTip, show }: { runner: Runner; byKey: Map<string, Route>; loop: { x: number; y: number }[]; onPick: (p: Picked) => void; onTokenTip: (t: TokenTip | null) => void; show?: (t: Token) => boolean }) {
   // Drill-down: once paused, frozen tokens get a larger hit area and open a popup on click.
   const frozen = runner.frozen;
   return (
     <g className={`tokens ${frozen ? 'inspectable' : ''}`}>
       {runner.tokens.map(({ v, p }) => {
         const tk = v.token;
+        if (show && !show(tk)) return null;
         // A SUBSCRIBE travels back along the consumer's delivery line: one MQTT connection, both ways (CAT-4).
         const sub = tk.edge === 'consumer>subscribe>broker';
         // Only consumer edges have a line per consumer; a consumer read's database legs ride the shared store line.
