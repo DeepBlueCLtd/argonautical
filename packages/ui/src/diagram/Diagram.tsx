@@ -130,14 +130,23 @@ export interface SlotTip {
   readonly box: { left: number; top: number; right: number; bottom: number };
 }
 
+/** SYS-1, issue #34: the three presentations of the same simulation. */
+export type View = 'logical' | 'physical' | 'graph';
+
+const VIEW_LABEL: Record<View, { label: string; title: string }> = {
+  logical: { label: 'Logical', title: 'Logical view: information flow' },
+  physical: { label: 'Physical', title: 'Physical view: the candidate production deployment' },
+  graph: { label: 'Graph', title: 'Graph view: the orchestrator’s dependency graph, without reads and writes' },
+};
+
 /** What the Control panel needs from the app (§5.4). */
 export interface Controls {
   readonly logOpen: boolean;
   readonly onLog: () => void;
   readonly onWalkthrough: () => void;
   /** SYS-1: which view is showing, and the toggle. */
-  readonly view: 'logical' | 'physical';
-  readonly onView: (v: 'logical' | 'physical') => void;
+  readonly view: View;
+  readonly onView: (v: View) => void;
 }
 
 export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Picked) => void; onTip: (t: SlotTip | null) => void; onTokenTip: (t: TokenTip | null) => void; spotlight?: Rect | null; controls: Controls; inspecting: InspectId | null; onInspect: (id: InspectId) => void }) {
@@ -1006,10 +1015,10 @@ export function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runne
       </CtlButton>
       {/* SYS-1: view toggle (radio group) */}
       <g role="radiogroup" aria-label="View">
-        {(['logical', 'physical'] as const).map((v, i) => (
-          <CtlButton key={v} role="radio" x={c.x + 12 + i * 96} y={c.y + 222} w={92} h={18} title={v === 'logical' ? 'Logical view: information flow' : 'Physical view: the candidate production deployment'} pressed={controls.view === v} onClick={() => controls.onView(v)} cls="cap">
-            <text x={c.x + 12 + i * 96 + 46} y={c.y + 235} textAnchor="middle" className="ctl-text cap-text">
-              {v === 'logical' ? 'Logical view' : 'Physical view'}
+        {(['logical', 'physical', 'graph'] as const).map((v, i) => (
+          <CtlButton key={v} role="radio" x={c.x + 12 + i * 64} y={c.y + 222} w={60} h={18} title={VIEW_LABEL[v].title} pressed={controls.view === v} onClick={() => controls.onView(v)} cls="cap">
+            <text x={c.x + 12 + i * 64 + 30} y={c.y + 235} textAnchor="middle" className="ctl-text cap-text">
+              {VIEW_LABEL[v].label}
             </text>
           </CtlButton>
         ))}
@@ -1231,7 +1240,7 @@ function SvgButton({ x, y, w, label, title, onClick, cls = '' }: { x: number; y:
   );
 }
 
-function EdgePath({ r }: { r: Route }) {
+export function EdgePath({ r }: { r: Route }) {
   const k = r.edge.kind;
   const heavy = k === 'lineage';
   const m = midpoint(r.points);

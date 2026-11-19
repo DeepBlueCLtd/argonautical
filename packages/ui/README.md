@@ -24,7 +24,8 @@ The browser demonstrator and the explanatory site shell. React + SVG, built with
 - **No reduced-motion mode.** Tokens are always shown (MOT-2 withdrawn).
 - **Boundary check (ARC-1).** `npm run boundary` writes `src/generated/boundary.json` before `dev`, `build` and `typecheck`; a violation fails the build. (The on-screen banner that showed it was removed with the toolbar.)
 - **Controls live on the cards they affect (UI-6).** Scenario controls are on the World cards (shift in Ocean, noise in Sensors) and operator controls on the Drift sensor card, so there is no control strip and the diagram gets the whole window.
-- **URL parameters:** `?seed=`, `?inputs=3..6`, `?layout=`.
+- **Graph view (issue #34).** The third view button (Logical · Physical · Graph, also `?view=graph`) shows the orchestrator's dependency graph. The flow starts at the ocean, sensors and ingestion (a plain feed line, no tokens), then shows only what Dagster knows: the three triggers, asset lineage (with the release and check pulses) and each shim calling our module. The announcer's publish and the broker's deliveries stay, so the output still reaches the consumers. pygeoapi reads, store writes and the sensor broker's messages are hidden, with their tokens. Geometry is in `src/diagram/graph.ts`; which edges it draws comes from `EDGES` (`inGraph`). It has its own short walkthrough from the ? button.
+- **URL parameters:** `?seed=`, `?inputs=3..6`, `?layout=`, `?view=physical|graph`.
 
 ## Not built yet
 
