@@ -5,10 +5,10 @@
     "summary": "Adds a third view, Graph, showing the Dagster dependency graph without message passing or database access. Closes #34.",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/36",
     "branch": "ccr-60f43ccf-2l253n",
-    "sha": "8b783f692f226db85e98c69969e75dcd853bbe6a",
+    "sha": "9120ab6c398e9ca02f40d1e87cb19a6993dce0cf",
     "author": "IanMayo",
     "status": "open",
-    "updated": "2026-11-19T12:10:31.794Z"
+    "updated": "2026-11-19T12:12:39.027Z"
   },
   {
     "number": 33,
