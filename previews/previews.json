@@ -1,8 +1,8 @@
 [
   {
     "number": 36,
-    "title": "Graph view: the orchestrator's dependency graph (#34)",
-    "summary": "Adds a third view, Graph, showing the Dagster dependency graph without message passing or database access. Closes #34.",
+    "title": "Graph view (#34); triggered runs wait for their RunRequest (#35)",
+    "summary": "Closes #34. Closes #35.",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/36",
     "branch": "ccr-60f43ccf-2l253n",
     "sha": "9120ab6c398e9ca02f40d1e87cb19a6993dce0cf",
