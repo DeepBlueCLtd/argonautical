@@ -1,7 +1,7 @@
 [
   {
     "number": 36,
-    "title": "Graph view (#34); triggered runs wait for their RunRequest (#35)",
+    "title": "Artefacts view (#34); triggered runs wait for their RunRequest (#35)",
     "summary": "Closes #34. Closes #35.",
     "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/36",
     "branch": "ccr-60f43ccf-2l253n",
