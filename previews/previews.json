@@ -1,5 +1,16 @@
 [
   {
+    "number": 36,
+    "title": "Graph view: the orchestrator's dependency graph (#34)",
+    "summary": "Adds a third view, Graph, showing the Dagster dependency graph without message passing or database access. Closes #34.",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/36",
+    "branch": "ccr-60f43ccf-2l253n",
+    "sha": "8b783f692f226db85e98c69969e75dcd853bbe6a",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-19T12:10:31.794Z"
+  },
+  {
     "number": 33,
     "title": "Now-cast by default; future forecasts (12/24/48 h) as the add-on",
     "summary": "Closes #32.",
