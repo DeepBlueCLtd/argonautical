@@ -1,5 +1,5 @@
 /**
- * The graph view (issue #34): the same running simulation drawn as the orchestrator's dependency
+ * The artefacts view (issue #34; `View` id 'graph'): the same running simulation drawn as the orchestrator's dependency
  * graph. The flow starts with the ocean and ingestion, then shows only Dagster's own wiring
  * (triggers, asset lineage, shim calls) and the announcer's broadcast to the consumers. Reads,
  * writes and the sensor broker's messages are left out, and so are their tokens. Presentation
@@ -8,7 +8,7 @@
 import { EDGES, STANDARDS, clockLabel, windowsLabel, type Snapshot } from '@argonautical/sim';
 import { useMemo } from 'react';
 import { topicShort, type Runner } from '../runner.ts';
-import { Box, ControlPanel, DocToken, EdgePath, Inspectable, Module, PlayPause, Shim, Store, T, Tokens, measurementTopicRows, type Controls, type InspectId, type Picked, type TokenTip } from './Diagram.tsx';
+import { Box, ControlPanel, DocToken, EdgePath, Inspectable, Module, OceanCard, OperatorControls, PlayPause, ResidualBars, Ring, SensorsCard, Shim, Store, T, Tokens, measurementTopicRows, type Controls, type InspectId, type Picked, type TokenTip } from './Diagram.tsx';
 import { FEED_EDGES, G_CONSUMERS, G_KEY, G_NOTE, G_RECTS, G_REGIONS, consumerRectG, feedLines, forecastLoopG, routeGraph } from './graph.ts';
 import { pathD, VIEW, type Rect } from './layout.ts';
 
@@ -35,6 +35,9 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
   const retryOn = (step: 'run' | 'detect') => (run && run.step === step && run.retryIn !== undefined ? run.retryIn : undefined);
   const busy = (step: 'run' | 'detect') => !!run && run.step === step && run.retryIn === undefined;
   const f = snap.forecast;
+  // Staleness countdown (ORC-1, MOT-3): smooth between ticks, as in the logical view.
+  const staleRemaining = f ? Math.max(0, snap.schedule.staleIn - (snap.schedule.staleIn > 0 ? runner.frac : 0)) : 0;
+  const replacing = !!run && f !== undefined && snap.schedule.staleIn === 0;
   const detector = snap.capabilities.featureDetector;
   const F = G_REGIONS.frame;
 
@@ -111,27 +114,8 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
       <ControlPanel snap={snap} runner={runner} controls={controls} />
 
       {/* World */}
-      <Box r={R.ocean} style="world">
-        <T x={R.ocean.x + 10} y={R.ocean.y + 20} cls="title">
-          Ocean
-        </T>
-        {snap.inputs.slice(0, 6).map((s, i) => (
-          <T key={s.key} x={R.ocean.x + 10} y={R.ocean.y + 38 + i * 12} cls="tiny muted">
-            {s.label}
-            {s.shiftOn ? ` · front +${s.shiftSigma}σ` : ''}
-          </T>
-        ))}
-      </Box>
-      <Box r={R.sensors} style="world">
-        <T x={R.sensors.x + 10} y={R.sensors.y + 20} cls="title">
-          Sensors
-        </T>
-        {snap.inputs.slice(0, 7).map((s, i) => (
-          <T key={s.key} x={R.sensors.x + 10} y={R.sensors.y + 40 + i * 14} cls="tiny mono">
-            {s.label.slice(0, 12).padEnd(12)} {s.reading !== undefined ? s.reading.toFixed(2) : '—'}
-          </T>
-        ))}
-      </Box>
+      <OceanCard r={R.ocean} snap={snap} runner={runner} />
+      <SensorsCard r={R.sensors} snap={snap} runner={runner} />
       <g filter={snap.ingestion.running ? undefined : 'url(#offline-halo)'}>
         <Box r={R.ingestion} style="ours" cls={snap.ingestion.running ? '' : 'stopped'}>
           <T x={R.ingestion.x + 32} y={R.ingestion.y + 22} cls="title">
@@ -170,22 +154,28 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
 
       {/* Triggers */}
       <Box r={R.driftSensor} style="ots">
-        <T x={R.driftSensor.x + 12} y={R.driftSensor.y + 22} cls="title">
+        <T x={R.driftSensor.x + 32} y={R.driftSensor.y + 20} cls="title">
           Drift sensor
         </T>
-        <T x={R.driftSensor.x + 112} y={R.driftSensor.y + 22} cls="tiny muted">
-          every {snap.drift.interval} s · next {snap.drift.nextCheckIn} s
+        <T x={R.driftSensor.x + 140} y={R.driftSensor.y + 20} cls="tiny muted">
+          every {snap.drift.interval} s
         </T>
+        <Ring cx={R.driftSensor.x + R.driftSensor.w - 20} cy={R.driftSensor.y + 18} r={11} frac={1 - (snap.drift.nextCheckIn - runner.frac) / snap.drift.interval} label={`${snap.drift.nextCheckIn}s`} />
       </Box>
+      <PlayPause at={{ x: R.driftSensor.x + 18, y: R.driftSensor.y + 16 }} running={!snap.offline.driftMonitor} what="the drift monitor (checks fail, no drift runs)" onToggle={() => runner.apply({ type: 'offline', module: 'driftMonitor', offline: !snap.offline.driftMonitor })} />
       <Shim r={R.shimCheck} name="check" />
-      <Module r={R.driftMonitor} name="Drift monitor" offline={snap.offline.driftMonitor}>
-        <T x={R.driftMonitor.x + 8} y={R.driftMonitor.y + 38} cls="tiny muted">
-          {snap.drift.status}
-        </T>
-        <T x={R.driftMonitor.x + 8} y={R.driftMonitor.y + 56} cls="tiny muted">
-          streak {snap.drift.streak} · requests a run on drift
-        </T>
-      </Module>
+      <g filter={snap.offline.driftMonitor ? 'url(#offline-halo)' : undefined}>
+        <Box r={R.driftMonitor} style="ours" cls={snap.offline.driftMonitor ? 'stopped' : runner.readsPending('driftMonitor') ? 'running' : ''}>
+          <T x={R.driftMonitor.x + 8} y={R.driftMonitor.y + 16} cls="title small-title">
+            Drift monitor
+          </T>
+          <ResidualBars r={R.driftMonitor} snap={snap} arrived={!runner.readsPending('driftMonitor')} />
+          <T x={R.driftMonitor.x + 8} y={R.driftMonitor.y + R.driftMonitor.h - 8} cls={`small status ${snap.drift.status.startsWith('drift') ? 'alert' : ''}`}>
+            {snap.drift.status}
+          </T>
+        </Box>
+      </g>
+      <OperatorControls snap={snap} runner={runner} sensor={R.driftSensor} monitor={R.driftMonitor} top={R.shimCheck.y} />
       <Box r={R.stalenessSchedule} style="ots">
         <T x={R.stalenessSchedule.x + 12} y={R.stalenessSchedule.y + 22} cls="title">
           Staleness schedule
@@ -196,9 +186,17 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
         <T x={R.stalenessSchedule.x + 12} y={R.stalenessSchedule.y + 55} cls="tiny muted">
           older than {snap.schedule.staleAfter} s
         </T>
-        <T x={R.stalenessSchedule.x + 12} y={R.stalenessSchedule.y + 78} cls="small">
-          {f ? `stale in ${mmss(snap.schedule.staleIn)}` : 'no forecast yet'}
+        <T x={R.stalenessSchedule.x + 12} y={R.stalenessSchedule.y + 78} cls="tiny">
+          {!f ? 'no forecast yet' : staleRemaining > 0 ? 'stale in' : replacing ? 'stale · replacing' : 'stale'}
         </T>
+        <Ring
+          cx={R.stalenessSchedule.x + R.stalenessSchedule.w - 32}
+          cy={R.stalenessSchedule.y + 56}
+          r={21}
+          frac={f ? 1 - staleRemaining / snap.schedule.staleAfter : 0}
+          label={f ? mmss(snap.schedule.staleIn) : '—'}
+          cls="stale-ring"
+        />
       </Box>
       <Box r={R.manualRequest} style="ots">
         <T x={R.manualRequest.x + 12} y={R.manualRequest.y + 22} cls="title">

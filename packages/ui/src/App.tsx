@@ -55,7 +55,9 @@ export function App() {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [tip, setTip] = useState<SlotTip | null>(null);
   const [tokenTip, setTokenTip] = useState<TokenTip | null>(null);
-  const initialView: View = params.get('view') === 'physical' ? 'physical' : params.get('view') === 'graph' ? 'graph' : 'logical';
+  // `?view=artefacts` (older links: `?view=graph`) and `?view=physical`; the logical view otherwise.
+  const v0 = params.get('view');
+  const initialView: View = v0 === 'physical' ? 'physical' : v0 === 'artefacts' || v0 === 'graph' ? 'graph' : 'logical';
   const [walk, setWalk] = useState<number | null>(WALK_ON && initialView === 'logical' ? 0 : null);
   // SYS-1: the view is presentation only; switching never touches the simulation.
   const [view, setView] = useState<View>(initialView);
@@ -67,7 +69,7 @@ export function App() {
     setTip(null);
     setTokenTip(null);
     const u = new URL(location.href);
-    if (v !== 'logical') u.searchParams.set('view', v);
+    if (v !== 'logical') u.searchParams.set('view', v === 'graph' ? 'artefacts' : v);
     else u.searchParams.delete('view');
     history.replaceState(null, '', u);
   };

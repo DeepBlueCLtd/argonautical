@@ -134,7 +134,7 @@ export const PHYSICAL_WALKTHROUGH: readonly WalkStep[] = [
   { id: 'p-start', kind: 'Start', title: 'Ready', body: 'Run the simulation and watch documents cross the zones. Try ⏸ on the model runner, or open a store.' },
 ];
 
-// ---- Graph view (issue #34): started only from the Walkthrough button ----
+// ---- Artefacts view (issue #34): started only from the Walkthrough button ----
 
 const G = G_RECTS as Required<typeof G_RECTS>;
 
@@ -143,10 +143,10 @@ export const GRAPH_WALKTHROUGH: readonly WalkStep[] = [
     id: 'g-intro',
     kind: 'Overview',
     title: 'The dependency graph',
-    body: 'The graph view: the same running simulation, showing only what the orchestrator (Dagster) knows about. Reads through pygeoapi, store writes and the sensor broker’s messages are hidden, so the dependencies stand out. Switch back to the logical view at any time.',
+    body: 'The artefacts view: the same running simulation, showing only what the orchestrator (Dagster) knows about. Reads through pygeoapi, store writes and the sensor broker’s messages are hidden, so the dependencies stand out. Switch back to the logical view at any time.',
   },
-  { id: 'g-feed', kind: 'Component', title: 'Ingest', body: 'The flow still starts at the ocean. Sensors send readings, through the sensor broker, to ingestion, which is not orchestrated and runs continuously. It keeps the observations source asset up to date.', rect: () => pad({ x: G.ocean.x, y: G.ocean.y, w: G.observationsDb.x + G.observationsDb.w - G.ocean.x, h: G.sensors.y + G.sensors.h - G.ocean.y }) },
-  { id: 'g-triggers', kind: 'Component', title: 'Triggers', body: 'Three things start a forecast run: the drift sensor (through our drift monitor), the staleness schedule, and the run-request sensor for the watchkeeper’s requests. A D token on a trigger line is a Dagster RunRequest.', rect: () => pad({ x: G.driftSensor.x, y: G.driftSensor.y, w: G.manualRequest.x + G.manualRequest.w - G.driftSensor.x, h: G.driftSensor.h }) },
+  { id: 'g-feed', kind: 'Component', title: 'Ingest', body: 'The flow still starts at the ocean. Sensors send readings, through the sensor broker, to ingestion, which is not orchestrated and runs continuously. It keeps the observations source asset up to date. “+5σ front” in Ocean and the noise steppers in Sensors work here too: push an input away and watch the drift sensor fire.', rect: () => pad({ x: G.ocean.x, y: G.ocean.y, w: G.observationsDb.x + G.observationsDb.w - G.ocean.x, h: G.sensors.y + G.sensors.h - G.ocean.y }) },
+  { id: 'g-triggers', kind: 'Component', title: 'Triggers', body: 'Three things start a forecast run: the drift sensor (through our drift monitor), the staleness schedule, and the run-request sensor for the watchkeeper’s requests. The drift monitor’s chart shows the last two minutes against the forecast; the violet steppers set threshold, quorum and persistence. The staleness ring counts down to the next scheduled run. A D token on a trigger line is a Dagster RunRequest.', rect: () => pad({ x: G.driftSensor.x, y: G.driftSensor.y, w: G.manualRequest.x + G.manualRequest.w - G.driftSensor.x, h: G.driftSensor.h }) },
   { id: 'g-lineage', kind: 'Component', title: 'Lineage', body: 'Thick lines are dependencies. At run start, observations, climatology and the previous forecast are checked (a faint sweep). When forecast is materialised it releases features, and features release announcement (a green sweep). Dependencies never start a run on their own.', rect: () => pad({ x: G.observationsDb.x, y: G.forecast.y - 30, w: G.announcement.x + G.announcement.w - G.observationsDb.x, h: G.forecast.h + 70 }) },
   { id: 'g-shims', kind: 'Component', title: 'Shims call our modules', body: 'Inside each asset, a thin shim calls the module of ours that does the work: run → Model runner, detect → Feature detector, announce → Announcer. shore_export runs on its own schedule.', rect: () => pad(G.forecast) },
   { id: 'g-broadcast', kind: 'Component', title: 'Broadcast', body: 'The announcement’s output still goes out: the announcer publishes to the broker, which delivers to each subscribed consumer. Consumers then fetch data through pygeoapi, which this view does not draw.', rect: () => pad({ x: G.broker.x, y: G_CONSUMERS.y, w: VIEW.w - G.broker.x - 6, h: G.broker.y + G.broker.h - G_CONSUMERS.y + 300 }) },

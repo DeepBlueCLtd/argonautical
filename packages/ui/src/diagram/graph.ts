@@ -35,17 +35,17 @@ export const G_REGIONS = {
 type GraphId = Exclude<ElementId, 'consumer'>;
 
 export const G_RECTS: Partial<Record<GraphId, Rect>> = {
-  ocean: { x: 20, y: 266, w: 190, h: 110 },
-  sensors: { x: 20, y: 400, w: 190, h: 140 },
+  ocean: { x: 20, y: 266, w: 190, h: 202 },
+  sensors: { x: 20, y: 476, w: 190, h: 266 },
   ingestion: { x: 252, y: 300, w: 150, h: 110 },
   // UI-8: the Observations DB is the `observations` source asset.
   observationsDb: { x: 452, y: 300, w: 196, h: 92 },
   // Triggers
-  driftSensor: { x: 452, y: 84, w: 252, h: 152 },
-  shimCheck: { x: 466, y: 122, w: 224, h: 20 },
-  driftMonitor: { x: 466, y: 148, w: 224, h: 76 },
-  stalenessSchedule: { x: 730, y: 84, w: 176, h: 96 },
-  manualRequest: { x: 924, y: 84, w: 176, h: 96 },
+  driftSensor: { x: 452, y: 84, w: 330, h: 196 },
+  shimCheck: { x: 466, y: 112, w: 222, h: 20 },
+  driftMonitor: { x: 466, y: 138, w: 222, h: 130 },
+  stalenessSchedule: { x: 800, y: 84, w: 196, h: 96 },
+  manualRequest: { x: 1014, y: 84, w: 180, h: 96 },
   // Assets
   climatology: { x: 452, y: 420, w: 196, h: 150 },
   shimImport: { x: 464, y: 470, w: 172, h: 20 },
@@ -97,15 +97,16 @@ const CUSTOM: Record<string, (a: Rect, b: Rect) => Pt[]> = {
   // Triggers into forecast's top, one landing point each.
   'driftSensor>trigger>forecast': (a, b) => {
     const x = b.x + 30;
-    return [{ x: cx(a), y: a.y + a.h }, { x: cx(a), y: 268 }, { x, y: 268 }, { x, y: b.y }];
+    return [{ x: cx(a), y: a.y + a.h }, { x: cx(a), y: 288 }, { x, y: 288 }, { x, y: b.y }];
   },
+  // The schedule's line runs above the manual request's, so the two never cross.
   'stalenessSchedule>trigger>forecast': (a, b) => {
-    const x = b.x + 90;
-    return [{ x: cx(a), y: a.y + a.h }, { x: cx(a), y: 244 }, { x, y: 244 }, { x, y: b.y }];
+    const x = b.x + 110;
+    return [{ x: cx(a), y: a.y + a.h }, { x: cx(a), y: 236 }, { x, y: 236 }, { x, y: b.y }];
   },
   'manualRequest>trigger>forecast': (a, b) => {
-    const x = b.x + 140;
-    return [{ x: cx(a), y: a.y + a.h }, { x: cx(a), y: 244 }, { x, y: 244 }, { x, y: b.y }];
+    const x = b.x + 160;
+    return [{ x: cx(a), y: a.y + a.h }, { x: cx(a), y: 256 }, { x, y: 256 }, { x, y: b.y }];
   },
   // Announcer → broker: right, then along to the broker's left side.
   'announcer>publish>broker': (a, b) => {
