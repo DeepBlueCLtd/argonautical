@@ -497,3 +497,10 @@ input[type='text'], input:not([type]) { border: 1px solid var(--line); border-ra
 .diagram .view-switch .seg.on .ctl-text { fill: #fff; }
 .view-switch .seg:focus { outline: none; }
 .view-switch .seg:focus-visible rect { stroke: var(--ours); stroke-width: 2; }
+
+/* Artefacts view: dependency checks are the point here, so they stand out from their line (issue #34 follow-up). */
+.pulse .check-mark { display: none; }
+.graph .pulse.check .sweep { stroke: var(--check-strong, #1971c2); stroke-width: 5; opacity: 0.9; filter: drop-shadow(0 0 3px rgba(25, 113, 194, 0.5)); }
+.graph .pulse .check-mark { display: inline; pointer-events: none; }
+.graph .pulse .check-mark circle { fill: #fff; stroke: var(--check-strong, #1971c2); stroke-width: 1.6; }
+.graph .pulse .check-mark path { fill: none; stroke: var(--check-strong, #1971c2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
