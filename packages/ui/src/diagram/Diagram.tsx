@@ -238,7 +238,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         <rect className="region consumers" x={REGIONS.consumersLeft} y={0} width={VIEW.w - REGIONS.consumersLeft} height={VIEW.h} />
         <line className="boundary" x1={REGIONS.worldRight} y1={0} x2={REGIONS.worldRight} y2={VIEW.h} />
         <line className="boundary" x1={REGIONS.consumersLeft} y1={0} x2={REGIONS.consumersLeft} y2={VIEW.h} />
-        <T x={REGIONS.worldRight / 2} y={261} cls="region-label" anchor="middle">
+        <T x={REGIONS.worldRight / 2} y={273} cls="region-label" anchor="middle">
           WORLD
         </T>
         <T x={(REGIONS.worldRight + REGIONS.consumersLeft) / 2} y={24} cls="region-label" anchor="middle">

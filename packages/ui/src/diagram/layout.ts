@@ -24,8 +24,8 @@ export const REGIONS = {
 
 export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
   // The top fifth of the World column is the presenter's Control panel (CONTROL below).
-  ocean: { x: 20, y: 266, w: 190, h: 202 },
-  sensors: { x: 20, y: 476, w: 190, h: 266 },
+  ocean: { x: 20, y: 278, w: 190, h: 202 },
+  sensors: { x: 20, y: 488, w: 190, h: 254 },
   ingestion: { x: 248, y: 430, w: 150, h: 130 },
   // Persistent queue between the DAQ gateway and ingestion (FLT-3).
   sensorBroker: { x: 252, y: 612, w: 162, h: 104 },
@@ -71,7 +71,7 @@ export const RECTS: Record<Exclude<ElementId, 'consumer'>, Rect> = {
 };
 
 /** Presenter controls (§5.4): the top fifth of the World column. */
-export const CONTROL: Rect = { x: 10, y: 8, w: 210, h: 240 };
+export const CONTROL: Rect = { x: 10, y: 8, w: 210, h: 252 };
 
 export const CONSUMER_AREA = { x: 1430, y: 216, w: 160, cardH: 94, gap: 10, max: 3 } as const;
 

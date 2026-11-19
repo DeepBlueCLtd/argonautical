@@ -70,7 +70,7 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
         <rect className="region consumers" x={G_REGIONS.consumersLeft} y={0} width={VIEW.w - G_REGIONS.consumersLeft} height={VIEW.h} />
         <line className="boundary" x1={G_REGIONS.worldRight} y1={0} x2={G_REGIONS.worldRight} y2={VIEW.h} />
         <line className="boundary" x1={G_REGIONS.consumersLeft} y1={0} x2={G_REGIONS.consumersLeft} y2={VIEW.h} />
-        <T x={G_REGIONS.worldRight / 2} y={261} cls="region-label" anchor="middle">
+        <T x={G_REGIONS.worldRight / 2} y={273} cls="region-label" anchor="middle">
           WORLD
         </T>
         <T x={(G_REGIONS.worldRight + G_REGIONS.consumersLeft) / 2} y={24} cls="region-label" anchor="middle">

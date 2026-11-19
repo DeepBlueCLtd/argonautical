@@ -35,8 +35,8 @@ export const G_REGIONS = {
 type GraphId = Exclude<ElementId, 'consumer'>;
 
 export const G_RECTS: Partial<Record<GraphId, Rect>> = {
-  ocean: { x: 20, y: 266, w: 190, h: 202 },
-  sensors: { x: 20, y: 476, w: 190, h: 266 },
+  ocean: { x: 20, y: 278, w: 190, h: 202 },
+  sensors: { x: 20, y: 488, w: 190, h: 254 },
   ingestion: { x: 252, y: 300, w: 150, h: 110 },
   // UI-8: the Observations DB is the `observations` source asset.
   observationsDb: { x: 452, y: 300, w: 196, h: 92 },
