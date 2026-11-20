@@ -1,5 +1,16 @@
 [
   {
+    "number": 38,
+    "title": "Spec: hand-drawn makeover of the demonstrator",
+    "summary": "A spec for giving the demonstrator a hand-drawn (\"draft\") look: rough.js sketchy outlines, connectors and tokens, a hand font for headings, graph-paper background. The diagram's meaning stays the same (SRD §5.3, UI-1…UI-9). Spec only.…",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/38",
+    "branch": "claude/loving-goldberg-nzebfu",
+    "sha": "2b15e8420346d268d7d0c12f71030504bfdf0d7d",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-20T14:11:15.919Z"
+  },
+  {
     "number": 37,
     "title": "Artefacts view: make dependency checks stand out",
     "summary": "This follows up #36. In the Artefacts view, the dependency-check pulses were nearly invisible.",
