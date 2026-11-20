@@ -1,6 +1,6 @@
 # Spec: hand-drawn ("draft") makeover of the demonstrator
 
-Status: **draft for review**. Implementation starts once this is approved.
+Status: **implemented**. See §9 for where the implementation differs from this spec.
 
 ## 1. Goal
 
@@ -123,3 +123,12 @@ Behaviour, layout files, the simulation and the tests in `packages/sim` are not 
 
 - Font choice (Architects Daughter suggested) to be confirmed from a screenshot.
 - Whether the walkthrough spotlight ring should also be sketchy (spec says no).
+
+## 9. Implementation notes
+
+- **Font:** Architects Daughter (confirmed), from `@fontsource/architects-daughter`, bundled by Vite. At the same size it is as wide as the old semi-bold sans, so heading sizes are unchanged; physical-view module titles are 11.5 px so descenders clear the subtitle.
+- **HTML frames and buttons:** instead of a `<SketchBorder>` overlay with a `ResizeObserver` (§4.3), popups and HTML buttons use a 9-slice `border-image` of a sketchy rounded rect drawn once at start-up (`src/sketch/frames.ts`). Same look, no per-element SVG or observers. Nearly all controls are SVG anyway and use the diagram's sketch components.
+- **Slot tips** keep their existing folded-page shape (already a drawn document), with a hand-font title.
+- **CSS:** selectors naming `rect` or `circle` were widened to `:is(rect, .sk-r)` / `:is(circle, .sk-c)`, so each sketch path picks up the same colours, dashes and hover states as its host shape. Hosts keep the fill and hit area (`.sk-host { stroke: none }`).
+- **Not sketched** (data or overlays, kept crisp): progress bars and rings, residual and trace charts, region fills, zone bands, hit areas, flash circles, the walkthrough dim and ring.
+- **Performance at 60×:** about 3% fewer frames than `main` on an unthrottled CPU (57–58 vs 59–60 fps). Under 4× CPU throttling (a slow laptop) it is roughly 15–20% fewer (≈13 vs ≈16 fps). Script time is within ~5% of `main` (edge sketches are cached per route); the remaining cost is rasterising the extra stroke paths. DOM nodes: about +17%, stable over time (no leak).

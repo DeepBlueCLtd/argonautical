@@ -8,7 +8,9 @@
 import { EDGES, STANDARDS, clockLabel, windowsLabel, type Snapshot } from '@argonautical/sim';
 import { useMemo } from 'react';
 import { topicShort, type Runner } from '../runner.ts';
-import { Box, ControlPanel, DocToken, EdgePath, ExecLine, SvgButton, useExecState, Inspectable, Module, OceanCard, OperatorControls, PlayPause, ResidualBars, Ring, SensorsCard, Shim, Store, T, Tokens, measurementTopicRows, type Controls, type InspectId, type Picked, type TokenTip } from './Diagram.tsx';
+import { Paper, SLine, SRect } from '../sketch/Sketch.tsx';
+import { sketchLine, sketchPts } from '../sketch/sketch.ts';
+import { ARROW_D, Box, ControlPanel, DocToken, EdgePath, ExecLine, SvgButton, useExecState, Inspectable, Module, OceanCard, OperatorControls, PlayPause, ResidualBars, Ring, SensorsCard, Shim, Store, T, Tokens, measurementTopicRows, type Controls, type InspectId, type Picked, type TokenTip } from './Diagram.tsx';
 import { G_CONSUMERS, G_KEY, G_NOTE, G_RECTS, G_REGIONS, consumerRectG, forecastLoopG, oceanLine, routeGraph } from './graph.ts';
 import { pathD, VIEW, type Rect } from './layout.ts';
 
@@ -44,13 +46,13 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
     <svg className="diagram graph" viewBox={`0 0 ${VIEW.w} ${VIEW.h}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Forecast pipeline dependency graph">
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" className="arrowhead" />
+          <path d={ARROW_D} className="arrowhead" />
         </marker>
         <marker id="arrow-release" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" className="arrowhead release" />
+          <path d={ARROW_D} className="arrowhead release" />
         </marker>
         <marker id="arrow-heavy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" className="arrowhead heavy" />
+          <path d={ARROW_D} className="arrowhead heavy" />
         </marker>
         <filter id="offline-halo" x="-30%" y="-30%" width="160%" height="160%">
           <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="b" />
@@ -62,13 +64,14 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
           </feMerge>
         </filter>
       </defs>
+      <Paper w={VIEW.w} h={VIEW.h} />
 
       {/* Regions */}
       <g className="regions">
         <rect className="region world" x={0} y={0} width={G_REGIONS.worldRight} height={VIEW.h} />
         <rect className="region consumers" x={G_REGIONS.consumersLeft} y={0} width={VIEW.w - G_REGIONS.consumersLeft} height={VIEW.h} />
-        <line className="boundary" x1={G_REGIONS.worldRight} y1={0} x2={G_REGIONS.worldRight} y2={VIEW.h} />
-        <line className="boundary" x1={G_REGIONS.consumersLeft} y1={0} x2={G_REGIONS.consumersLeft} y2={VIEW.h} />
+        <SLine className="boundary" x1={G_REGIONS.worldRight} y1={0} x2={G_REGIONS.worldRight} y2={VIEW.h} />
+        <SLine className="boundary" x1={G_REGIONS.consumersLeft} y1={0} x2={G_REGIONS.consumersLeft} y2={VIEW.h} />
         <T x={G_REGIONS.worldRight / 2} y={273} cls="region-label" anchor="middle">
           WORLD
         </T>
@@ -90,14 +93,14 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
       </Box>
 
       {/* Ocean → sensors: what the instruments measure, not a message */}
-      <path className="edge feed" d={pathD(ocean)} markerEnd="url(#arrow)" />
+      <path className="edge feed" d={sketchPts(ocean)} markerEnd="url(#arrow)" />
 
       {/* Edges */}
       <g className="edges">
         {routes.map((r) => (
           <EdgePath key={r.key} r={r} />
         ))}
-        <path className="edge lineage" d={pathD(loop)} markerEnd="url(#arrow-heavy)" />
+        <path className="edge lineage" d={sketchPts(loop)} markerEnd="url(#arrow-heavy)" />
       </g>
 
       <ControlPanel snap={snap} runner={runner} controls={controls} />
@@ -396,7 +399,7 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
 
       {/* What this view shows */}
       <g className="graph-note">
-        <rect x={G_NOTE.x} y={G_NOTE.y} width={G_NOTE.w} height={G_NOTE.h} rx={6} />
+        <SRect x={G_NOTE.x} y={G_NOTE.y} width={G_NOTE.w} height={G_NOTE.h} rx={6} />
         <T x={G_NOTE.x + 12} y={G_NOTE.y + 20} cls="small title-sm">
           This view
         </T>
@@ -408,7 +411,7 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
           ['feed', 'ocean → sensors (measured)'],
         ].map(([k, label], i) => (
           <g key={k}>
-            <path className={`edge ${k}`} d={`M${G_NOTE.x + 12},${G_NOTE.y + 40 + i * 20} h28`} />
+            <path className={`edge ${k}`} d={sketchLine(`M${G_NOTE.x + 12},${G_NOTE.y + 40 + i * 20} h28`)} />
             <T x={G_NOTE.x + 48} y={G_NOTE.y + 44 + i * 20} cls="tiny">
               {label}
             </T>
@@ -423,7 +426,7 @@ export function GraphDiagram(props: { snap: Snapshot; runner: Runner; onPick: (p
       </g>
 
       <g className="token-key" aria-label="Token key">
-        <rect x={G_KEY.x} y={G_KEY.y} width={G_KEY.w} height={G_KEY.h} rx={6} />
+        <SRect x={G_KEY.x} y={G_KEY.y} width={G_KEY.w} height={G_KEY.h} rx={6} />
         <T x={G_KEY.x + 12} y={G_KEY.y + 20} cls="small title-sm">
           Tokens in this view
         </T>

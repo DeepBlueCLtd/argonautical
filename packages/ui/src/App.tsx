@@ -7,6 +7,7 @@ import { StoreInspector } from './StoreInspector.tsx';
 import { SlotTipPanel, TokenTipPanel } from './SlotTip.tsx';
 import { TokenPopup } from './TokenPopup.tsx';
 import { Runner } from './runner.ts';
+import { Swatch } from './sketch/Sketch.tsx';
 import { WalkCard } from './Walkthrough.tsx';
 import { GRAPH_WALKTHROUGH, PHYSICAL_WALKTHROUGH, WALKTHROUGH } from './walkthrough.ts';
 
@@ -133,28 +134,28 @@ function Legend() {
   return (
     <div className="legend" aria-label="Legend">
       <span>
-        <i className="sw ours" /> ours (build)
+        <Swatch kind="ours" /> ours (build)
       </span>
       <span>
-        <i className="sw ots" /> off-the-shelf (adopt), mocked
+        <Swatch kind="ots" /> off-the-shelf (adopt), mocked
       </span>
       <span>
-        <i className="sw store" /> our data store
+        <Swatch kind="store" /> our data store
       </span>
       <span>
-        <i className="sw mat" /> materialising
+        <Swatch kind="mat" /> materialising
       </span>
       <span>
-        <i className="sw retry" /> retry
+        <Swatch kind="retry" /> retry
       </span>
       <span>
-        <i className="sw offline" /> offline
+        <Swatch kind="offline" /> offline
       </span>
       <span title="An upstream asset was just materialised, which lets the next step start">
-        <i className="sw release" /> dependency releases next step
+        <Swatch kind="release" /> dependency releases next step
       </span>
       <span title="At run start: the upstream was already there (a dependency, never a trigger)">
-        <i className="sw check" /> dependency checked
+        <Swatch kind="check" /> dependency checked
       </span>
     </div>
   );

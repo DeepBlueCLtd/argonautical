@@ -1,8 +1,13 @@
 import { DRIFT_BOUNDS, EDGES, INPUTS, NOISE_BOUNDS, PROFILES, STANDARDS, clockLabel, windowsLabel, type InputDecl, type Snapshot, type Token } from '@argonautical/sim';
 import { useMemo, useRef, type ReactNode } from 'react';
 import { topicShort, topicTag, type Rate, type Runner } from '../runner.ts';
+import { Paper, SCircle, SLine, SRect } from '../sketch/Sketch.tsx';
+import { sketchLine, sketchOutline, sketchPts } from '../sketch/sketch.ts';
 import { CONSUMER_AREA, CONTROL, RECTS, REGIONS, SHORE_TRANSFER, TOKEN_KEY, VIEW, consumerRect, forecastLoop, lengthOf, midpoint, pathD, pointAt, routeAll, type Pt, type Rect, type Route } from './layout.ts';
 
+
+/** A hand-drawn open arrowhead (marker units, tip at 9.5,5). */
+export const ARROW_D = 'M1.2,1.4 Q5.6,3.6 9.5,5 Q5.4,6.6 1.4,8.8';
 
 const MATERIALISING_TICKS = 3;
 /** CAT-5: badge colour per consumer status. */
@@ -30,7 +35,7 @@ export function Box({ r, style, cls = '', children, title }: { r: Rect; style: S
   return (
     <g className={`box ${style} ${cls}`}>
       {title && <title>{title}</title>}
-      <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={style === 'asset' ? 10 : 4} />
+      <SRect x={r.x} y={r.y} width={r.w} height={r.h} rx={style === 'asset' ? 10 : 4} state={`${style} ${cls}`} />
       {children}
     </g>
   );
@@ -40,8 +45,8 @@ export function Box({ r, style, cls = '', children, title }: { r: Rect; style: S
 export function Store({ r, ours = true, cls = '', children }: { r: Rect; ours?: boolean; cls?: string; children?: ReactNode }) {
   return (
     <g className={`store ${ours ? 'ours' : 'ots'} ${cls}`}>
-      <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={6} />
-      {ours && <rect className="inner" x={r.x + 4} y={r.y + 4} width={r.w - 8} height={r.h - 8} rx={4} />}
+      <SRect x={r.x} y={r.y} width={r.w} height={r.h} rx={6} state={cls} />
+      {ours && <SRect className="inner" x={r.x + 4} y={r.y + 4} width={r.w - 8} height={r.h - 8} rx={4} state={`inner ${cls}`} />}
       {children}
     </g>
   );
@@ -91,7 +96,7 @@ export function Shim({ r, name, retryIn }: { r: Rect; name: string; retryIn?: nu
   const retry = retryIn !== undefined;
   return (
     <g className={`shim ${retry ? 'retry' : ''}`}>
-      <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={3} />
+      <SRect x={r.x} y={r.y} width={r.w} height={r.h} rx={3} state={retry ? 'retry' : ''} />
       <T x={r.x + 6} y={r.y + 14} cls="shim-label">
         shim · {name}
       </T>
@@ -188,13 +193,13 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
     <svg className="diagram" viewBox={`0 0 ${VIEW.w} ${VIEW.h}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Forecast pipeline information flow">
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" className="arrowhead" />
+          <path d={ARROW_D} className="arrowhead" />
         </marker>
  <marker id="arrow-release" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" className="arrowhead release" />
+          <path d={ARROW_D} className="arrowhead release" />
         </marker>
         <marker id="arrow-heavy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" className="arrowhead heavy" />
+          <path d={ARROW_D} className="arrowhead heavy" />
         </marker>
         <filter id="offline-halo" x="-30%" y="-30%" width="160%" height="160%">
           <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="b" />
@@ -206,13 +211,14 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
           </feMerge>
         </filter>
       </defs>
+      <Paper w={VIEW.w} h={VIEW.h} />
 
       {/* Regions (UI-1) */}
       <g className="regions">
         <rect className="region world" x={0} y={0} width={REGIONS.worldRight} height={VIEW.h} />
         <rect className="region consumers" x={REGIONS.consumersLeft} y={0} width={VIEW.w - REGIONS.consumersLeft} height={VIEW.h} />
-        <line className="boundary" x1={REGIONS.worldRight} y1={0} x2={REGIONS.worldRight} y2={VIEW.h} />
-        <line className="boundary" x1={REGIONS.consumersLeft} y1={0} x2={REGIONS.consumersLeft} y2={VIEW.h} />
+        <SLine className="boundary" x1={REGIONS.worldRight} y1={0} x2={REGIONS.worldRight} y2={VIEW.h} />
+        <SLine className="boundary" x1={REGIONS.consumersLeft} y1={0} x2={REGIONS.consumersLeft} y2={VIEW.h} />
         <T x={REGIONS.worldRight / 2} y={273} cls="region-label" anchor="middle">
           WORLD
         </T>
@@ -239,7 +245,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         {routes.map((r) => (
           <EdgePath key={r.key} r={r} />
         ))}
-        <path className="edge lineage" d={pathD(loop)} markerEnd="url(#arrow-heavy)" />
+        <path className="edge lineage" d={sketchPts(loop)} markerEnd="url(#arrow-heavy)" />
         <T x={loop[2]!.x + 8} y={loop[2]!.y + 14} cls="small loop-label">
           background = previous forecast{snap.background ? ` (${snap.background.id})` : ''}
         </T>
@@ -631,7 +637,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
             {/* CAT-5: the level of service it can give with what is offered */}
             <g className={`status-badge ${tone}`}>
               <title>{PROFILES[c.profile].about}</title>
-              <rect x={r.x + 10} y={r.y + 28} width={view.status.length * 6.4 + 14} height={17} rx={8.5} />
+              <SRect x={r.x + 10} y={r.y + 28} width={view.status.length * 6.4 + 14} height={17} rx={8.5} state={tone} />
               <text x={r.x + 17} y={r.y + 40.5} className="tiny">
                 {view.status}
               </text>
@@ -660,7 +666,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && runner.apply({ type: 'reconfigureConsumer', consumer: c.id })}
             >
               <title>The app's user changes what it shows, so it discovers the catalogue and fetches again</title>
-              <rect x={r.x + r.w - 82} y={r.y + 50} width={74} height={18} rx={4} />
+              <SRect x={r.x + r.w - 82} y={r.y + 50} width={74} height={18} rx={4} />
               <text x={r.x + r.w - 45} y={r.y + 63} textAnchor="middle" className="tiny">
                 Reconfigure
               </text>
@@ -690,7 +696,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
         </T>
       </Box>
       <g className="shore-transfer">
-        <rect className="group-frame" x={SHORE_TRANSFER.x} y={SHORE_TRANSFER.y} width={SHORE_TRANSFER.w} height={SHORE_TRANSFER.h} rx={6} />
+        <SRect className="group-frame" x={SHORE_TRANSFER.x} y={SHORE_TRANSFER.y} width={SHORE_TRANSFER.w} height={SHORE_TRANSFER.h} rx={6} />
         <T x={SHORE_TRANSFER.x + 8} y={SHORE_TRANSFER.y + 17} cls="small title-sm">
           Shore transfer
         </T>
@@ -711,7 +717,7 @@ export function Diagram(props: { snap: Snapshot; runner: Runner; onPick: (p: Pic
 
       {/* Token key: the standard each document's letter stands for */}
       <g className="token-key" aria-label="Token key">
-        <rect x={TOKEN_KEY.x} y={TOKEN_KEY.y} width={TOKEN_KEY.w} height={TOKEN_KEY.h} rx={6} />
+        <SRect x={TOKEN_KEY.x} y={TOKEN_KEY.y} width={TOKEN_KEY.w} height={TOKEN_KEY.h} rx={6} />
         <T x={TOKEN_KEY.x + 12} y={TOKEN_KEY.y + 22} cls="title">
           Token key
         </T>
@@ -787,7 +793,7 @@ function CtlButton(props: { x: number; y: number; w: number; h: number; title: s
       }}
     >
       <title>{title}</title>
-      <rect x={x} y={y} width={w} height={h} rx={h / 2 > 12 ? 8 : h / 2} />
+      <SRect x={x} y={y} width={w} height={h} rx={h / 2 > 12 ? 8 : h / 2} state={pressed ? 'on' : ''} />
       {children}
     </g>
   );
@@ -820,8 +826,8 @@ function ViewSwitch({ x, y, w, h, view, onView }: { x: number; y: number; w: num
         if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') (e.preventDefault(), move(-1));
       }}
     >
-      <rect className="frame" x={x} y={y} width={w} height={h} rx={h / 2} />
-      {segs.slice(1).map((s, i) => (segs[i]!.v !== view && s.v !== view ? <line key={s.v} className="divider" x1={s.x} x2={s.x} y1={y + 4} y2={y + h - 4} /> : null))}
+      <SRect className="frame" x={x} y={y} width={w} height={h} rx={h / 2} />
+      {segs.slice(1).map((s, i) => (segs[i]!.v !== view && s.v !== view ? <SLine key={s.v} className="divider" x1={s.x} x2={s.x} y1={y + 4} y2={y + h - 4} /> : null))}
       {segs.map((s) => {
         const on = s.v === view;
         return (
@@ -836,7 +842,7 @@ function ViewSwitch({ x, y, w, h, view, onView }: { x: number; y: number; w: num
             onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onView(s.v))}
           >
             <title>{VIEW_LABEL[s.v].title}</title>
-            <rect x={s.x + 1.5} y={y + 1.5} width={s.w - 3} height={h - 3} rx={(h - 3) / 2} />
+            {on ? <SRect x={s.x + 1.5} y={y + 1.5} width={s.w - 3} height={h - 3} rx={(h - 3) / 2} state="on" /> : <rect x={s.x + 1.5} y={y + 1.5} width={s.w - 3} height={h - 3} rx={(h - 3) / 2} />}
             <text x={s.x + s.w / 2} y={y + 13} textAnchor="middle" className="ctl-text cap-text">
               {VIEW_LABEL[s.v].label}
             </text>
@@ -864,7 +870,7 @@ export function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runne
   const rw = 44;
   return (
     <g className="control-panel" aria-label="Presenter controls">
-      <rect className="frame" x={c.x} y={c.y} width={c.w} height={c.h} rx={8} />
+      <SRect className="frame" x={c.x} y={c.y} width={c.w} height={c.h} rx={8} />
       <T x={c.x + 12} y={c.y + 18} cls="region-label control-label">
         CONTROL
       </T>
@@ -885,7 +891,7 @@ export function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runne
         }}
       >
         <title>{on ? 'System on: switch off to change its capabilities' : 'System off: switch on to install it (consumers shake hands, then press play)'}</title>
-        <circle cx={px} cy={cy} r={16} />
+        <SCircle cx={px} cy={cy} r={16} state={on ? 'on' : 'off'} />
         <path className="glyph-stroke" d={`M${px - 5.5},${cy - 5} a7.5,7.5 0 1,0 11,0 M${px},${cy - 9} v8`} />
       </g>
       {/* Play / pause */}
@@ -904,7 +910,7 @@ export function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runne
         }}
       >
         <title>{!on ? 'Switch the system on first' : runner.handshaking ? (playing ? 'Pause the handshake (Space)' : 'Run the consumers’ handshake (Space)') : playing ? 'Pause (Space)' : 'Run (Space)'}</title>
-        <circle cx={cx} cy={cy} r={22} />
+        <SCircle cx={cx} cy={cy} r={22} state={playing ? 'playing' : 'paused'} />
         {playing ? (
           <path className="glyph" d={`M${cx - 8},${cy - 10} v20 h5 v-20 z M${cx + 3},${cy - 10} v20 h5 v-20 z`} />
         ) : (
@@ -984,7 +990,7 @@ export function ControlPanel({ snap, runner, controls }: { snap: Snapshot; runne
       <ViewSwitch x={c.x + 12} y={c.y + 222} w={186} h={18} view={controls.view} onView={controls.onView} />
       {/* Event count, as a badge on the log icon */}
       <g className="ctl-badge" aria-hidden>
-        <rect x={c.x + 187} y={c.y + 112} width={22} height={13} rx={6.5} />
+        <SRect x={c.x + 187} y={c.y + 112} width={22} height={13} rx={6.5} />
         <text x={c.x + 198} y={c.y + 121.5} textAnchor="middle" className="mono">
           {snap.events.count > 999 ? '1k+' : snap.events.count}
         </text>
@@ -1117,18 +1123,22 @@ export function DocToken({ x, y, size, cls, letter }: { x: number; y: number; si
   const w = 10 * size;
   const h = 12 * size;
   const f = 3 * size; // fold
-  const x0 = x - w / 2;
-  const y0 = y - h / 2;
+  const x0 = -w / 2;
+  const y0 = -h / 2;
+  // D9: drawn about the origin once per size and letter, then moved with a transform (no rough.js work per frame).
+  const page = `M${x0},${y0} H${x0 + w - f} L${x0 + w},${y0 + f} V${y0 + h} H${x0} Z`;
+  const rules = [0.45, 0.62, 0.79].map((k) => `M${x0 + 2 * size},${y0 + h * k} H${x0 + w - 2 * size}`).join(' ');
   return (
-    <g className={`${cls} ${letter ? `std-${letter}` : ''}`}>
-      <path className="page" d={`M${x0},${y0} H${x0 + w - f} L${x0 + w},${y0 + f} V${y0 + h} H${x0} Z`} />
-      <path className="fold" d={`M${x0 + w - f},${y0} V${y0 + f} H${x0 + w}`} />
+    <g className={`${cls} ${letter ? `std-${letter}` : ''}`} transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`}>
+      <path className="page sk-host" d={page} />
+      <path className="page sk" d={sketchOutline(page, letter)} />
+      <path className="fold sk" d={sketchLine(`M${x0 + w - f},${y0} V${y0 + f} H${x0 + w}`)} />
       {letter ? (
-        <text className="std" x={x} y={y0 + h * 0.78} textAnchor="middle" fontSize={8 * size}>
+        <text className="std" x={0} y={y0 + h * 0.8} textAnchor="middle" fontSize={8.5 * size}>
           {letter}
         </text>
       ) : (
-        <path className="rules" d={[0.45, 0.62, 0.79].map((k) => `M${x0 + 2 * size},${y0 + h * k} H${x0 + w - 2 * size}`).join(' ')} />
+        <path className="rules" d={sketchLine(rules)} />
       )}
     </g>
   );
@@ -1213,7 +1223,7 @@ export function PlayPause({ at, running, what, onToggle }: { at: { x: number; y:
   return (
     <g className={`play-pause ${running ? '' : 'paused'}`} role="button" tabIndex={0} aria-label={label} onClick={onToggle} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onToggle()}>
       <title>{label}</title>
-      <circle cx={cx} cy={cy} r={9} />
+      <SCircle cx={cx} cy={cy} r={9} state={running ? 'running' : 'paused'} />
       {running ? (
         <path className="glyph" d={`M${cx - 3},${cy - 4} v8 M${cx + 3},${cy - 4} v8`} />
       ) : (
@@ -1285,7 +1295,7 @@ function Stepper({ x, y, value, what, cls, dec, inc, onSet, vw = 36 }: { x: numb
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && to !== undefined && onSet(to)}
     >
       <title>{to === undefined ? `${what}: at its ${verb === 'Lower' ? 'minimum' : 'maximum'}` : `${verb} ${what} to ${to}`}</title>
-      <rect x={bx} y={y} width={16} height={16} rx={3} />
+      <SRect x={bx} y={y} width={16} height={16} rx={3} />
       <text x={bx + 8} y={y + 12} textAnchor="middle" className="small">
         {label}
       </text>
@@ -1307,7 +1317,7 @@ export function SvgButton({ x, y, w, label, title, onClick, cls = '' }: { x: num
   return (
     <g className={`svg-button ${cls}`} role="button" tabIndex={0} aria-label={title} onClick={onClick} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onClick()}>
       <title>{title}</title>
-      <rect x={x} y={y} width={w} height={18} rx={4} />
+      <SRect x={x} y={y} width={w} height={18} rx={4} state={cls} />
       <text x={x + w / 2} y={y + 13} textAnchor="middle" className="tiny">
         {label}
       </text>
@@ -1321,7 +1331,7 @@ export function EdgePath({ r }: { r: Route }) {
   const m = midpoint(r.points);
   return (
     <g>
-      <path className={`edge ${k}`} d={pathD(r.points)} markerEnd={heavy ? 'url(#arrow-heavy)' : 'url(#arrow)'} />
+      <path className={`edge ${k}`} d={sketchPts(r.points)} markerEnd={heavy ? 'url(#arrow-heavy)' : 'url(#arrow)'} />
       {k === 'read' && r.edge.to === 'pygeoapi' && (
         <T x={m.x} y={m.y - 5} cls="tiny edge-label" anchor="middle">
           read only
@@ -1334,7 +1344,7 @@ export function EdgePath({ r }: { r: Route }) {
 export function Module({ r, name, offline, running = false, children }: { r: Rect; name: string; offline: boolean; running?: boolean; children?: ReactNode }) {
   return (
     <g className={`box ours module ${offline ? 'offline' : running ? 'running' : ''}`} filter={offline ? 'url(#offline-halo)' : undefined}>
-      <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={4} />
+      <SRect x={r.x} y={r.y} width={r.w} height={r.h} rx={4} state={offline ? 'offline' : running ? 'running' : ''} />
       <text x={r.x + 8} y={r.y + 18} className="title small-title">
         {name}
       </text>
@@ -1459,8 +1469,8 @@ function Pulse({ pts, p, token, frozen, onPick }: { pts: Pt[]; p: number; token:
   const tint = release ? (p < sweepEnd ? s : 1 - Math.max(0, (p - sweepEnd) / (1 - sweepEnd) - 0.5) * 2) : 0;
   return (
     <g className={`pulse ${token.signal}`}>
-      {release && <path d={pathD(pts)} className="tint" opacity={tint} markerEnd="url(#arrow-release)" />}
-      {s < 1 || !release ? <path d={pathD(pts)} className="sweep" strokeDasharray={`${seg} ${L + seg * 2}`} strokeDashoffset={seg - head} opacity={release ? 1 : 1 - s * 0.6} /> : null}
+      {release && <path d={sketchPts(pts)} className="tint" opacity={tint} markerEnd="url(#arrow-release)" />}
+      {s < 1 || !release ? <path d={sketchPts(pts)} className="sweep" strokeDasharray={`${seg} ${L + seg * 2}`} strokeDashoffset={seg - head} opacity={release ? 1 : 1 - s * 0.6} /> : null}
       {flash >= 0 && <circle className="flash" cx={end.x} cy={end.y} r={5 + flash * 16} opacity={1 - flash} />}
       {flash >= 0 && <circle className="flash-core" cx={end.x} cy={end.y} r={5} opacity={1 - flash * 0.7} />}
       {/* A check's ✓ as it lands: drawn only where a view's CSS shows it (the artefacts view). */}
