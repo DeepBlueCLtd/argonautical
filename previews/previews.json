@@ -1,5 +1,16 @@
 [
   {
+    "number": 41,
+    "title": "Broker forwards an announcement only after the publish reaches it",
+    "summary": "Problem: when the announcer published, the broker's delivery tokens left at the same moment as the publish token. So the consumers appeared to receive the announcement, and started querying pygeoapi, before it had reached the broker.",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/41",
+    "branch": "claude/gracious-cray-ojyozg",
+    "sha": "1266f2e455e833ee0b670ed55faf2997e8f5b747",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-20T18:22:24.138Z"
+  },
+  {
     "number": 40,
     "title": "Site: fill in the welcome page",
     "summary": "Replaces the six placeholder sections on the welcome page (/) with content taken from the SRD, docs/system-architecture.md and the current demonstrator:",

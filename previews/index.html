@@ -31,6 +31,19 @@
   <h1>PR previews</h1>
   <p class="lede">One preview per pull request, rebuilt on every push and kept after the PR closes. Newest first.</p>
   <ul>
+    <li class="card open">
+      <div class="head">
+        <a class="title" href="./pr-41/">#41 · Broker forwards an announcement only after the publish reaches it</a>
+        <span class="badge">Open</span>
+      </div>
+      <p>Problem: when the announcer published, the broker&#39;s delivery tokens left at the same moment as the publish token. So the consumers appeared to receive the announcement, and started querying pygeoapi, before it had reached the broker.</p>
+      <div class="meta">
+        <a href="./pr-41/">Open preview</a> ·
+        <a href="https://github.com/DeepBlueCLtd/argonautical/pull/41">View PR</a> ·
+        claude/gracious-cray-ojyozg @ <code>1266f2e</code> ·
+        updated 2026-11-20 18:22 UTC
+      </div>
+    </li>
     <li class="card merged">
       <div class="head">
         <a class="title" href="./pr-40/">#40 · Site: fill in the welcome page</a>
