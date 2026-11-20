@@ -123,6 +123,8 @@ export class Runner {
   private listeners = new Set<() => void>();
   /** CAT-4: per consumer, the latest broker message to reach it on screen (when it lands, and what it says). */
   private inbox = new Map<string, { at: number; label: string }>();
+  /** When the latest publish reaches the broker: that tick's deliveries leave only once it has landed. */
+  private published = { tick: -1, at: 0 };
   /** Per reader (element#instance): the latest gathering and the one before it. */
   private gatherings = new Map<string, Gathering[]>();
 
@@ -202,6 +204,7 @@ export class Runner {
     this.inbox.clear();
     this.hold = { tick: -1, at: 0 };
     this.runGate = { id: '', at: 0 };
+    this.published = { tick: -1, at: 0 };
     this.frac = 0;
     this.ingestTokens();
     this.handshakeUntil = Math.max(this.anim, ...this.visuals.map((v) => v.born + v.dur));
@@ -230,6 +233,7 @@ export class Runner {
     this.inbox.clear();
     this.hold = { tick: -1, at: 0 };
     this.runGate = { id: '', at: 0 };
+    this.published = { tick: -1, at: 0 };
     this.frac = 0;
     this.emit();
   }
@@ -265,6 +269,7 @@ export class Runner {
     this.legCursor = this.anim;
     this.hold = { tick: -1, at: 0 };
     this.runGate = { id: '', at: 0 };
+    this.published = { tick: -1, at: 0 };
     this.emit();
   }
 
@@ -342,6 +347,8 @@ export class Runner {
         const g = list[list.length - 1];
         if (g && g.tick === t.start) now = Math.max(now, g.lastAt);
       }
+      // The broker forwards a message only once the publish has reached it (retained catch-ups have no publish).
+      if (t.edge === 'broker>deliver>consumer' && t.start === this.published.tick) now = Math.max(now, this.published.at);
       let born = now;
       let abreast = 0;
       if (t.role) {
@@ -381,6 +388,7 @@ export class Runner {
       const same = this.visuals.filter((v) => `${v.token.edge}#${v.token.instance ?? ''}#${v.token.role ?? ''}` === key);
       if (same.length >= MAX_PER_EDGE) this.visuals.splice(this.visuals.indexOf(same[0]!), 1);
       this.visuals.push({ token: t, born, dur, lineage, ...(abreast ? { abreast } : {}) });
+      if (t.edge.endsWith('>publish>broker')) this.published = { tick: t.start, at: born + dur };
       if (t.role) this.gather(t, born, dur);
       if (t.edge === 'broker>deliver>consumer' && t.instance) this.inbox.set(t.instance, { at: born + dur, label: noticeOf(t) });
     }

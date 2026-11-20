@@ -38,3 +38,32 @@ describe('trigger timing (issue #35)', () => {
     expect(gatedSeen).toBe(true);
   });
 });
+
+describe('announcement timing', () => {
+  it('the broker delivers only once the publish has reached it, and consumers read only after delivery', () => {
+    const r = new Runner('demo', 4);
+    r.running = true;
+    let publish: { born: number; dur: number } | undefined;
+    let deliveries = 0;
+    let reads = 0;
+    play(r, 60, () => {
+      for (const { v } of r.tokens) {
+        const e = v.token.edge;
+        if (e === 'announcer>publish>broker') publish ??= { born: v.born, dur: v.dur };
+        if (!publish) continue;
+        const lands = publish.born + publish.dur;
+        if (e === 'broker>deliver>consumer' && v.token.start >= 16) {
+          expect(v.born).toBeGreaterThanOrEqual(lands - 1e-6);
+          deliveries++;
+        }
+        if (e === 'consumer>query>pygeoapi' && v.token.role === 'request') {
+          expect(v.born).toBeGreaterThanOrEqual(lands + v.dur - 1e-6);
+          reads++;
+        }
+      }
+    });
+    expect(publish).toBeDefined();
+    expect(deliveries).toBeGreaterThan(0);
+    expect(reads).toBeGreaterThan(0);
+  });
+});
