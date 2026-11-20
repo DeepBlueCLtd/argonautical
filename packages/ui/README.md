@@ -4,7 +4,7 @@ The browser demonstrator and the explanatory site shell. React + SVG, built with
 
 | Path | Page |
 |---|---|
-| `index.html`, `src/site.css` | The explanatory site at `/`. **Placeholder sections** (`<section class="placeholder">`) mark where the explanatory content goes. |
+| `index.html`, `src/site.css` | The explanatory site at `/`: what the screen shows, why the pipeline is asset-driven, build vs adopt, robustness, the production architecture and scenarios to try. (`.placeholder` and `.todo` in `site.css` remain for new sections still to be written.) |
 | `demo/index.html`, `src/` | The demonstrator at `/demo/`. |
 
 ## How it is built
