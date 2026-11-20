@@ -1,5 +1,16 @@
 [
   {
+    "number": 39,
+    "title": "Demonstrator: hand-drawn sketch makeover",
+    "summary": "Gives the demonstrator a hand-drawn look, as set out in docs/sketch-makeover-spec.md. The diagram's meanings (SRD §5.3) are unchanged: solid outline is ours, dashed is off-the-shelf, double is our store, and green, amber and red keep…",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/39",
+    "branch": "claude/loving-goldberg-nzebfu",
+    "sha": "07dc951ae0b025af158266ac59de951afa27f03f",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-20T14:45:34.710Z"
+  },
+  {
     "number": 38,
     "title": "Spec: hand-drawn makeover of the demonstrator",
     "summary": "A spec for giving the demonstrator a hand-drawn (\"draft\") look: rough.js sketchy outlines, connectors and tokens, a hand font for headings, graph-paper background. The diagram's meaning stays the same (SRD §5.3, UI-1…UI-9). Spec only.…",
