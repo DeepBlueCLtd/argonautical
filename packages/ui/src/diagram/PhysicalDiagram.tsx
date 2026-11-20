@@ -7,7 +7,9 @@ import { EDGES, STANDARDS, windowsLabel, type Snapshot } from '@argonautical/sim
 import { useMemo, type ReactNode } from 'react';
 import { topicShort, type Runner } from '../runner.ts';
 import { measurementTopicRows } from './Diagram.tsx';
-import { Box, ControlPanel, Inspectable, type InspectId, DocToken, Module, PlayPause, QueueTab, Shim, Store, T, Tokens, type Controls, type Picked, type TokenTip } from './Diagram.tsx';
+import { Paper, SLine, SRect } from '../sketch/Sketch.tsx';
+import { sketchLine, sketchPts } from '../sketch/sketch.ts';
+import { ARROW_D, Box, ControlPanel, Inspectable, type InspectId, DocToken, Module, PlayPause, QueueTab, Shim, Store, T, Tokens, type Controls, type Picked, type TokenTip } from './Diagram.tsx';
 import { pathD, pointAt, VIEW, type Pt, type Rect } from './layout.ts';
 import { ALL_GATES, CONSUMER_SLOT, LINK_GEOM, NODE_RECTS, OPS_STATIC, PIPES_CHIP, PROCESS_RECTS, P_RECTS, SHORE_ZONE, TOKEN_KEY_P, ZONE_BANDS, consumerRectP, routePhysical } from './physical.ts';
 
@@ -74,10 +76,10 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
     <svg className="diagram physical" viewBox={`0 0 ${VIEW.w} ${VIEW.h}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Forecast pipeline physical view">
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" className="arrowhead" />
+          <path d={ARROW_D} className="arrowhead" />
         </marker>
         <marker id="arrow-release" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" className="arrowhead release" />
+          <path d={ARROW_D} className="arrowhead release" />
         </marker>
         <filter id="offline-halo" x="-30%" y="-30%" width="160%" height="160%">
           <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="b" />
@@ -89,6 +91,7 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
           </feMerge>
         </filter>
       </defs>
+      <Paper w={VIEW.w} h={VIEW.h} />
 
       {/* Zones, left to right (SYS-3) */}
       <g className="zones">
@@ -97,14 +100,14 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
           return (
             <g key={z}>
               <rect className={`zone-band z${i % 2}`} x={b.x0} y={0} width={b.x1 - b.x0} height={VIEW.h} />
-              {i > 0 && <line className="boundary" x1={b.x0} y1={0} x2={b.x0} y2={VIEW.h} />}
+              {i > 0 && <SLine className="boundary" x1={b.x0} y1={0} x2={b.x0} y2={VIEW.h} />}
               <T x={(b.x0 + b.x1) / 2} y={z === 'ot' ? 834 : 14} cls="region-label" anchor="middle">
                 {ZONE_LABELS[z]}
               </T>
             </g>
           );
         })}
-        <rect className="zone-shore" x={SHORE_ZONE.x} y={SHORE_ZONE.y} width={SHORE_ZONE.w} height={SHORE_ZONE.h} rx={8} />
+        <SRect className="zone-shore" x={SHORE_ZONE.x} y={SHORE_ZONE.y} width={SHORE_ZONE.w} height={SHORE_ZONE.h} rx={8} />
         <T x={SHORE_ZONE.x + 12} y={SHORE_ZONE.y + 18} cls="region-label">
           SHORE · OFF SHIP
         </T>
@@ -121,7 +124,7 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
             const r = NODE_RECTS[n];
             return (
               <g key={n} className={`node ${nodeState[n] ?? ''}`} filter={nodeState[n] === 'offline' ? 'url(#offline-halo)' : undefined}>
-                <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={6} />
+                <SRect x={r.x} y={r.y} width={r.w} height={r.h} rx={6} state={nodeState[n] ?? ''} />
                 <T x={r.x + 6} y={r.y - 4} cls="node-label">
                   {NODE_LABELS[n]}
                   {nodeState[n] === 'offline' ? ' · OFFLINE' : ''}
@@ -130,11 +133,11 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
             );
           })}
         <g className="process">
-          <rect x={PROCESS_RECTS.daemon.x} y={PROCESS_RECTS.daemon.y} width={PROCESS_RECTS.daemon.w} height={PROCESS_RECTS.daemon.h} rx={4} />
+          <SRect x={PROCESS_RECTS.daemon.x} y={PROCESS_RECTS.daemon.y} width={PROCESS_RECTS.daemon.w} height={PROCESS_RECTS.daemon.h} rx={4} />
           <T x={PROCESS_RECTS.daemon.x + 8} y={PROCESS_RECTS.daemon.y + 14} cls="tiny process-label">
             dagster-daemon · sensors, schedules, run queue
           </T>
-          <rect x={PROCESS_RECTS.codeLocation.x} y={PROCESS_RECTS.codeLocation.y} width={PROCESS_RECTS.codeLocation.w} height={PROCESS_RECTS.codeLocation.h} rx={4} />
+          <SRect x={PROCESS_RECTS.codeLocation.x} y={PROCESS_RECTS.codeLocation.y} width={PROCESS_RECTS.codeLocation.w} height={PROCESS_RECTS.codeLocation.h} rx={4} />
           <T x={PROCESS_RECTS.codeLocation.x + 8} y={PROCESS_RECTS.codeLocation.y + 16} cls="tiny process-label">
             code-location process · assets · shims · our in-process modules
           </T>
@@ -147,12 +150,12 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
       {/* Network links; firewall gates where they cross a zone boundary */}
       <g className="links">
         {Object.entries(LINK_GEOM).map(([k, g]) => (
-          <path key={k} className={`link ${k === 'ops|shore' ? `satcom ${snap.shore.linkUp ? 'up' : 'down'}` : ''}`} d={pathD(g.pts)} />
+          <path key={k} className={`link ${k === 'ops|shore' ? `satcom ${snap.shore.linkUp ? 'up' : 'down'}` : ''}`} d={sketchPts(g.pts)} />
         ))}
         {routes
           .filter((r) => !r.edge.logical)
           .map((r) => (
-            <path key={r.key} className="track" d={pathD(r.points)} />
+            <path key={r.key} className="track" d={sketchPts(r.points)} />
           ))}
       </g>
 
@@ -215,7 +218,7 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
 
       {/* Orchestration node */}
       <g className="static-part">
-        <rect x={284} y={50} width={120} height={30} rx={3} />
+        <SRect x={284} y={50} width={120} height={30} rx={3} />
         <T x={290} y={62} cls="tiny">
           Dagster webserver
         </T>
@@ -383,7 +386,7 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
       </g>
       {(['registry', 'observability', 'backup'] as const).map((k) => (
         <g key={k} className="static-part">
-          <rect x={OPS_STATIC[k].x} y={OPS_STATIC[k].y} width={OPS_STATIC[k].w} height={OPS_STATIC[k].h} rx={3} />
+          <SRect x={OPS_STATIC[k].x} y={OPS_STATIC[k].y} width={OPS_STATIC[k].w} height={OPS_STATIC[k].h} rx={3} />
           <T x={OPS_STATIC[k].x + 6} y={OPS_STATIC[k].y + 12} cls="tiny">
             {k === 'registry' ? 'Registry · N, N-1' : k === 'observability' ? 'Observability' : 'Backup · nightly'}
           </T>
@@ -393,7 +396,7 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
         </g>
       ))}
       <g className={`terminal ${snap.shore.linkUp ? 'up' : 'down'}`}>
-        <rect x={OPS_STATIC.terminal.x} y={OPS_STATIC.terminal.y} width={OPS_STATIC.terminal.w} height={OPS_STATIC.terminal.h} rx={3} />
+        <SRect x={OPS_STATIC.terminal.x} y={OPS_STATIC.terminal.y} width={OPS_STATIC.terminal.w} height={OPS_STATIC.terminal.h} rx={3} state={snap.shore.linkUp ? 'up' : 'down'} />
         <T x={OPS_STATIC.terminal.x + 6} y={OPS_STATIC.terminal.y + 14} cls="tiny title-sm">
           Satcom
         </T>
@@ -405,7 +408,7 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
         </T>
       </g>
       <g className="static-part">
-        <rect x={OPS_STATIC.time.x} y={OPS_STATIC.time.y} width={OPS_STATIC.time.w} height={OPS_STATIC.time.h} rx={3} />
+        <SRect x={OPS_STATIC.time.x} y={OPS_STATIC.time.y} width={OPS_STATIC.time.w} height={OPS_STATIC.time.h} rx={3} />
         <T x={OPS_STATIC.time.x + 6} y={OPS_STATIC.time.y + 13} cls="tiny">
           Time (GNSS)
         </T>
@@ -519,7 +522,7 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
         {ALL_GATES.map((g, i) => (
           <g key={i} className={`gate ${lit.has(i) ? 'lit' : ''}`}>
             <title>{g.label ?? 'firewall'}</title>
-            <rect x={g.at.x - 7} y={g.at.y - 9} width={14} height={18} rx={2} />
+            <SRect x={g.at.x - 7} y={g.at.y - 9} width={14} height={18} rx={2} state={lit.has(i) ? 'lit' : ''} />
             <text x={g.at.x} y={g.at.y + 3} textAnchor="middle" className="gate-text">
               FW
             </text>
@@ -529,7 +532,7 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
 
       {/* Compact token key */}
       <g className="token-key" aria-label="Token key">
-        <rect x={TOKEN_KEY_P.x} y={TOKEN_KEY_P.y} width={TOKEN_KEY_P.w} height={TOKEN_KEY_P.h} rx={6} />
+        <SRect x={TOKEN_KEY_P.x} y={TOKEN_KEY_P.y} width={TOKEN_KEY_P.w} height={TOKEN_KEY_P.h} rx={6} />
         <T x={TOKEN_KEY_P.x + 12} y={TOKEN_KEY_P.y + 20} cls="small title-sm">
           Token key · letter = standard of the content
         </T>
@@ -563,7 +566,7 @@ export function PhysicalDiagram(props: { snap: Snapshot; runner: Runner; onPick:
 function Chip({ r, cls, title, sub }: { r: Rect; cls: string; title: string; sub: string }) {
   return (
     <g className={`chip ${cls}`}>
-      <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={cls.startsWith('asset') ? 8 : 3} />
+      <SRect x={r.x} y={r.y} width={r.w} height={r.h} rx={cls.startsWith('asset') ? 8 : 3} state={cls} />
       <text x={r.x + 7} y={r.y + 14} className="tiny title-sm chip-title">
         {title}
       </text>

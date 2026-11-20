@@ -222,6 +222,8 @@ These styles show the **production** build-vs-adopt decision (`docs/system-archi
 
 The prototype used the Industry design system (steel blue, Barlow Condensed and Barlow, square blueprint frames with corner marks). A fresh UI may choose another system, but should keep the one-meaning-per-colour rule. Green, amber and red were added beyond the mono-accent palette.
 
+The demonstrator is now drawn in a hand-drawn sketch style (`docs/sketch-makeover-spec.md`): wobbly outlines and connectors, hand-lettered headings, graph paper. The meanings above are unchanged: solid is ours, dashed is off-the-shelf, double is our store.
+
 ### 5.4 Controls
 
 Controls fall into three kinds, and each kind looks different so the audience can tell who would really have it:
