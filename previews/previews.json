@@ -1,5 +1,16 @@
 [
   {
+    "number": 40,
+    "title": "Site: fill in the welcome page",
+    "summary": "Replaces the six placeholder sections on the welcome page (/) with content taken from the SRD, docs/system-architecture.md and the current demonstrator:",
+    "prUrl": "https://github.com/DeepBlueCLtd/argonautical/pull/40",
+    "branch": "claude/gracious-cray-ojyozg",
+    "sha": "3da00b0edd45c8706465aea6dd380d1a745492d0",
+    "author": "IanMayo",
+    "status": "open",
+    "updated": "2026-11-20T15:26:20.871Z"
+  },
+  {
     "number": 39,
     "title": "Demonstrator: hand-drawn sketch makeover",
     "summary": "Gives the demonstrator a hand-drawn look, as set out in docs/sketch-makeover-spec.md. The diagram's meanings (SRD §5.3) are unchanged: solid outline is ours, dashed is off-the-shelf, double is our store, and green, amber and red keep…",
