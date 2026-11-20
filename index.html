@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Argonautical · Forecast Pipeline</title>
     <meta name="description" content="An onboard ocean-forecast pipeline, explained, with a live browser demonstrator." />
-    <link rel="stylesheet" crossorigin href="./assets/site-7JXbjsDu.css">
+    <link rel="stylesheet" crossorigin href="./assets/site-Bz3OWb-n.css">
   </head>
   <body>
     <header class="hero">
@@ -20,39 +20,161 @@
     </header>
 
     <main>
-      <!--
-        EXPLANATORY CONTENT GOES HERE.
-        Each <section class="placeholder"> below is a slot for content still to be written.
-        Replace the section body and remove the "placeholder" class when it is filled.
-      -->
-      <section id="what-you-see" class="placeholder">
+      <section id="what-you-see">
         <h2>What you are looking at</h2>
-        <p class="todo">Placeholder: a guided description of the screen: the World, System and Consumers regions, the asset graph, tokens and countdowns.</p>
+        <p>
+          The demonstrator opens paused at T+00:00 with a short walkthrough. Press <kbd>?</kbd> in the Control panel to
+          replay it. There are three views of the same running simulation, chosen with the switch in the Control panel.
+          Switching views never changes what the simulation does.
+        </p>
+        <ul>
+          <li><strong>Artefacts</strong> (the default): the orchestrator's dependency graph. It shows the three triggers,
+            the assets they materialise (forecast, features, announcement) and each shim calling one of our modules. It
+            also shows the messages that feed the orchestrator and carry its output to consumers.</li>
+          <li><strong>Logical</strong>: the whole information flow, in three regions. <em>World</em> is the ocean and the
+            ship's sensors. <em>System</em> holds ingestion, the orchestrator, the stores and pygeoapi.
+            <em>Onboard consumers</em> are the systems that use the forecast. The broker sits on the System–Consumers
+            boundary.</li>
+          <li><strong>Physical</strong>: the same traffic laid over a candidate shipboard deployment, with network zones,
+            nodes and firewall gates.</li>
+        </ul>
+        <p>
+          <strong>Tokens</strong> are the small lettered documents moving along the lines. Each one is a real call,
+          write, read or message in the simulation, lettered by the standard it follows (S SensorThings, E EDR,
+          C CoverageJSON, M MQTT and so on; the key is at the foot of the consumers column). Hover a token to see what
+          it carries. Pause, then click it to see a mock payload. <strong>Countdowns</strong> show what will happen
+          next: the drift sensor's next check, when the forecast goes stale, and retry timers. Click a store to see its
+          rows.
+        </p>
       </section>
 
-      <section id="why-asset-driven" class="placeholder">
+      <section id="why-asset-driven">
         <h2>Why an asset-driven pipeline</h2>
-        <p class="todo">Placeholder: drift, staleness and manual triggers; one run at a time; queue and merge.</p>
+        <p>
+          The orchestrator does not run a fixed job on a timer. It keeps a graph of data assets
+          (observations, climatology, the previous forecast, forecast, features, announcement) and rebuilds what is
+          out of date when something gives it a reason. There are three reasons, or triggers:
+        </p>
+        <ul>
+          <li><strong>Drift</strong>: every 10 s the drift monitor compares recent observations with the current
+            forecast. If enough inputs disagree for long enough, it requests a run.</li>
+          <li><strong>Staleness</strong>: a forecast older than 180 s is replaced on schedule, even if nothing has drifted.</li>
+          <li><strong>Manual</strong>: the watchkeeper asks for a run through the run-request API.</li>
+        </ul>
+        <p>
+          Only one run happens at a time. A request that arrives during a run waits in a queue. Later requests merge
+          into the queued one, and the log records every cause (for example <code>drift + manual</code>). So a burst of
+          triggers costs one extra run, not many. Each asset records when it was last built, so it is always clear how
+          fresh the forecast is and why it was rebuilt.
+        </p>
       </section>
 
-      <section id="build-vs-adopt" class="placeholder">
+      <section id="build-vs-adopt">
         <h2>Build vs adopt</h2>
-        <p class="todo">Placeholder: which components are ours (the special sauce) and which are open-source commodity, and how the styling shows it.</p>
+        <p>
+          We build only the parts that make the system worth having. Commodity parts are adopted from open source.
+          The screen uses one visual language for this:
+        </p>
+        <ul>
+          <li><strong>Solid outline, pale steel fill: ours.</strong> Ingestion, drift monitor, model runner, feature
+            detector, announcer, run-request API, and the shims.</li>
+          <li><strong>Dashed outline: off-the-shelf.</strong> The orchestrator (Dagster), the brokers (Mosquitto) and the
+            geospatial API (pygeoapi).</li>
+          <li><strong>Double outline: our data in an adopted store.</strong> Observations DB (Postgres), NetCDF store,
+            Features DB (PostGIS).</li>
+        </ul>
+        <p>
+          Each of our modules sits inside the asset it computes. The orchestrator reaches it only through a one-line
+          shim, and the modules import nothing from the orchestrator. The build checks this boundary and fails if it is
+          broken. That is what keeps the orchestrator replaceable.
+        </p>
+        <p>
+          <strong>Caveats.</strong> In the demonstrator every element is custom simulation code; the styling only
+          shows the production decision. Of our modules, the model runner is the real special sauce. Ingestion QC and
+          drift scoring are mostly standard techniques with our own thresholds. In production the shims will grow
+          some integration glue (request merging, capped retries), and that glue needs an owner.
+        </p>
       </section>
 
-      <section id="robustness" class="placeholder">
+      <section id="robustness">
         <h2>Robustness</h2>
-        <p class="todo">Placeholder: retries with backoff, verification by consumers, late joiners catching up.</p>
+        <ul>
+          <li><strong>Retries with backoff.</strong> Take the model runner or feature detector offline (the pause button
+            before its title). Its shim turns amber and retries after 2, 4, 8, then every 10 s. Nothing half-finished
+            is committed. Bring it back and the next retry completes the run. Retry belongs to the orchestrator, so
+            the countdown is on the shim, not in our code.</li>
+          <li><strong>Atomic commits.</strong> A forecast is staged and then committed in one step, with a digest. A
+            failed run leaves the previous forecast in place.</li>
+          <li><strong>Nothing lost in an outage.</strong> Stop ingestion or the Observations DB and readings queue in the
+            sensor broker. Start it again and the backlog drains in order, with every reading stored once.</li>
+          <li><strong>Consumers verify.</strong> Each consumer fetches what was announced and checks the digest or
+            feature count, showing ✓ or ✗.</li>
+          <li><strong>Late joiners catch up.</strong> A consumer added mid-run reads the broker's retained latest
+            announcement and fetches the current forecast at once.</li>
+          <li><strong>Bad data is rejected.</strong> Ingestion rejects non-numbers, out-of-range values and sudden
+            jumps, and logs the reason.</li>
+          <li><strong>Repeatable.</strong> The same seed and the same actions always give the same event log, so a demo
+            can be rehearsed and a fault reproduced.</li>
+        </ul>
+        <p class="note">
+          Demo simplification: retries here never give up. Production would cap them, raise an alert and let the
+          staleness schedule recover.
+        </p>
       </section>
 
-      <section id="architecture" class="placeholder">
+      <section id="architecture">
         <h2>Production architecture</h2>
-        <p class="todo">Placeholder: the candidate deployment (zones, nodes) and the optional system-architecture view.</p>
+        <p>
+          The <a href="./demo/?view=physical">physical view</a> shows a candidate deployment on the ship that works with
+          the shore link down. It has four zones, left to right:
+        </p>
+        <ul>
+          <li><strong>Instrument network (OT)</strong>: DAQ gateways, sensor broker and ingestion. It accepts no inbound
+            traffic from mission systems.</li>
+          <li><strong>Processing enclave</strong>: the orchestration node (Dagster, shims and our in-process modules), a
+            compute node for the model runner, a data node for the three stores, and an ops node for shore transfer.</li>
+          <li><strong>Distribution zone</strong>: pygeoapi, the broker and the run-request API, the only things
+            consumers can reach.</li>
+          <li><strong>Mission network</strong>: the watchkeeper's workstation and the onboard consumers.</li>
+        </ul>
+        <p>
+          Tokens follow real network links and light a firewall gate wherever they cross a zone. The shore link is up
+          for part of each cycle: new climatology arrives only when it is up, and export bundles wait in an outbox
+          when it is down. Parts with no simulated behaviour (observability, backup, registry) are greyed out.
+        </p>
+        <p class="note">
+          The module boundary is an import boundary, not a process boundary. Only the model runner gets its own
+          process (via Dagster Pipes). The 10 s drift check is demo time-compression; production would check every
+          30 s or more.
+        </p>
       </section>
 
-      <section id="scenarios" class="placeholder">
+      <section id="scenarios">
         <h2>Scenarios to try</h2>
-        <p class="todo">Placeholder: a short list of things to do in the demonstrator (and, later, the guided tours).</p>
+        <ol>
+          <li><strong>Drift.</strong> In Ocean, shift two or more inputs. Watch the drift chart move away from the
+            forecast until drift is declared. A new forecast is built, features are detected, the forecast is
+            announced and every consumer shows ✓.</li>
+          <li><strong>Staleness.</strong> Change nothing. When the staleness countdown reaches 0:00, a scheduled run
+            replaces the forecast.</li>
+          <li><strong>Queue and merge.</strong> Press <em>Request a run</em> on the Watchkeeper card during a run, then
+            press it again. The two requests become one queued run, and the log shows both causes.</li>
+          <li><strong>Module offline.</strong> Pause the model runner (on <code>forecast</code>) during a run. Watch the
+            amber retries, then resume it.</li>
+          <li><strong>Outage.</strong> Stop ingestion for 30 s. The sensor broker's queue grows, then drains when you
+            start it again.</li>
+          <li><strong>Noisy sensor.</strong> Raise a sensor's noise to 3σ. Open the event log to see the rejected spikes
+            and their reasons.</li>
+          <li><strong>Late joiner.</strong> After the first announcement, press <em>+ Consumer</em>. The new consumer
+            catches up at once.</li>
+          <li><strong>Capabilities.</strong> Switch the power off, add the wave-height sensor and future forecasts,
+            and switch on again. Watch the consumers tailor themselves to the catalogue during the handshake.</li>
+        </ol>
+        <p class="note">
+          Controls are coloured by who would really have them: teal for the sea and sensors, violet for the ship's
+          operator, and the Control panel for the presenter. Use the ½×–60× speeds to skip waits, and Step to move
+          one second at a time. Guided tours that play these scenarios without a presenter are planned.
+        </p>
       </section>
 
       <section id="documents">
